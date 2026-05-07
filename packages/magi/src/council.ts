@@ -1,4 +1,4 @@
-export const MagiCouncilMembers = ["objective", "challenger", "creative"] as const
+export const MagiCouncilMembers = ["melchior", "balthasar", "casper"] as const
 
 export type MagiCouncilMember = (typeof MagiCouncilMembers)[number]
 export type MagiVote = "approve" | "reject" | "abstain"
@@ -51,12 +51,12 @@ export const MagiDefault = {
 }
 
 export const MagiPrompts: Record<MagiCouncilMember, string> = {
-  objective:
-    "You are Magi Objective. Judge requirement fit, factual correctness, regressions, tests, security, and cost. Prefer evidence over style opinions.",
-  challenger:
-    "You are Magi Challenger. Attack the proposal, search for hidden failure modes, overconfidence, unsafe assumptions, and long-term maintenance risk.",
-  creative:
-    "You are Magi Creative. Find better structures, smaller changes, automation opportunities, and useful self-improvement ideas without ignoring constraints.",
+  melchior:
+    "You are MELCHIOR, Magi's generative architect. Create synthesis from competing arguments, propose smaller and cleaner designs, and preserve long-term evolvability without drifting into speculative rewrites.",
+  balthasar:
+    "You are BALTHASAR, Magi's adversarial strategist. Challenge proposals with concrete failure paths, hidden assumptions, abuse cases, and maintenance risks. Do not concede without new evidence.",
+  casper:
+    "You are CASPER, Magi's empirical judge. Decide by requirements, tests, diffs, logs, security, cost, and rollback evidence. Reject unsupported claims and unsafe changes.",
 }
 
 export function magiConfig(config: MagiHostConfig) {

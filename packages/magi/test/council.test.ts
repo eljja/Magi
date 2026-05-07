@@ -11,8 +11,8 @@ import {
 
 describe("Magi council", () => {
   test("normalizes council members to the three supported roles", () => {
-    expect(normalizeMembers(["objective", "unknown", "creative"])).toEqual(["objective", "creative"])
-    expect(normalizeMembers(["unknown"])).toEqual(["objective", "challenger", "creative"])
+    expect(normalizeMembers(["melchior", "unknown", "casper"])).toEqual(["melchior", "casper"])
+    expect(normalizeMembers(["unknown"])).toEqual(["melchior", "balthasar", "casper"])
   })
 
   test("keeps public default self-improvement off", () => {
@@ -50,9 +50,9 @@ describe("Magi council", () => {
   test("uses majority voting by default", () => {
     expect(
       majorityApproved([
-        { member: "objective", vote: "approve", rationale: "fits" },
-        { member: "challenger", vote: "reject", rationale: "risk" },
-        { member: "creative", vote: "approve", rationale: "better" },
+        { member: "melchior", vote: "approve", rationale: "fits" },
+        { member: "balthasar", vote: "reject", rationale: "risk" },
+        { member: "casper", vote: "approve", rationale: "better" },
       ]),
     ).toBe(true)
   })

@@ -204,7 +204,7 @@ test("loads Magi dual-model council config", async () => {
             council: "lmstudio/qwen/qwen3-coder-local",
           },
           council: {
-            members: ["objective", "challenger", "creative"],
+            members: ["melchior", "balthasar", "casper"],
             votePolicy: "majority",
             externalAppeal: false,
           },

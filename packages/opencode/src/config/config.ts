@@ -133,7 +133,7 @@ const MagiConfig = Schema.Struct({
   council: Schema.optional(
     Schema.Struct({
       members: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
-        description: "Magi council member IDs. Defaults to objective, challenger, and creative.",
+        description: "Magi council member IDs. Defaults to melchior, balthasar, and casper.",
       }),
       votePolicy: Schema.optional(Schema.Literals(["majority", "unanimous"])).annotate({
         description: "Voting policy used for Magi council decisions.",

@@ -11,9 +11,11 @@ Magi-specific core logic lives in `packages/magi` so OpenCode upstream updates c
 
 ## Council Members
 
-- `objective` checks requirements, regressions, test evidence, security, and cost.
-- `challenger` searches for hidden failure modes and unsafe assumptions.
-- `creative` proposes smaller structures, automation, and self-improvement ideas.
+- `melchior` is MELCHIOR, the generative architect. It synthesizes conflicting arguments into better designs, simplification, automation, and long-term evolvability.
+- `balthasar` is BALTHASAR, the adversarial strategist. It challenges proposals through concrete failure paths, hidden assumptions, unsafe autonomy, and maintenance risk.
+- `casper` is CASPER, the empirical judge. It decides by requirements, tests, diffs, logs, security, cost, and rollback evidence.
+
+The three members should debate through thesis, antithesis, and synthesis before falling back to majority vote. They must not concede without citing a concrete new fact, contradiction, test result, or lower-risk alternative.
 
 ## Self Improvement
 

@@ -740,7 +740,7 @@ export const dict = {
     "External model used by Magi for implementation, complex design, and large code changes.",
   "settings.general.row.magiCouncilModel.title": "Local council model",
   "settings.general.row.magiCouncilModel.description":
-    "LM Studio model used by the Objective, Challenger, and Creative council members.",
+    "LM Studio model used by the MELCHIOR, BALTHASAR, and CASPER council members.",
   "settings.general.row.magiSelfImprovement.title": "Self Improvement",
   "settings.general.row.magiSelfImprovement.description":
     "Allow Magi to continuously propose and run majority-approved improvement tasks.",
