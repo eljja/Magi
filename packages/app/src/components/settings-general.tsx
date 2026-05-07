@@ -29,6 +29,7 @@ import {
 import { decode64 } from "@/utils/base64"
 import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
 import { Link } from "./link"
+import { MagiSettingsRows } from "./magi-settings-rows"
 import { SettingsList } from "./settings-list"
 
 let demoSoundState = {
@@ -338,6 +339,8 @@ export const SettingsGeneral: Component = () => {
             triggerStyle={{ "min-width": "180px" }}
           />
         </SettingsRow>
+
+        <MagiSettingsRows />
 
         <SettingsRow
           title={language.t("settings.general.row.reasoningSummaries.title")}

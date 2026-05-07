@@ -1101,6 +1101,24 @@ export type McpRemoteConfig = {
  */
 export type LayoutConfig = "auto" | "stretch"
 
+export type MagiConfig = {
+  models?: {
+    executor?: string
+    council?: string
+  }
+  council?: {
+    members?: Array<string>
+    votePolicy?: "majority" | "unanimous"
+    externalAppeal?: boolean
+  }
+  selfImprovement?: {
+    enabled?: boolean
+    state?: "off" | "on" | "paused"
+    mode?: "suggest-only" | "suggest-and-execute"
+    coreSelfEdit?: "disabled" | "gated" | "allowed"
+  }
+}
+
 export type Config = {
   $schema?: string
   shell?: string
@@ -1162,6 +1180,7 @@ export type Config = {
   provider?: {
     [key: string]: ProviderConfig
   }
+  magi?: MagiConfig
   mcp?: {
     [key: string]:
       | McpLocalConfig

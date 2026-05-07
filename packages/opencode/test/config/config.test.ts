@@ -179,6 +179,57 @@ test("loads shell config field", async () => {
   })
 })
 
+test("loads Magi dual-model council config", async () => {
+  await using tmp = await tmpdir({
+    init: async (dir) => {
+      await writeConfig(dir, {
+        $schema: "https://opencode.ai/config.json",
+        provider: {
+          lmstudio: {
+            npm: "@ai-sdk/openai-compatible",
+            name: "LM Studio (local)",
+            options: {
+              baseURL: "http://127.0.0.1:1234/v1",
+            },
+            models: {
+              "qwen/qwen3-coder-local": {
+                name: "Qwen3 Coder Local",
+              },
+            },
+          },
+        },
+        magi: {
+          models: {
+            executor: "openai/gpt-5.2",
+            council: "lmstudio/qwen/qwen3-coder-local",
+          },
+          council: {
+            members: ["objective", "challenger", "creative"],
+            votePolicy: "majority",
+            externalAppeal: false,
+          },
+          selfImprovement: {
+            enabled: false,
+            state: "off",
+            mode: "suggest-and-execute",
+            coreSelfEdit: "gated",
+          },
+        },
+      })
+    },
+  })
+  await WithInstance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      const config = await load()
+      expect(config.magi?.models?.executor).toBe("openai/gpt-5.2")
+      expect(config.magi?.models?.council).toBe("lmstudio/qwen/qwen3-coder-local")
+      expect(config.magi?.selfImprovement?.enabled).toBe(false)
+      expect(config.magi?.selfImprovement?.state).toBe("off")
+    },
+  })
+})
+
 test("updates config and preserves empty shell sentinel", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {

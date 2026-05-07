@@ -24,6 +24,7 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { messageAgentColor } from "@/utils/agent"
 import { decode64 } from "@/utils/base64"
 import { Persist, persisted } from "@/utils/persist"
+import { MagiSelfImprovementToggle } from "../magi-self-improvement-toggle"
 import { StatusPopover } from "../status-popover"
 
 const OPEN_APPS = [
@@ -448,6 +449,8 @@ export function SessionHeader() {
                     </Button>
                   </TooltipKeybind>
                 </Show>
+
+                <MagiSelfImprovementToggle />
 
                 <div class="hidden md:flex items-center gap-1 shrink-0">
                   <TooltipKeybind

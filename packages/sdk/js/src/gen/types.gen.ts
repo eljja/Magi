@@ -1172,6 +1172,39 @@ export type McpRemoteConfig = {
  */
 export type LayoutConfig = "auto" | "stretch"
 
+export type MagiConfig = {
+  /**
+   * Models used by Magi's dual-LLM architecture.
+   */
+  models?: {
+    /**
+     * High-performance model used for implementation and complex coding work.
+     */
+    executor?: string
+    /**
+     * Local model used by Magi council members for review, voting, and self-improvement decisions.
+     */
+    council?: string
+  }
+  /**
+   * Council voting and member configuration.
+   */
+  council?: {
+    members?: Array<string>
+    votePolicy?: "majority" | "unanimous"
+    externalAppeal?: boolean
+  }
+  /**
+   * Continuous self-improvement configuration.
+   */
+  selfImprovement?: {
+    enabled?: boolean
+    state?: "off" | "on" | "paused"
+    mode?: "suggest-only" | "suggest-and-execute"
+    coreSelfEdit?: "disabled" | "gated" | "allowed"
+  }
+}
+
 export type Config = {
   /**
    * JSON schema reference for configuration validation
@@ -1281,6 +1314,10 @@ export type Config = {
   provider?: {
     [key: string]: ProviderConfig
   }
+  /**
+   * Magi dual-LLM council and self-improvement configuration.
+   */
+  magi?: MagiConfig
   /**
    * MCP (Model Context Protocol) server configurations
    */

@@ -25,6 +25,7 @@ target
 
 # Local dev files
 opencode-dev
+.magi-app*.log
 UPCOMING_CHANGELOG.md
 logs/
 *.bun-build

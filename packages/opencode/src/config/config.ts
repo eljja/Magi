@@ -119,6 +119,51 @@ const LogLevelRef = Schema.Literals(["DEBUG", "INFO", "WARN", "ERROR"]).annotate
   description: "Log level",
 })
 
+const MagiConfig = Schema.Struct({
+  models: Schema.optional(
+    Schema.Struct({
+      executor: Schema.optional(ConfigModelID).annotate({
+        description: "High-performance model used for implementation and complex coding work.",
+      }),
+      council: Schema.optional(ConfigModelID).annotate({
+        description: "Local model used by Magi council members for review, voting, and self-improvement decisions.",
+      }),
+    }),
+  ),
+  council: Schema.optional(
+    Schema.Struct({
+      members: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
+        description: "Magi council member IDs. Defaults to objective, challenger, and creative.",
+      }),
+      votePolicy: Schema.optional(Schema.Literals(["majority", "unanimous"])).annotate({
+        description: "Voting policy used for Magi council decisions.",
+      }),
+      externalAppeal: Schema.optional(Schema.Boolean).annotate({
+        description: "Allow high-risk council decisions to request external model review. Defaults to false.",
+      }),
+    }),
+  ),
+  selfImprovement: Schema.optional(
+    Schema.Struct({
+      enabled: Schema.optional(Schema.Boolean).annotate({
+        description: "Enable the Magi continuous self-improvement loop.",
+      }),
+      state: Schema.optional(Schema.Literals(["off", "on", "paused"])).annotate({
+        description: "UI state for the Magi self-improvement loop.",
+      }),
+      mode: Schema.optional(Schema.Literals(["suggest-only", "suggest-and-execute"])).annotate({
+        description: "How Magi handles approved self-improvement proposals.",
+      }),
+      coreSelfEdit: Schema.optional(Schema.Literals(["disabled", "gated", "allowed"])).annotate({
+        description: "Policy for Magi changes to core execution and governance code.",
+      }),
+    }),
+  ),
+}).annotate({
+  identifier: "MagiConfig",
+  description: "Magi dual-LLM council configuration.",
+})
+
 // The Effect Schema is the canonical source of truth. The `.zod` compatibility
 // surface is derived so existing Hono validators keep working without a parallel
 // Zod definition.
@@ -211,6 +256,9 @@ export const Info = Schema.Struct({
   ).annotate({ description: "Agent configuration, see https://opencode.ai/docs/agents" }),
   provider: Schema.optional(Schema.Record(Schema.String, ConfigProvider.Info)).annotate({
     description: "Custom provider configurations and model overrides",
+  }),
+  magi: Schema.optional(MagiConfig).annotate({
+    description: "Magi dual-LLM council and self-improvement configuration.",
   }),
   mcp: Schema.optional(
     Schema.Record(

@@ -735,6 +735,22 @@ export const dict = {
     "Choose the shell used for your terminal. Compatible shells are also used for agent tool calls.",
   "settings.general.row.shell.autoDefault": "Auto (Default)",
   "settings.general.row.shell.terminalOnly": "terminal only",
+  "settings.general.row.magiExecutorModel.title": "High-performance coding model",
+  "settings.general.row.magiExecutorModel.description":
+    "External model used by Magi for implementation, complex design, and large code changes.",
+  "settings.general.row.magiCouncilModel.title": "Local council model",
+  "settings.general.row.magiCouncilModel.description":
+    "LM Studio model used by the Objective, Challenger, and Creative council members.",
+  "settings.general.row.magiSelfImprovement.title": "Self Improvement",
+  "settings.general.row.magiSelfImprovement.description":
+    "Allow Magi to continuously propose and run majority-approved improvement tasks.",
+  "magi.selfImprovement.toggle.on": "Self Improvement: On",
+  "magi.selfImprovement.toggle.off": "Self Improvement: Off",
+  "magi.selfImprovement.toggle.paused": "Self Improvement: Paused",
+  "magi.selfImprovement.toast.on.title": "Self Improvement enabled",
+  "magi.selfImprovement.toast.on.description": "Magi can now create majority-approved improvement tasks.",
+  "magi.selfImprovement.toast.off.title": "Self Improvement disabled",
+  "magi.selfImprovement.toast.off.description": "Magi will keep reviewing work but will not start improvement tasks.",
   "settings.general.row.appearance.title": "Appearance",
   "settings.general.row.appearance.description": "Customise how OpenCode looks on your device",
   "settings.general.row.colorScheme.title": "Color scheme",
