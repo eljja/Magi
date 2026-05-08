@@ -8,8 +8,10 @@ import {
   magiReviewResult,
   majorityApproved,
   majorityPosition,
+  nextCouncilProposer,
   normalizeJudgment,
   normalizeMembers,
+  selfImprovementExecutorPrompt,
   selfImprovementEnabled,
   shouldCreateImprovementTask,
   shouldContinueDebate,
@@ -162,13 +164,62 @@ describe("Magi council", () => {
   })
 
   test("builds a self-improvement prompt for local council review", () => {
-    const prompt = buildSelfImprovementQuestion({ recentWork: "Changed the settings UI.", cycle: 2 })
+    const prompt = buildSelfImprovementQuestion({
+      recentWork: "Changed the settings UI.",
+      cycle: 2,
+      proposer: "balthasar",
+      previousCompleted: false,
+    })
     expect(prompt).toContain("Magi council task: self-improvement")
     expect(prompt).toContain("autonomous self-improvement cycle #2")
+    expect(prompt).toContain("Current proposal owner: BALTHASAR")
+    expect(prompt).toContain("keeps priority")
     expect(prompt).toContain("exact executor input")
     expect(prompt).toContain("STOP_SELF_IMPROVEMENT")
     expect(prompt).toContain("Recent work:")
     expect(prompt).toContain("approve, revise, or reject")
+  })
+
+  test("rotates proposal ownership after completed work", () => {
+    expect(nextCouncilProposer(["melchior", "balthasar", "casper"], "melchior")).toBe("balthasar")
+    expect(nextCouncilProposer(["melchior", "balthasar", "casper"], "casper")).toBe("melchior")
+  })
+
+  test("prefers the current proposer's executor prompt", () => {
+    expect(
+      selfImprovementExecutorPrompt({
+        proposer: "balthasar",
+        rounds: [
+          {
+            round: 1,
+            newEvidence: false,
+            decisions: [
+              {
+                member: "melchior",
+                vote: "approve",
+                position: "approve",
+                rationale: "fine",
+                requiredChange: "Implement Melchior's alternative.",
+              },
+              {
+                member: "balthasar",
+                vote: "approve",
+                position: "approve",
+                rationale: "owned",
+                requiredChange: "Implement Balthasar's safety hardening.",
+              },
+              {
+                member: "casper",
+                vote: "approve",
+                position: "approve",
+                rationale: "fine",
+                requiredChange: "Implement Casper's polish.",
+              },
+            ],
+          },
+        ],
+      }),
+    ).toBe("Implement Balthasar's safety hardening.")
   })
 
   test("only stops self-improvement when every member explicitly votes for terminal stop", () => {

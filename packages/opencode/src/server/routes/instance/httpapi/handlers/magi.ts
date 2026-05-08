@@ -9,9 +9,11 @@ import {
   canExecuteImprovementTask,
   magiConfig,
   magiReviewResult,
+  nextCouncilProposer,
   normalizeJudgment,
   shouldContinueDebate,
   shouldStopSelfImprovement,
+  selfImprovementExecutorPrompt,
   type MagiCouncilMember,
   type MagiDecision,
   type MagiDebateRound,
@@ -62,6 +64,15 @@ type MagiActivity = {
   votes: MagiActivityVote[]
 }
 
+type MagiCouncilResult = {
+  sessionID: SessionID
+  memberSessionIDs: Record<MagiCouncilMember, SessionID>
+  rounds: MagiDebateRound[]
+  finalPosition: MagiPosition
+  approved: boolean
+  executed: boolean
+}
+
 const uniqueModels = (models: string[]) => models.filter((model, index) => model && models.indexOf(model) === index)
 
 const topicLine = (input: string) => input.trim().split("\n").find((line) => line.trim())?.trim().slice(0, 120) ?? "Magi"
@@ -105,6 +116,7 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
       evidence?: string
       kind: MagiTaskKind
       execute: boolean
+      proposer?: MagiCouncilMember
     }) {
       const cfg = yield* config.get()
       const resolved = magiConfig(cfg)
@@ -271,7 +283,11 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
       }
 
       const result = magiReviewResult({ config: cfg, rounds })
-      const executed = input.execute && result.approved
+      const executorTask =
+        input.kind === "self-improvement" && input.proposer
+          ? selfImprovementExecutorPrompt({ rounds: result.rounds, proposer: input.proposer })
+          : input.proposal
+      const executed = input.execute && result.approved && executorTask !== undefined
       activity = activity && {
         ...activity,
         state: executed ? "executing" : "decided",
@@ -291,10 +307,13 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
                 "Magi council approved this task. Execute it within the current repository constraints.",
                 "",
                 "Task:",
-                input.proposal,
+                executorTask,
                 input.evidence ? "" : undefined,
                 input.evidence ? "Evidence:" : undefined,
                 input.evidence,
+                input.kind === "self-improvement" ? "" : undefined,
+                input.kind === "self-improvement" ? "Council question:" : undefined,
+                input.kind === "self-improvement" ? input.proposal : undefined,
                 "",
                 "Council result:",
                 JSON.stringify(result, null, 2),
@@ -347,13 +366,21 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
 
       yield* Effect.gen(function* () {
         let cycle = 1
+        let proposer: MagiCouncilMember = "melchior"
+        let previousCompleted = true
+        let recentWork = input.recentWork ?? "Magi is observing the current project for its next improvement."
         while (magiConfig(yield* config.get()).selfImprovement.enabled) {
           const cfg = yield* config.get()
           const resolved = magiConfig(cfg)
+          const currentProposer: MagiCouncilMember = resolved.members.includes(proposer)
+            ? proposer
+            : (resolved.members[0] ?? "melchior")
           const proposal = buildSelfImprovementQuestion({
-            recentWork: input.recentWork ?? "Magi is observing the current project for its next improvement.",
+            recentWork,
             constraints: input.constraints,
             cycle,
+            proposer: currentProposer,
+            previousCompleted,
           })
           const execute = canExecuteImprovementTask(cfg, {
             kind: "self-improvement",
@@ -361,13 +388,19 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
             prompt: proposal,
             requiresCoreSelfEdit: false,
           })
-          const result = yield* runCouncil({
+          const result: MagiCouncilResult = yield* runCouncil({
             sessionID: input.sessionID,
             proposal,
             kind: "self-improvement",
             execute,
+            proposer: currentProposer,
           })
           if (shouldStopSelfImprovement(result.rounds)) return
+          previousCompleted = result.executed
+          recentWork = result.executed
+            ? `${currentProposer.toUpperCase()}'s previous improvement was approved and executed. Continue with the next project-specific improvement.`
+            : `${currentProposer.toUpperCase()}'s previous improvement did not complete execution. Keep that owner priority and propose a narrower continuation, repair, or validation task.`
+          proposer = result.executed ? nextCouncilProposer(resolved.members, currentProposer) : currentProposer
           yield* waitForNextSelfImprovementCycle(resolved.selfImprovement.intervalMinutes)
           cycle++
         }

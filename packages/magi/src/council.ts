@@ -367,17 +367,47 @@ export function shouldStopSelfImprovement(rounds: MagiDebateRound[]) {
   )
 }
 
-export function buildSelfImprovementQuestion(input: { recentWork: string; constraints?: string; cycle?: number }) {
+export function nextCouncilProposer(members: MagiCouncilMember[], current: MagiCouncilMember) {
+  const index = members.indexOf(current)
+  return members[(index + 1) % members.length] ?? members[0] ?? "melchior"
+}
+
+export function selfImprovementExecutorPrompt(input: {
+  rounds: MagiDebateRound[]
+  proposer: MagiCouncilMember
+}) {
+  const last = input.rounds.at(-1)
+  const choices = last?.decisions.filter((decision) => decision.requiredChange?.trim() !== STOP_SELF_IMPROVEMENT) ?? []
+  return (
+    choices.find((decision) => decision.member === input.proposer)?.requiredChange?.trim() ??
+    choices.find((decision) => (decision.position ?? voteToPosition(decision.vote)) === "approve")?.requiredChange?.trim() ??
+    choices.find((decision) => (decision.position ?? voteToPosition(decision.vote)) === "revise")?.requiredChange?.trim()
+  )
+}
+
+export function buildSelfImprovementQuestion(input: {
+  recentWork: string
+  constraints?: string
+  cycle?: number
+  proposer?: MagiCouncilMember
+  previousCompleted?: boolean
+}) {
+  const proposer = input.proposer ?? "melchior"
   return buildCouncilPrompt({
     kind: "self-improvement",
     proposal: [
       `Magi autonomous self-improvement cycle${input.cycle ? ` #${input.cycle}` : ""}.`,
+      `Current proposal owner: ${proposer.toUpperCase()}.`,
+      input.previousCompleted === false
+        ? `${proposer.toUpperCase()} keeps priority because the previous owned task did not complete cleanly. Continue, repair, or narrow that line of work before opening a new one.`
+        : `${proposer.toUpperCase()} has priority to propose the next new improvement item.`,
       "Observe the current project direction from repository instructions, README/package metadata, recent sessions, and the user's stated goals.",
-      "Propose exactly one concrete next development prompt that should be given to the executor if the council approves it.",
+      `If you are ${proposer.toUpperCase()}, propose exactly one concrete next development prompt that should be given to the executor if the council approves it.`,
+      `If you are not ${proposer.toUpperCase()}, do not introduce an unrelated competing item; critique, approve, reject, or revise the owner's item with evidence.`,
       "Prefer project-specific improvements that increase product value, safety, tests, UX visibility, maintainability, or autonomous-loop reliability.",
       "Prefer prompt/config/workflow improvements before core code self-editing unless core code is clearly required.",
-      "If you approve or revise, put the exact executor input in requiredChange.",
-      `Only if the project is complete, has no worthwhile improvement left, or should no longer be developed, reject and set requiredChange exactly to ${STOP_SELF_IMPROVEMENT}.`,
+      "If you approve or revise, put the exact executor input or amendment in requiredChange.",
+      `Only if the project is unquestionably complete, has no worthwhile improvement left, or should no longer be developed, reject and set requiredChange exactly to ${STOP_SELF_IMPROVEMENT}. This terminal decision must be extremely conservative.`,
       input.constraints ? `Constraints: ${input.constraints}` : undefined,
       "",
       "Recent work:",
