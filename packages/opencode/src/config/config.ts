@@ -179,6 +179,9 @@ const MagiConfig = Schema.Struct({
       coreSelfEdit: Schema.optional(Schema.Literals(["disabled", "gated", "allowed"])).annotate({
         description: "Policy for Magi changes to core execution and governance code.",
       }),
+      intervalMinutes: Schema.optional(PositiveInt).annotate({
+        description: "UI-driven interval for creating Magi self-improvement cycles while enabled.",
+      }),
     }),
   ),
 }).annotate({

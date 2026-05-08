@@ -37,8 +37,16 @@ Magi supports bounded continuous debate before final vote.
 
 Public builds should default this setting to `off`. Personal experimental profiles can set it to `on`.
 
+The app toggle starts one self-improvement cycle immediately when switched on, then repeats through the Magi API every `magi.selfImprovement.intervalMinutes` while the app is open and the state remains `on`.
+
 Core self-editing is controlled by `magi.selfImprovement.coreSelfEdit`:
 
 - `disabled`: never execute tasks that edit core Magi/OpenCode governance code.
 - `gated`: queue core edits behind test and rollback requirements.
 - `allowed`: permit core edits under the active vote policy.
+
+## Runtime API
+
+- `GET /magi`: returns resolved executor model, council model, and self-improvement state.
+- `POST /magi/review`: creates Magi council sessions, runs bounded MELCHIOR/BALTHASAR/CASPER debate using `magi.models.council`, and optionally delegates approved work to `magi.models.executor`.
+- `POST /magi/self_improve_async`: starts one asynchronous self-improvement cycle only when self-improvement is enabled.

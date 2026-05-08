@@ -57,6 +57,11 @@ import type {
   GlobalUpgradeResponses,
   InstanceDisposeResponses,
   LspStatusResponses,
+  MagiReviewErrors,
+  MagiReviewResponses,
+  MagiSelfImproveAsyncErrors,
+  MagiSelfImproveAsyncResponses,
+  MagiStatusResponses,
   McpAddErrors,
   McpAddResponses,
   McpAuthAuthenticateErrors,
@@ -1711,6 +1716,128 @@ export class Formatter extends HeyApiClient {
       url: "/formatter",
       ...options,
       ...params,
+    })
+  }
+}
+
+export class Magi extends HeyApiClient {
+  /**
+   * Get Magi status
+   *
+   * Get resolved Magi dual-model and self-improvement settings.
+   */
+  public status<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<MagiStatusResponses, unknown, ThrowOnError>({
+      url: "/magi",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Run Magi council review
+   *
+   * Run the three-member Magi council debate with the configured council model.
+   */
+  public review<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      sessionID?: string
+      proposal?: string
+      evidence?: string
+      kind?: "review" | "self-improvement"
+      execute?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "proposal" },
+            { in: "body", key: "evidence" },
+            { in: "body", key: "kind" },
+            { in: "body", key: "execute" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<MagiReviewResponses, MagiReviewErrors, ThrowOnError>({
+      url: "/magi/review",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Start Magi self-improvement
+   *
+   * Start one asynchronous Magi self-improvement cycle if self-improvement is enabled in config.
+   */
+  public selfImproveAsync<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      sessionID?: string
+      recentWork?: string
+      constraints?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "recentWork" },
+            { in: "body", key: "constraints" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      MagiSelfImproveAsyncResponses,
+      MagiSelfImproveAsyncErrors,
+      ThrowOnError
+    >({
+      url: "/magi/self_improve_async",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 }
@@ -4743,6 +4870,11 @@ export class OpencodeClient extends HeyApiClient {
   private _formatter?: Formatter
   get formatter(): Formatter {
     return (this._formatter ??= new Formatter({ client: this.client }))
+  }
+
+  private _magi?: Magi
+  get magi(): Magi {
+    return (this._magi ??= new Magi({ client: this.client }))
   }
 
   private _mcp?: Mcp

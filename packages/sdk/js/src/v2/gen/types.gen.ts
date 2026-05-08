@@ -1053,6 +1053,33 @@ export type ProviderConfig = {
   }
 }
 
+export type MagiConfig = {
+  models?: {
+    executor?: string
+    council?: string
+  }
+  council?: {
+    members?: Array<string>
+    votePolicy?: "majority" | "unanimous"
+    externalAppeal?: boolean
+  }
+  debate?: {
+    maxRounds?: number
+    requireNewEvidence?: boolean
+    stagnationLimit?: number
+    synthesisAfterEachRound?: boolean
+    finalVotePolicy?: "majority" | "unanimous"
+    vetoPolicy?: "none" | "safety-critical"
+  }
+  selfImprovement?: {
+    enabled?: boolean
+    state?: "off" | "on" | "paused"
+    mode?: "suggest-only" | "suggest-and-execute"
+    coreSelfEdit?: "disabled" | "gated" | "allowed"
+    intervalMinutes?: number
+  }
+}
+
 export type McpLocalConfig = {
   /**
    * Type of MCP server connection
@@ -1100,32 +1127,6 @@ export type McpRemoteConfig = {
  * @deprecated Always uses stretch layout.
  */
 export type LayoutConfig = "auto" | "stretch"
-
-export type MagiConfig = {
-  models?: {
-    executor?: string
-    council?: string
-  }
-  council?: {
-    members?: Array<string>
-    votePolicy?: "majority" | "unanimous"
-    externalAppeal?: boolean
-  }
-  debate?: {
-    maxRounds?: number
-    requireNewEvidence?: boolean
-    stagnationLimit?: number
-    synthesisAfterEachRound?: boolean
-    finalVotePolicy?: "majority" | "unanimous"
-    vetoPolicy?: "none" | "safety-critical"
-  }
-  selfImprovement?: {
-    enabled?: boolean
-    state?: "off" | "on" | "paused"
-    mode?: "suggest-only" | "suggest-and-execute"
-    coreSelfEdit?: "disabled" | "gated" | "allowed"
-  }
-}
 
 export type Config = {
   $schema?: string
@@ -4166,6 +4167,136 @@ export type FormatterStatusResponses = {
 }
 
 export type FormatterStatusResponse = FormatterStatusResponses[keyof FormatterStatusResponses]
+
+export type MagiStatusData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/magi"
+}
+
+export type MagiStatusResponses = {
+  /**
+   * Resolved Magi status
+   */
+  200: {
+    executorModel: string
+    councilModel: string
+    selfImprovement: {
+      enabled: boolean
+      state: "off" | "on" | "paused"
+      mode: "suggest-only" | "suggest-and-execute"
+      coreSelfEdit: "disabled" | "gated" | "allowed"
+      intervalMinutes: number
+    }
+  }
+}
+
+export type MagiStatusResponse = MagiStatusResponses[keyof MagiStatusResponses]
+
+export type MagiReviewData = {
+  body?: {
+    sessionID?: string
+    /**
+     * Proposal or task that the Magi council should debate.
+     */
+    proposal: string
+    evidence?: string
+    kind?: "review" | "self-improvement"
+    execute?: boolean
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/magi/review"
+}
+
+export type MagiReviewErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type MagiReviewError = MagiReviewErrors[keyof MagiReviewErrors]
+
+export type MagiReviewResponses = {
+  /**
+   * Magi council review result
+   */
+  200: {
+    sessionID: string
+    memberSessionIDs: {
+      [key: string]: string
+    }
+    rounds: Array<{
+      round: number
+      decisions: Array<{
+        member: "melchior" | "balthasar" | "casper"
+        vote: "approve" | "reject" | "abstain"
+        position?: "approve" | "revise" | "reject"
+        rationale: string
+        confidence?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        evidence?: Array<string>
+        requiredChange?: string
+        newEvidence?: boolean
+        safetyCritical?: boolean
+      }>
+      synthesis?: string
+      newEvidence: boolean
+    }>
+    finalPosition: "approve" | "revise" | "reject"
+    approved: boolean
+    executed: boolean
+  }
+}
+
+export type MagiReviewResponse = MagiReviewResponses[keyof MagiReviewResponses]
+
+export type MagiSelfImproveAsyncData = {
+  body?: {
+    sessionID?: string
+    recentWork?: string
+    constraints?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/magi/self_improve_async"
+}
+
+export type MagiSelfImproveAsyncErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type MagiSelfImproveAsyncError = MagiSelfImproveAsyncErrors[keyof MagiSelfImproveAsyncErrors]
+
+export type MagiSelfImproveAsyncResponses = {
+  /**
+   * Self-improvement cycle accepted
+   */
+  204: void
+}
+
+export type MagiSelfImproveAsyncResponse = MagiSelfImproveAsyncResponses[keyof MagiSelfImproveAsyncResponses]
 
 export type McpStatusData = {
   body?: never

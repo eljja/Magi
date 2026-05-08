@@ -31,6 +31,7 @@ export const MagiSettingsRows: Component = () => {
   const selfImprovementEnabled = createMemo(() => selfImprovement().enabled ?? selfImprovement().state === "on")
   const executorModel = createMemo(() => magi().models?.executor ?? "")
   const councilModel = createMemo(() => magi().models?.council ?? "")
+  const intervalMinutes = createMemo(() => selfImprovement().intervalMinutes ?? 30)
 
   const updateMagiModel = (key: "executor" | "council", value: string) => {
     const trimmed = value.trim()
@@ -54,6 +55,18 @@ export const MagiSettingsRows: Component = () => {
           state: enabled ? "on" : "off",
           mode: selfImprovement().mode ?? "suggest-and-execute",
           coreSelfEdit: selfImprovement().coreSelfEdit ?? "gated",
+        },
+      },
+    })
+  }
+
+  const setIntervalMinutes = (value: string) => {
+    const parsed = Number.parseInt(value, 10)
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed === intervalMinutes()) return
+    void globalSync.updateConfig({
+      magi: {
+        selfImprovement: {
+          intervalMinutes: parsed,
         },
       },
     })
@@ -104,6 +117,23 @@ export const MagiSettingsRows: Component = () => {
         <div data-action="settings-magi-self-improvement">
           <Switch checked={selfImprovementEnabled()} onChange={setSelfImprovementEnabled} />
         </div>
+      </MagiSettingsRow>
+
+      <MagiSettingsRow
+        title={language.t("settings.general.row.magiSelfImprovementInterval.title")}
+        description={language.t("settings.general.row.magiSelfImprovementInterval.description")}
+      >
+        <TextField
+          data-action="settings-magi-self-improvement-interval"
+          label={language.t("settings.general.row.magiSelfImprovementInterval.title")}
+          hideLabel
+          defaultValue={String(intervalMinutes())}
+          onBlur={(event: FocusEvent & { currentTarget: HTMLInputElement }) =>
+            setIntervalMinutes(event.currentTarget.value)
+          }
+          variant="ghost"
+          class="w-[80px]"
+        />
       </MagiSettingsRow>
     </>
   )

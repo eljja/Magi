@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test"
 import {
   buildSelfImprovementQuestion,
+  buildDebateRoundPrompt,
   canExecuteImprovementTask,
   finalDebatePosition,
   magiConfig,
+  magiReviewResult,
   majorityApproved,
   majorityPosition,
+  normalizeJudgment,
   normalizeMembers,
   selfImprovementEnabled,
   shouldCreateImprovementTask,
@@ -142,6 +145,71 @@ describe("Magi council", () => {
     const prompt = buildSelfImprovementQuestion({ recentWork: "Changed the settings UI." })
     expect(prompt).toContain("Magi council task: self-improvement")
     expect(prompt).toContain("Recent work:")
-    expect(prompt).toContain("approve, reject, or abstain")
+    expect(prompt).toContain("approve, revise, or reject")
+  })
+
+  test("normalizes structured local model judgments", () => {
+    expect(
+      normalizeJudgment("balthasar", {
+        position: "reject",
+        rationale: "Rollback is missing.",
+        confidence: 2,
+        evidence: ["no rollback plan", 7],
+        safetyCritical: true,
+        newEvidence: true,
+      }),
+    ).toEqual({
+      member: "balthasar",
+      vote: "reject",
+      position: "reject",
+      rationale: "Rollback is missing.",
+      confidence: 1,
+      evidence: ["no rollback plan"],
+      safetyCritical: true,
+      newEvidence: true,
+      requiredChange: undefined,
+    })
+  })
+
+  test("builds debate prompts with prior disagreement context", () => {
+    const prompt = buildDebateRoundPrompt({
+      kind: "review",
+      member: "melchior",
+      round: 2,
+      proposal: "Change executor routing.",
+      previousRounds: [
+        {
+          round: 1,
+          newEvidence: true,
+          decisions: [
+            { member: "melchior", vote: "approve", position: "approve", rationale: "coherent" },
+            { member: "balthasar", vote: "reject", position: "reject", rationale: "unsafe" },
+          ],
+        },
+      ],
+    })
+
+    expect(prompt).toContain("MELCHIOR")
+    expect(prompt).toContain("Previous debate rounds:")
+    expect(prompt).toContain("Do not agree just to be agreeable")
+  })
+
+  test("turns final debate position into a review result", () => {
+    expect(
+      magiReviewResult({
+        config: {},
+        rounds: [
+          {
+            round: 1,
+            newEvidence: true,
+            decisions: [
+              { member: "melchior", vote: "approve", position: "approve", rationale: "fits" },
+              { member: "balthasar", vote: "approve", position: "approve", rationale: "safe" },
+              { member: "casper", vote: "reject", position: "reject", rationale: "weak value" },
+            ],
+          },
+        ],
+      }),
+    ).toMatchObject({ finalPosition: "approve", approved: true })
   })
 })

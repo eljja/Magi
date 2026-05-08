@@ -33,6 +33,7 @@ export type MagiHostConfig = {
       state?: MagiSelfImprovementState
       mode?: MagiSelfImprovementMode
       coreSelfEdit?: MagiCoreSelfEditPolicy
+      intervalMinutes?: number
     }
   }
 }
@@ -44,6 +45,9 @@ export type MagiDecision = {
   confidence?: number
   evidence?: string[]
   requiredChange?: string
+  position?: MagiPosition
+  newEvidence?: boolean
+  safetyCritical?: boolean
 }
 
 export type MagiDebateRound = {
@@ -62,6 +66,22 @@ export type MagiImprovementTask = {
   requiresCoreSelfEdit: boolean
 }
 
+export type MagiCouncilJudgment = {
+  position: MagiPosition
+  rationale: string
+  confidence: number
+  evidence: string[]
+  requiredChange?: string
+  newEvidence: boolean
+  safetyCritical: boolean
+}
+
+export type MagiReviewResult = {
+  rounds: MagiDebateRound[]
+  finalPosition: MagiPosition
+  approved: boolean
+}
+
 export const MagiDefault = {
   executorModel: "openai/gpt-5.2",
   councilModel: "lmstudio/qwen/qwen3-coder-local",
@@ -71,6 +91,7 @@ export const MagiDefault = {
   debateStagnationLimit: 1,
   debateSynthesisAfterEachRound: true,
   debateVetoPolicy: "safety-critical" as const,
+  selfImprovementIntervalMinutes: 30,
   selfImprovementMode: "suggest-and-execute" as const,
   coreSelfEdit: "gated" as const,
 }
@@ -105,6 +126,10 @@ export function magiConfig(config: MagiHostConfig) {
       state: selfImprovementState(config),
       mode: magi.selfImprovement?.mode ?? MagiDefault.selfImprovementMode,
       coreSelfEdit: magi.selfImprovement?.coreSelfEdit ?? MagiDefault.coreSelfEdit,
+      intervalMinutes: positiveInt(
+        magi.selfImprovement?.intervalMinutes,
+        MagiDefault.selfImprovementIntervalMinutes,
+      ),
     },
   }
 }
@@ -185,6 +210,9 @@ export function shouldContinueDebate(input: { config: MagiHostConfig; rounds: Ma
 export function finalDebatePosition(input: { config: MagiHostConfig; rounds: MagiDebateRound[] }) {
   const last = input.rounds.at(-1)
   if (!last) return "revise" satisfies MagiPosition
+  if (magiConfig(input.config).debate.vetoPolicy === "safety-critical") {
+    if (last.decisions.some((decision) => decision.safetyCritical && decision.vote === "reject")) return "reject"
+  }
   return majorityPosition(last.decisions, magiConfig(input.config).debate.finalVotePolicy)
 }
 
@@ -199,10 +227,131 @@ export function buildCouncilPrompt(input: { kind: MagiTaskKind; proposal: string
     evidence ? "Evidence:" : undefined,
     evidence,
     "",
-    "Respond with one vote: approve, reject, or abstain. Include a short rationale and any required changes.",
+    "Respond with one position: approve, revise, or reject. Include a short rationale and any required changes.",
   ]
     .filter((line): line is string => line !== undefined)
     .join("\n")
+}
+
+export function buildDebateRoundPrompt(input: {
+  kind: MagiTaskKind
+  proposal: string
+  evidence?: string
+  member: MagiCouncilMember
+  round: number
+  previousRounds?: MagiDebateRound[]
+}) {
+  const previous = input.previousRounds?.length
+    ? [
+        "Previous debate rounds:",
+        ...input.previousRounds.map((round) =>
+          [
+            `Round ${round.round}${round.synthesis ? ` synthesis: ${round.synthesis}` : ""}`,
+            ...round.decisions.map((decision) =>
+              [
+                `${decision.member}: ${decision.position ?? voteToPosition(decision.vote)} (${decision.confidence ?? 0})`,
+                decision.rationale,
+                decision.requiredChange ? `Required change: ${decision.requiredChange}` : undefined,
+              ]
+                .filter((line): line is string => line !== undefined)
+                .join(" - "),
+            ),
+          ].join("\n"),
+        ),
+      ].join("\n")
+    : undefined
+
+  return [
+    MagiPrompts[input.member],
+    "",
+    buildCouncilPrompt({
+      kind: input.kind,
+      proposal: input.proposal,
+      evidence: input.evidence,
+    }),
+    previous ? "" : undefined,
+    previous,
+    "",
+    "Debate rules:",
+    "- Do not agree just to be agreeable.",
+    "- If your position changes, name the new evidence that changed it.",
+    "- If there is no new evidence, say so directly.",
+    "- Mark safetyCritical true only for security, data loss, destructive autonomy, or rollback-blocking risk.",
+  ]
+    .filter((line): line is string => line !== undefined)
+    .join("\n")
+}
+
+export function decisionFromJudgment(member: MagiCouncilMember, judgment: MagiCouncilJudgment): MagiDecision {
+  return {
+    member,
+    vote: positionToVote(judgment.position),
+    position: judgment.position,
+    rationale: judgment.rationale,
+    confidence: judgment.confidence,
+    evidence: judgment.evidence,
+    requiredChange: judgment.requiredChange,
+    newEvidence: judgment.newEvidence,
+    safetyCritical: judgment.safetyCritical,
+  }
+}
+
+export function normalizeJudgment(member: MagiCouncilMember, input: unknown): MagiDecision {
+  return decisionFromJudgment(member, normalizeCouncilJudgment(input))
+}
+
+export function normalizeCouncilJudgment(input: unknown): MagiCouncilJudgment {
+  const item = isRecord(input) ? input : {}
+  const position = parsePosition(item.position)
+  return {
+    position,
+    rationale: typeof item.rationale === "string" && item.rationale.trim() ? item.rationale.trim() : "No rationale.",
+    confidence: clampNumber(item.confidence, 0, 1, 0.5),
+    evidence: Array.isArray(item.evidence)
+      ? item.evidence.filter((value): value is string => typeof value === "string" && value.trim() !== "")
+      : [],
+    requiredChange:
+      typeof item.requiredChange === "string" && item.requiredChange.trim() ? item.requiredChange.trim() : undefined,
+    newEvidence: typeof item.newEvidence === "boolean" ? item.newEvidence : false,
+    safetyCritical: typeof item.safetyCritical === "boolean" ? item.safetyCritical : position === "reject",
+  }
+}
+
+export function magiReviewResult(input: { config: MagiHostConfig; rounds: MagiDebateRound[] }): MagiReviewResult {
+  const finalPosition = finalDebatePosition(input)
+  return {
+    rounds: input.rounds,
+    finalPosition,
+    approved: finalPosition === "approve",
+  }
+}
+
+export function positionToVote(position: MagiPosition): MagiVote {
+  if (position === "approve") return "approve"
+  if (position === "reject") return "reject"
+  return "abstain"
+}
+
+function voteToPosition(vote: MagiVote): MagiPosition {
+  if (vote === "approve") return "approve"
+  if (vote === "reject") return "reject"
+  return "revise"
+}
+
+function parsePosition(input: unknown): MagiPosition {
+  if (input === "approve" || input === "revise" || input === "reject") return input
+  if (input === "accept") return "approve"
+  if (input === "abstain") return "revise"
+  return "revise"
+}
+
+function clampNumber(input: unknown, min: number, max: number, fallback: number) {
+  if (typeof input !== "number" || !Number.isFinite(input)) return fallback
+  return Math.min(max, Math.max(min, input))
+}
+
+function isRecord(input: unknown): input is Record<string, unknown> {
+  return typeof input === "object" && input !== null && !Array.isArray(input)
 }
 
 export function buildSelfImprovementQuestion(input: { recentWork: string; constraints?: string }) {

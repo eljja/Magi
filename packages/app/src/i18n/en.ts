@@ -744,6 +744,9 @@ export const dict = {
   "settings.general.row.magiSelfImprovement.title": "Self Improvement",
   "settings.general.row.magiSelfImprovement.description":
     "Allow Magi to continuously propose and run majority-approved improvement tasks.",
+  "settings.general.row.magiSelfImprovementInterval.title": "Self Improvement interval",
+  "settings.general.row.magiSelfImprovementInterval.description":
+    "Minutes between UI-driven Magi self-improvement cycles while enabled.",
   "magi.selfImprovement.toggle.on": "Self Improvement: On",
   "magi.selfImprovement.toggle.off": "Self Improvement: Off",
   "magi.selfImprovement.toggle.paused": "Self Improvement: Paused",
