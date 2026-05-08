@@ -1111,6 +1111,14 @@ export type MagiConfig = {
     votePolicy?: "majority" | "unanimous"
     externalAppeal?: boolean
   }
+  debate?: {
+    maxRounds?: number
+    requireNewEvidence?: boolean
+    stagnationLimit?: number
+    synthesisAfterEachRound?: boolean
+    finalVotePolicy?: "majority" | "unanimous"
+    vetoPolicy?: "none" | "safety-critical"
+  }
   selfImprovement?: {
     enabled?: boolean
     state?: "off" | "on" | "paused"

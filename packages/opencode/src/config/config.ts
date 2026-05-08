@@ -143,6 +143,28 @@ const MagiConfig = Schema.Struct({
       }),
     }),
   ),
+  debate: Schema.optional(
+    Schema.Struct({
+      maxRounds: Schema.optional(PositiveInt).annotate({
+        description: "Maximum council debate rounds before a final vote.",
+      }),
+      requireNewEvidence: Schema.optional(Schema.Boolean).annotate({
+        description: "Require new evidence, risk, or a lower-risk design to continue debate rounds.",
+      }),
+      stagnationLimit: Schema.optional(NonNegativeInt).annotate({
+        description: "Consecutive no-new-evidence rounds allowed before forcing final vote.",
+      }),
+      synthesisAfterEachRound: Schema.optional(Schema.Boolean).annotate({
+        description: "Ask for synthesis after each debate round.",
+      }),
+      finalVotePolicy: Schema.optional(Schema.Literals(["majority", "unanimous"])).annotate({
+        description: "Voting policy used when debate stops.",
+      }),
+      vetoPolicy: Schema.optional(Schema.Literals(["none", "safety-critical"])).annotate({
+        description: "Veto policy for safety-critical Magi objections.",
+      }),
+    }),
+  ),
   selfImprovement: Schema.optional(
     Schema.Struct({
       enabled: Schema.optional(Schema.Boolean).annotate({

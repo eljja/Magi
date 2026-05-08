@@ -17,6 +17,16 @@ Magi-specific core logic lives in `packages/magi` so OpenCode upstream updates c
 
 The three members should debate through thesis, antithesis, and synthesis before falling back to majority vote. They must always be honest and must not concede without citing a concrete new fact, contradiction, test result, clearer purpose, or lower-risk alternative.
 
+## Debate Loop
+
+Magi supports bounded continuous debate before final vote.
+
+- `magi.debate.maxRounds`: maximum debate rounds for one proposal
+- `magi.debate.requireNewEvidence`: continue only when a round adds new evidence, risk, contradiction, purpose, or lower-risk design
+- `magi.debate.stagnationLimit`: stop when rounds repeat without new substance
+- `magi.debate.finalVotePolicy`: majority or unanimous final vote
+- `magi.debate.vetoPolicy`: safety-critical objections can force gated handling
+
 ## Self Improvement
 
 `magi.selfImprovement.enabled` controls whether Magi can create continuous improvement tasks.

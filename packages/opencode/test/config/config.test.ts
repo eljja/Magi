@@ -208,6 +208,14 @@ test("loads Magi dual-model council config", async () => {
             votePolicy: "majority",
             externalAppeal: false,
           },
+          debate: {
+            maxRounds: 3,
+            requireNewEvidence: true,
+            stagnationLimit: 1,
+            synthesisAfterEachRound: true,
+            finalVotePolicy: "majority",
+            vetoPolicy: "safety-critical",
+          },
           selfImprovement: {
             enabled: false,
             state: "off",
@@ -224,6 +232,8 @@ test("loads Magi dual-model council config", async () => {
       const config = await load()
       expect(config.magi?.models?.executor).toBe("openai/gpt-5.2")
       expect(config.magi?.models?.council).toBe("lmstudio/qwen/qwen3-coder-local")
+      expect(config.magi?.debate?.maxRounds).toBe(3)
+      expect(config.magi?.debate?.vetoPolicy).toBe("safety-critical")
       expect(config.magi?.selfImprovement?.enabled).toBe(false)
       expect(config.magi?.selfImprovement?.state).toBe("off")
     },

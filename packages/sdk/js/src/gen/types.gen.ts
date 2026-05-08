@@ -1195,6 +1195,17 @@ export type MagiConfig = {
     externalAppeal?: boolean
   }
   /**
+   * Continuous council debate controls.
+   */
+  debate?: {
+    maxRounds?: number
+    requireNewEvidence?: boolean
+    stagnationLimit?: number
+    synthesisAfterEachRound?: boolean
+    finalVotePolicy?: "majority" | "unanimous"
+    vetoPolicy?: "none" | "safety-critical"
+  }
+  /**
    * Continuous self-improvement configuration.
    */
   selfImprovement?: {

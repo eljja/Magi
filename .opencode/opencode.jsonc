@@ -24,6 +24,14 @@
       "votePolicy": "majority",
       "externalAppeal": false,
     },
+    "debate": {
+      "maxRounds": 3,
+      "requireNewEvidence": true,
+      "stagnationLimit": 1,
+      "synthesisAfterEachRound": true,
+      "finalVotePolicy": "majority",
+      "vetoPolicy": "safety-critical",
+    },
     "selfImprovement": {
       "enabled": false,
       "state": "off",

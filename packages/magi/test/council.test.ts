@@ -2,11 +2,14 @@ import { describe, expect, test } from "bun:test"
 import {
   buildSelfImprovementQuestion,
   canExecuteImprovementTask,
+  finalDebatePosition,
   magiConfig,
   majorityApproved,
+  majorityPosition,
   normalizeMembers,
   selfImprovementEnabled,
   shouldCreateImprovementTask,
+  shouldContinueDebate,
 } from "../src/council"
 
 describe("Magi council", () => {
@@ -55,6 +58,54 @@ describe("Magi council", () => {
         { member: "casper", vote: "approve", rationale: "better" },
       ]),
     ).toBe(true)
+  })
+
+  test("returns revise when a debate vote has no majority", () => {
+    expect(
+      majorityPosition([
+        { member: "melchior", vote: "approve", rationale: "fits" },
+        { member: "balthasar", vote: "reject", rationale: "risk" },
+        { member: "casper", vote: "abstain", rationale: "unclear" },
+      ]),
+    ).toBe("revise")
+  })
+
+  test("stops continuous debate when no new evidence appears", () => {
+    const config = {
+      magi: {
+        debate: {
+          maxRounds: 3,
+          requireNewEvidence: true,
+          stagnationLimit: 1,
+        },
+      },
+    }
+    expect(shouldContinueDebate({ config, rounds: [] })).toBe(true)
+    expect(
+      shouldContinueDebate({
+        config,
+        rounds: [{ round: 1, newEvidence: false, decisions: [] }],
+      }),
+    ).toBe(false)
+  })
+
+  test("uses the final round for the final debate position", () => {
+    expect(
+      finalDebatePosition({
+        config: {},
+        rounds: [
+          {
+            round: 1,
+            newEvidence: true,
+            decisions: [
+              { member: "melchior", vote: "approve", rationale: "fits" },
+              { member: "balthasar", vote: "reject", rationale: "risk" },
+              { member: "casper", vote: "reject", rationale: "weak value" },
+            ],
+          },
+        ],
+      }),
+    ).toBe("reject")
   })
 
   test("gates core self-edit execution separately from prompt and config improvements", () => {

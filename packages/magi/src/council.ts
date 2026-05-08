@@ -2,8 +2,10 @@ export const MagiCouncilMembers = ["melchior", "balthasar", "casper"] as const
 
 export type MagiCouncilMember = (typeof MagiCouncilMembers)[number]
 export type MagiVote = "approve" | "reject" | "abstain"
+export type MagiPosition = "approve" | "revise" | "reject"
 export type MagiSelfImprovementState = "off" | "on" | "paused"
 export type MagiVotePolicy = "majority" | "unanimous"
+export type MagiVetoPolicy = "none" | "safety-critical"
 export type MagiSelfImprovementMode = "suggest-only" | "suggest-and-execute"
 export type MagiCoreSelfEditPolicy = "disabled" | "gated" | "allowed"
 
@@ -18,6 +20,14 @@ export type MagiHostConfig = {
       votePolicy?: MagiVotePolicy
       externalAppeal?: boolean
     }
+    debate?: {
+      maxRounds?: number
+      requireNewEvidence?: boolean
+      stagnationLimit?: number
+      synthesisAfterEachRound?: boolean
+      finalVotePolicy?: MagiVotePolicy
+      vetoPolicy?: MagiVetoPolicy
+    }
     selfImprovement?: {
       enabled?: boolean
       state?: MagiSelfImprovementState
@@ -31,6 +41,16 @@ export type MagiDecision = {
   member: MagiCouncilMember
   vote: MagiVote
   rationale: string
+  confidence?: number
+  evidence?: string[]
+  requiredChange?: string
+}
+
+export type MagiDebateRound = {
+  round: number
+  decisions: MagiDecision[]
+  synthesis?: string
+  newEvidence: boolean
 }
 
 export type MagiTaskKind = "review" | "self-improvement"
@@ -46,6 +66,11 @@ export const MagiDefault = {
   executorModel: "openai/gpt-5.2",
   councilModel: "lmstudio/qwen/qwen3-coder-local",
   votePolicy: "majority" as const,
+  debateMaxRounds: 3,
+  debateRequireNewEvidence: true,
+  debateStagnationLimit: 1,
+  debateSynthesisAfterEachRound: true,
+  debateVetoPolicy: "safety-critical" as const,
   selfImprovementMode: "suggest-and-execute" as const,
   coreSelfEdit: "gated" as const,
 }
@@ -67,6 +92,14 @@ export function magiConfig(config: MagiHostConfig) {
     members: normalizeMembers(magi.council?.members),
     votePolicy: magi.council?.votePolicy ?? MagiDefault.votePolicy,
     externalAppeal: magi.council?.externalAppeal ?? false,
+    debate: {
+      maxRounds: positiveInt(magi.debate?.maxRounds, MagiDefault.debateMaxRounds),
+      requireNewEvidence: magi.debate?.requireNewEvidence ?? MagiDefault.debateRequireNewEvidence,
+      stagnationLimit: nonNegativeInt(magi.debate?.stagnationLimit, MagiDefault.debateStagnationLimit),
+      synthesisAfterEachRound: magi.debate?.synthesisAfterEachRound ?? MagiDefault.debateSynthesisAfterEachRound,
+      finalVotePolicy: magi.debate?.finalVotePolicy ?? magi.council?.votePolicy ?? MagiDefault.votePolicy,
+      vetoPolicy: magi.debate?.vetoPolicy ?? MagiDefault.debateVetoPolicy,
+    },
     selfImprovement: {
       enabled: selfImprovementEnabled(config),
       state: selfImprovementState(config),
@@ -74,6 +107,14 @@ export function magiConfig(config: MagiHostConfig) {
       coreSelfEdit: magi.selfImprovement?.coreSelfEdit ?? MagiDefault.coreSelfEdit,
     },
   }
+}
+
+function positiveInt(value: number | undefined, fallback: number) {
+  return Number.isInteger(value) && value !== undefined && value > 0 ? value : fallback
+}
+
+function nonNegativeInt(value: number | undefined, fallback: number) {
+  return Number.isInteger(value) && value !== undefined && value >= 0 ? value : fallback
 }
 
 export function normalizeMembers(input: string[] | undefined): MagiCouncilMember[] {
@@ -110,6 +151,41 @@ export function majorityApproved(decisions: MagiDecision[], policy: MagiVotePoli
   const approvals = votes.filter((decision) => decision.vote === "approve").length
   if (policy === "unanimous") return approvals === votes.length
   return approvals > votes.length / 2
+}
+
+export function majorityPosition(
+  decisions: MagiDecision[],
+  policy: MagiVotePolicy = MagiDefault.votePolicy,
+): MagiPosition {
+  const votes = decisions.filter((decision) => decision.vote !== "abstain")
+  if (votes.length === 0) return "revise"
+
+  const approvals = votes.filter((decision) => decision.vote === "approve").length
+  const rejections = votes.filter((decision) => decision.vote === "reject").length
+  if (policy === "unanimous") return approvals === votes.length ? "approve" : "revise"
+  if (approvals > votes.length / 2) return "approve"
+  if (rejections > votes.length / 2) return "reject"
+  return "revise"
+}
+
+export function shouldContinueDebate(input: { config: MagiHostConfig; rounds: MagiDebateRound[] }) {
+  const debate = magiConfig(input.config).debate
+  if (input.rounds.length === 0) return true
+  if (input.rounds.length >= debate.maxRounds) return false
+  if (!debate.requireNewEvidence) return true
+
+  let stagnant = 0
+  for (let i = input.rounds.length - 1; i >= 0; i--) {
+    if (input.rounds[i]?.newEvidence) break
+    stagnant++
+  }
+  return stagnant < debate.stagnationLimit
+}
+
+export function finalDebatePosition(input: { config: MagiHostConfig; rounds: MagiDebateRound[] }) {
+  const last = input.rounds.at(-1)
+  if (!last) return "revise" satisfies MagiPosition
+  return majorityPosition(last.decisions, magiConfig(input.config).debate.finalVotePolicy)
 }
 
 export function buildCouncilPrompt(input: { kind: MagiTaskKind; proposal: string; evidence?: string }) {
