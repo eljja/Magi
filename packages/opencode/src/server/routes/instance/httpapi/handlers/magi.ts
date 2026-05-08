@@ -11,6 +11,7 @@ import {
   magiReviewResult,
   normalizeJudgment,
   shouldContinueDebate,
+  shouldStopSelfImprovement,
   type MagiCouncilMember,
   type MagiDecision,
   type MagiDebateRound,
@@ -85,6 +86,7 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
     const prompt = yield* SessionPrompt.Service
     const scope = yield* Scope.Scope
     let activity: MagiActivity | undefined
+    let selfImprovementRunning = false
 
     const status = Effect.fn("MagiHttpApi.status")(function* () {
       const resolved = magiConfig(yield* config.get())
@@ -325,6 +327,59 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
       })
     })
 
+    const waitForNextSelfImprovementCycle = Effect.fn("MagiHttpApi.waitForNextSelfImprovementCycle")(function* (
+      intervalMinutes: number,
+    ) {
+      const deadline = Date.now() + Math.max(1, intervalMinutes) * 60_000
+      while (Date.now() < deadline) {
+        if (!magiConfig(yield* config.get()).selfImprovement.enabled) return
+        yield* Effect.sleep("5 seconds")
+      }
+    })
+
+    const runSelfImprovementLoop = Effect.fn("MagiHttpApi.runSelfImprovementLoop")(function* (input: {
+      sessionID?: SessionID
+      recentWork?: string
+      constraints?: string
+    }) {
+      if (selfImprovementRunning) return
+      selfImprovementRunning = true
+
+      yield* Effect.gen(function* () {
+        let cycle = 1
+        while (magiConfig(yield* config.get()).selfImprovement.enabled) {
+          const cfg = yield* config.get()
+          const resolved = magiConfig(cfg)
+          const proposal = buildSelfImprovementQuestion({
+            recentWork: input.recentWork ?? "Magi is observing the current project for its next improvement.",
+            constraints: input.constraints,
+            cycle,
+          })
+          const execute = canExecuteImprovementTask(cfg, {
+            kind: "self-improvement",
+            title: `Magi self-improvement cycle ${cycle}`,
+            prompt: proposal,
+            requiresCoreSelfEdit: false,
+          })
+          const result = yield* runCouncil({
+            sessionID: input.sessionID,
+            proposal,
+            kind: "self-improvement",
+            execute,
+          })
+          if (shouldStopSelfImprovement(result.rounds)) return
+          yield* waitForNextSelfImprovementCycle(resolved.selfImprovement.intervalMinutes)
+          cycle++
+        }
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            selfImprovementRunning = false
+          }),
+        ),
+      )
+    })
+
     const selfImproveAsync = Effect.fn("MagiHttpApi.selfImproveAsync")(function* (ctx: {
       payload: typeof MagiSelfImprovePayload.Type
     }) {
@@ -332,22 +387,10 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
       const resolved = magiConfig(cfg)
       if (!resolved.selfImprovement.enabled) return HttpApiSchema.NoContent.make()
 
-      const proposal = buildSelfImprovementQuestion({
-        recentWork: ctx.payload.recentWork ?? "No recent work summary was provided.",
-        constraints: ctx.payload.constraints,
-      })
-      const execute = canExecuteImprovementTask(cfg, {
-        kind: "self-improvement",
-        title: "Magi self-improvement cycle",
-        prompt: proposal,
-        requiresCoreSelfEdit: false,
-      })
-
-      yield* runCouncil({
+      yield* runSelfImprovementLoop({
         sessionID: ctx.payload.sessionID,
-        proposal,
-        kind: "self-improvement",
-        execute,
+        recentWork: ctx.payload.recentWork,
+        constraints: ctx.payload.constraints,
       }).pipe(
         Effect.catchCause((cause) =>
           Effect.logError("magi self_improve_async failed", {

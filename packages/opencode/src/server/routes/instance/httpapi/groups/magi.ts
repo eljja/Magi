@@ -141,7 +141,7 @@ export const MagiApi = HttpApi.make("magi")
             identifier: "magi.self_improve_async",
             summary: "Start Magi self-improvement",
             description:
-              "Start one asynchronous Magi self-improvement cycle if self-improvement is enabled in config.",
+              "Start the asynchronous Magi self-improvement loop if self-improvement is enabled in config.",
           }),
         ),
       )

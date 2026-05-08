@@ -13,6 +13,7 @@ import {
   selfImprovementEnabled,
   shouldCreateImprovementTask,
   shouldContinueDebate,
+  shouldStopSelfImprovement,
 } from "../src/council"
 
 describe("Magi council", () => {
@@ -161,10 +162,72 @@ describe("Magi council", () => {
   })
 
   test("builds a self-improvement prompt for local council review", () => {
-    const prompt = buildSelfImprovementQuestion({ recentWork: "Changed the settings UI." })
+    const prompt = buildSelfImprovementQuestion({ recentWork: "Changed the settings UI.", cycle: 2 })
     expect(prompt).toContain("Magi council task: self-improvement")
+    expect(prompt).toContain("autonomous self-improvement cycle #2")
+    expect(prompt).toContain("exact executor input")
+    expect(prompt).toContain("STOP_SELF_IMPROVEMENT")
     expect(prompt).toContain("Recent work:")
     expect(prompt).toContain("approve, revise, or reject")
+  })
+
+  test("only stops self-improvement when every member explicitly votes for terminal stop", () => {
+    expect(
+      shouldStopSelfImprovement([
+        {
+          round: 1,
+          newEvidence: false,
+          decisions: [
+            {
+              member: "melchior",
+              vote: "reject",
+              position: "reject",
+              rationale: "complete",
+              requiredChange: "STOP_SELF_IMPROVEMENT",
+            },
+            {
+              member: "balthasar",
+              vote: "reject",
+              position: "reject",
+              rationale: "complete",
+              requiredChange: "STOP_SELF_IMPROVEMENT",
+            },
+            {
+              member: "casper",
+              vote: "reject",
+              position: "reject",
+              rationale: "complete",
+              requiredChange: "STOP_SELF_IMPROVEMENT",
+            },
+          ],
+        },
+      ]),
+    ).toBe(true)
+    expect(
+      shouldStopSelfImprovement([
+        {
+          round: 1,
+          newEvidence: false,
+          decisions: [
+            {
+              member: "melchior",
+              vote: "reject",
+              position: "reject",
+              rationale: "complete",
+              requiredChange: "STOP_SELF_IMPROVEMENT",
+            },
+            { member: "balthasar", vote: "abstain", position: "revise", rationale: "one more task" },
+            {
+              member: "casper",
+              vote: "reject",
+              position: "reject",
+              rationale: "complete",
+              requiredChange: "STOP_SELF_IMPROVEMENT",
+            },
+          ],
+        },
+      ]),
+    ).toBe(false)
   })
 
   test("normalizes structured local model judgments", () => {

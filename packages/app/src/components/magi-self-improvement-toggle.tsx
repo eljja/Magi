@@ -2,7 +2,7 @@ import { Button } from "@opencode-ai/ui/button"
 import { Icon } from "@opencode-ai/ui/icon"
 import { showToast } from "@opencode-ai/ui/toast"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
-import { createEffect, createMemo, onCleanup, type Component } from "solid-js"
+import { createEffect, createMemo, type Component } from "solid-js"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
@@ -19,7 +19,6 @@ export const MagiSelfImprovementToggle: Component = () => {
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
   const language = useLanguage()
-  let timer: ReturnType<typeof setInterval> | undefined
   let running = false
 
   const state = createMemo(() => {
@@ -28,7 +27,6 @@ export const MagiSelfImprovementToggle: Component = () => {
     return self?.enabled ? "on" : "off"
   })
   const enabled = createMemo(() => state() === "on")
-  const intervalMinutes = createMemo(() => globalSync.data.config.magi?.selfImprovement?.intervalMinutes ?? 30)
   const label = createMemo(() => {
     if (state() === "paused") return language.t("magi.selfImprovement.toggle.paused")
     return language.t(enabled() ? "magi.selfImprovement.toggle.on" : "magi.selfImprovement.toggle.off")
@@ -48,15 +46,8 @@ export const MagiSelfImprovementToggle: Component = () => {
   }
 
   createEffect(() => {
-    if (timer) clearInterval(timer)
-    timer = undefined
     if (!enabled()) return
     runSelfImprovement()
-    timer = setInterval(runSelfImprovement, Math.max(1, intervalMinutes()) * 60_000)
-  })
-
-  onCleanup(() => {
-    if (timer) clearInterval(timer)
   })
 
   const toggle = () => {

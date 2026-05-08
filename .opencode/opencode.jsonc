@@ -58,7 +58,7 @@
       "state": "off",
       "mode": "suggest-and-execute",
       "coreSelfEdit": "gated",
-      "intervalMinutes": 30,
+      "intervalMinutes": 1,
     },
   },
   "permission": {

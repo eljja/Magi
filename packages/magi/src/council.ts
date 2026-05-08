@@ -83,6 +83,8 @@ export type MagiReviewResult = {
   approved: boolean
 }
 
+const STOP_SELF_IMPROVEMENT = "STOP_SELF_IMPROVEMENT"
+
 export const MagiDefault = {
   executorModel: "openai/gpt-5.2",
   councilModel: "lmstudio/qwen/qwen3-coder-local",
@@ -355,12 +357,27 @@ function isRecord(input: unknown): input is Record<string, unknown> {
   return typeof input === "object" && input !== null && !Array.isArray(input)
 }
 
-export function buildSelfImprovementQuestion(input: { recentWork: string; constraints?: string }) {
+export function shouldStopSelfImprovement(rounds: MagiDebateRound[]) {
+  const last = rounds.at(-1)
+  if (!last) return false
+  return last.decisions.every(
+    (decision) =>
+      (decision.position ?? voteToPosition(decision.vote)) === "reject" &&
+      decision.requiredChange?.trim() === STOP_SELF_IMPROVEMENT,
+  )
+}
+
+export function buildSelfImprovementQuestion(input: { recentWork: string; constraints?: string; cycle?: number }) {
   return buildCouncilPrompt({
     kind: "self-improvement",
     proposal: [
-      "Identify the next self-improvement task Magi should perform.",
-      "Prefer prompt/config/workflow improvements before core code self-editing.",
+      `Magi autonomous self-improvement cycle${input.cycle ? ` #${input.cycle}` : ""}.`,
+      "Observe the current project direction from repository instructions, README/package metadata, recent sessions, and the user's stated goals.",
+      "Propose exactly one concrete next development prompt that should be given to the executor if the council approves it.",
+      "Prefer project-specific improvements that increase product value, safety, tests, UX visibility, maintainability, or autonomous-loop reliability.",
+      "Prefer prompt/config/workflow improvements before core code self-editing unless core code is clearly required.",
+      "If you approve or revise, put the exact executor input in requiredChange.",
+      `Only if the project is complete, has no worthwhile improvement left, or should no longer be developed, reject and set requiredChange exactly to ${STOP_SELF_IMPROVEMENT}.`,
       input.constraints ? `Constraints: ${input.constraints}` : undefined,
       "",
       "Recent work:",
