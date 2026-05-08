@@ -12,7 +12,9 @@ import {
   normalizeJudgment,
   shouldContinueDebate,
   type MagiCouncilMember,
+  type MagiDecision,
   type MagiDebateRound,
+  type MagiPosition,
   type MagiTaskKind,
 } from "@magi/core"
 import { Cause, Effect, Scope } from "effect"
@@ -35,19 +37,63 @@ const JUDGMENT_SCHEMA = {
   },
 }
 
+const COUNCIL_MODEL_TIMEOUT = "45 seconds"
+
+type MagiActivityVote = {
+  member: MagiCouncilMember
+  state: "pending" | MagiPosition | "error"
+  model?: string
+  rationale?: string
+  detail?: string
+  error?: string
+}
+
+type MagiActivity = {
+  id: string
+  state: "idle" | "debating" | "decided" | "executing" | "error"
+  topic: string
+  detail: string
+  round: number
+  startedAt: number
+  updatedAt: number
+  decidedAt?: number
+  finalPosition?: MagiPosition
+  votes: MagiActivityVote[]
+}
+
+const uniqueModels = (models: string[]) => models.filter((model, index) => model && models.indexOf(model) === index)
+
+const topicLine = (input: string) => input.trim().split("\n").find((line) => line.trim())?.trim().slice(0, 120) ?? "Magi"
+
+const failedDecision = (member: MagiCouncilMember, rationale: string): MagiDecision => ({
+  member,
+  vote: "abstain",
+  position: "revise",
+  rationale,
+  confidence: 0,
+  evidence: [],
+  newEvidence: false,
+  safetyCritical: false,
+})
+
+const causeSummary = (cause: Cause.Cause<unknown>) => Cause.pretty(cause).split("\n").at(0) ?? "Unknown error"
+
 export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handlers) =>
   Effect.gen(function* () {
     const config = yield* Config.Service
     const session = yield* Session.Service
     const prompt = yield* SessionPrompt.Service
     const scope = yield* Scope.Scope
+    let activity: MagiActivity | undefined
 
     const status = Effect.fn("MagiHttpApi.status")(function* () {
       const resolved = magiConfig(yield* config.get())
       return {
         executorModel: resolved.executorModel,
         councilModel: resolved.councilModel,
+        councilModels: uniqueModels([resolved.councilModel, ...resolved.councilFallbackModels]),
         selfImprovement: resolved.selfImprovement,
+        activity,
       }
     })
 
@@ -60,8 +106,113 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
     }) {
       const cfg = yield* config.get()
       const resolved = magiConfig(cfg)
-      const councilModel = Provider.parseModel(resolved.councilModel)
+      const councilModels = uniqueModels([resolved.councilModel, ...resolved.councilFallbackModels])
+      const councilModel = Provider.parseModel(councilModels[0] ?? resolved.councilModel)
       const executorModel = Provider.parseModel(resolved.executorModel)
+      const startedAt = Date.now()
+      activity = {
+        id: crypto.randomUUID(),
+        state: "debating",
+        topic: topicLine(input.proposal),
+        detail: input.proposal,
+        round: 1,
+        startedAt,
+        updatedAt: startedAt,
+        votes: resolved.members.map((member) => ({ member, state: "pending" })),
+      }
+
+      const updateVote = (member: MagiCouncilMember, vote: Partial<MagiActivityVote>) => {
+        if (!activity) return
+        activity = {
+          ...activity,
+          updatedAt: Date.now(),
+          votes: activity.votes.map((item) => (item.member === member ? { ...item, ...vote } : item)),
+        }
+      }
+
+      const askMember = Effect.fn("MagiHttpApi.askMember")(function* (memberInput: {
+        member: MagiCouncilMember
+        sessionID: SessionID
+        round: number
+        previousRounds: MagiDebateRound[]
+      }) {
+        const askWithModels: (models: string[]) => Effect.Effect<MagiDecision> = (models) => {
+          const model = models[0]
+          const remaining = models.slice(1)
+          if (!model) {
+            const rationale = "All configured Magi council models failed before producing a structured judgment."
+            return Effect.sync(() => {
+              updateVote(memberInput.member, { state: "error", rationale, detail: rationale, error: rationale })
+              return failedDecision(memberInput.member, rationale)
+            })
+          }
+
+          const parsed = Provider.parseModel(model)
+          updateVote(memberInput.member, {
+            state: "pending",
+            model,
+            detail: `Waiting for ${model}`,
+          })
+          return prompt
+            .prompt({
+              sessionID: memberInput.sessionID,
+              agent: "plan",
+              model: { providerID: parsed.providerID, modelID: parsed.modelID },
+              format: { type: "json_schema", schema: JUDGMENT_SCHEMA },
+              parts: [
+                {
+                  type: "text",
+                  text: buildDebateRoundPrompt({
+                    kind: input.kind,
+                    proposal: input.proposal,
+                    evidence: input.evidence,
+                    member: memberInput.member,
+                    round: memberInput.round,
+                    previousRounds: memberInput.previousRounds,
+                  }),
+                },
+              ],
+            })
+            .pipe(
+              Effect.timeout(COUNCIL_MODEL_TIMEOUT),
+              Effect.flatMap((message) => {
+                if (message.info.role !== "assistant")
+                  return Effect.fail(new Error("Magi council prompt did not return an assistant message."))
+                if (message.info.error)
+                  return Effect.fail(new Error(JSON.stringify(message.info.error)))
+                return Effect.succeed(normalizeJudgment(memberInput.member, message.info.structured))
+              }),
+              Effect.tap((decision) =>
+                Effect.sync(() =>
+                  updateVote(memberInput.member, {
+                    state: decision.position ?? "revise",
+                    model,
+                    rationale: decision.rationale,
+                    detail: [
+                      decision.rationale,
+                      decision.requiredChange ? `Required change: ${decision.requiredChange}` : undefined,
+                      decision.evidence?.length ? `Evidence: ${decision.evidence.join("; ")}` : undefined,
+                    ]
+                      .filter((line): line is string => line !== undefined)
+                      .join("\n"),
+                  }),
+                ),
+              ),
+              Effect.catchCause((cause) =>
+                remaining.length > 0
+                  ? askWithModels(remaining)
+                  : Effect.sync(() => {
+                      const rationale = `Magi council model failed after all fallbacks: ${causeSummary(cause)}`
+                      updateVote(memberInput.member, { state: "error", model, rationale, detail: rationale, error: rationale })
+                      return failedDecision(memberInput.member, rationale)
+                    }),
+              ),
+            )
+        }
+
+        return yield* askWithModels(councilModels)
+      })
+
       const root = yield* session.create({
         parentID: input.sessionID,
         title: input.kind === "self-improvement" ? "Magi Self Improvement" : "Magi Council Review",
@@ -87,33 +238,21 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
 
       while (shouldContinueDebate({ config: cfg, rounds })) {
         const round = rounds.length + 1
+        activity = activity && {
+          ...activity,
+          state: "debating",
+          round,
+          updatedAt: Date.now(),
+          votes: resolved.members.map((member) => ({ member, state: "pending" })),
+        }
         const decisions = yield* Effect.all(
           resolved.members.map((member) =>
-            prompt
-              .prompt({
-                sessionID: memberSessions[member],
-                agent: "plan",
-                model: { providerID: councilModel.providerID, modelID: councilModel.modelID },
-                format: { type: "json_schema", schema: JUDGMENT_SCHEMA },
-                parts: [
-                  {
-                    type: "text",
-                    text: buildDebateRoundPrompt({
-                      kind: input.kind,
-                      proposal: input.proposal,
-                      evidence: input.evidence,
-                      member,
-                      round,
-                      previousRounds: rounds,
-                    }),
-                  },
-                ],
-              })
-              .pipe(
-                Effect.map((message) =>
-                  normalizeJudgment(member, message.info.role === "assistant" ? message.info.structured : undefined),
-                ),
-              ),
+            askMember({
+              member,
+              sessionID: memberSessions[member],
+              round,
+              previousRounds: rounds,
+            }),
           ),
           { concurrency: "unbounded" },
         )
@@ -131,6 +270,13 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
 
       const result = magiReviewResult({ config: cfg, rounds })
       const executed = input.execute && result.approved
+      activity = activity && {
+        ...activity,
+        state: executed ? "executing" : "decided",
+        finalPosition: result.finalPosition,
+        decidedAt: Date.now(),
+        updatedAt: Date.now(),
+      }
       if (executed) {
         yield* prompt.prompt({
           sessionID: root.id,
@@ -156,6 +302,7 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
             },
           ],
         })
+        activity = activity && { ...activity, state: "decided", updatedAt: Date.now() }
       }
 
       return {

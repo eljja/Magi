@@ -33,6 +33,7 @@ describe("Magi council", () => {
         models: {
           executor: "anthropic/claude-sonnet-4-5",
           council: "lmstudio/qwen/qwen3-coder-local",
+          councilFallbacks: ["google/gemini-3.1-flash-lite"],
         },
         selfImprovement: {
           enabled: true,
@@ -44,6 +45,7 @@ describe("Magi council", () => {
     expect(magiConfig(config)).toMatchObject({
       executorModel: "anthropic/claude-sonnet-4-5",
       councilModel: "lmstudio/qwen/qwen3-coder-local",
+      councilFallbackModels: ["google/gemini-3.1-flash-lite"],
       selfImprovement: {
         enabled: true,
         state: "on",
@@ -71,6 +73,23 @@ describe("Magi council", () => {
         { member: "casper", vote: "abstain", rationale: "unclear" },
       ]),
     ).toBe("revise")
+  })
+
+  test("counts revise positions as votes instead of ignoring them", () => {
+    expect(
+      majorityPosition([
+        { member: "melchior", vote: "approve", position: "approve", rationale: "fits" },
+        { member: "balthasar", vote: "abstain", position: "revise", rationale: "needs stronger bounds" },
+        { member: "casper", vote: "abstain", position: "revise", rationale: "needs more synthesis room" },
+      ]),
+    ).toBe("revise")
+    expect(
+      majorityApproved([
+        { member: "melchior", vote: "approve", position: "approve", rationale: "fits" },
+        { member: "balthasar", vote: "abstain", position: "revise", rationale: "needs stronger bounds" },
+        { member: "casper", vote: "abstain", position: "revise", rationale: "needs more synthesis room" },
+      ]),
+    ).toBe(false)
   })
 
   test("stops continuous debate when no new evidence appears", () => {

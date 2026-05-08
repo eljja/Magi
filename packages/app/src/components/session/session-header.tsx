@@ -25,6 +25,7 @@ import { messageAgentColor } from "@/utils/agent"
 import { decode64 } from "@/utils/base64"
 import { Persist, persisted } from "@/utils/persist"
 import { MagiSelfImprovementToggle } from "../magi-self-improvement-toggle"
+import { MagiCouncilVoteStatus } from "../magi-council-vote-status"
 import { StatusPopover } from "../status-popover"
 
 const OPEN_APPS = [
@@ -451,6 +452,7 @@ export function SessionHeader() {
                 </Show>
 
                 <MagiSelfImprovementToggle />
+                <MagiCouncilVoteStatus />
 
                 <div class="hidden md:flex items-center gap-1 shrink-0">
                   <TooltipKeybind

@@ -13,6 +13,8 @@ const MagiMember = Schema.Literals(["melchior", "balthasar", "casper"])
 const MagiVote = Schema.Literals(["approve", "reject", "abstain"])
 const MagiPosition = Schema.Literals(["approve", "revise", "reject"])
 const MagiTaskKind = Schema.Literals(["review", "self-improvement"])
+const MagiActivityState = Schema.Literals(["idle", "debating", "decided", "executing", "error"])
+const MagiVoteState = Schema.Literals(["pending", "approve", "revise", "reject", "error"])
 
 const MagiDecision = Schema.Struct({
   member: MagiMember,
@@ -31,6 +33,28 @@ const MagiDebateRound = Schema.Struct({
   decisions: Schema.Array(MagiDecision),
   synthesis: Schema.optional(Schema.String),
   newEvidence: Schema.Boolean,
+})
+
+const MagiActivityVote = Schema.Struct({
+  member: MagiMember,
+  state: MagiVoteState,
+  model: Schema.optional(Schema.String),
+  rationale: Schema.optional(Schema.String),
+  detail: Schema.optional(Schema.String),
+  error: Schema.optional(Schema.String),
+})
+
+const MagiActivity = Schema.Struct({
+  id: Schema.String,
+  state: MagiActivityState,
+  topic: Schema.String,
+  detail: Schema.String,
+  round: PositiveInt,
+  startedAt: Schema.Number,
+  updatedAt: Schema.Number,
+  decidedAt: Schema.optional(Schema.Number),
+  finalPosition: Schema.optional(MagiPosition),
+  votes: Schema.Array(MagiActivityVote),
 })
 
 export const MagiReviewPayload = Schema.Struct({
@@ -73,6 +97,7 @@ export const MagiReviewResponse = Schema.Struct({
 export const MagiStatusResponse = Schema.Struct({
   executorModel: Schema.String,
   councilModel: Schema.String,
+  councilModels: Schema.Array(Schema.String),
   selfImprovement: Schema.Struct({
     enabled: Schema.Boolean,
     state: Schema.Literals(["off", "on", "paused"]),
@@ -80,6 +105,7 @@ export const MagiStatusResponse = Schema.Struct({
     coreSelfEdit: Schema.Literals(["disabled", "gated", "allowed"]),
     intervalMinutes: PositiveInt,
   }),
+  activity: Schema.optional(MagiActivity),
 })
 
 export const MagiApi = HttpApi.make("magi")

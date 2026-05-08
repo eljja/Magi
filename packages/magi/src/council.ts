@@ -14,6 +14,7 @@ export type MagiHostConfig = {
     models?: {
       executor?: string
       council?: string
+      councilFallbacks?: string[]
     }
     council?: {
       members?: string[]
@@ -85,6 +86,7 @@ export type MagiReviewResult = {
 export const MagiDefault = {
   executorModel: "openai/gpt-5.2",
   councilModel: "lmstudio/qwen/qwen3-coder-local",
+  councilFallbackModels: [] as string[],
   votePolicy: "majority" as const,
   debateMaxRounds: 3,
   debateRequireNewEvidence: true,
@@ -110,6 +112,7 @@ export function magiConfig(config: MagiHostConfig) {
   return {
     executorModel: magi.models?.executor ?? MagiDefault.executorModel,
     councilModel: magi.models?.council ?? MagiDefault.councilModel,
+    councilFallbackModels: magi.models?.councilFallbacks ?? MagiDefault.councilFallbackModels,
     members: normalizeMembers(magi.council?.members),
     votePolicy: magi.council?.votePolicy ?? MagiDefault.votePolicy,
     externalAppeal: magi.council?.externalAppeal ?? false,
@@ -171,25 +174,23 @@ export function canExecuteImprovementTask(config: MagiHostConfig, task: MagiImpr
 }
 
 export function majorityApproved(decisions: MagiDecision[], policy: MagiVotePolicy = MagiDefault.votePolicy) {
-  const votes = decisions.filter((decision) => decision.vote !== "abstain")
-  if (votes.length === 0) return false
-  const approvals = votes.filter((decision) => decision.vote === "approve").length
-  if (policy === "unanimous") return approvals === votes.length
-  return approvals > votes.length / 2
+  return majorityPosition(decisions, policy) === "approve"
 }
 
 export function majorityPosition(
   decisions: MagiDecision[],
   policy: MagiVotePolicy = MagiDefault.votePolicy,
 ): MagiPosition {
-  const votes = decisions.filter((decision) => decision.vote !== "abstain")
-  if (votes.length === 0) return "revise"
+  const positions = decisions.map((decision) => decision.position ?? voteToPosition(decision.vote))
+  if (positions.length === 0) return "revise"
 
-  const approvals = votes.filter((decision) => decision.vote === "approve").length
-  const rejections = votes.filter((decision) => decision.vote === "reject").length
-  if (policy === "unanimous") return approvals === votes.length ? "approve" : "revise"
-  if (approvals > votes.length / 2) return "approve"
-  if (rejections > votes.length / 2) return "reject"
+  const approvals = positions.filter((position) => position === "approve").length
+  const revisions = positions.filter((position) => position === "revise").length
+  const rejections = positions.filter((position) => position === "reject").length
+  if (policy === "unanimous") return approvals === positions.length ? "approve" : "revise"
+  if (approvals > positions.length / 2) return "approve"
+  if (revisions > positions.length / 2) return "revise"
+  if (rejections > positions.length / 2) return "reject"
   return "revise"
 }
 

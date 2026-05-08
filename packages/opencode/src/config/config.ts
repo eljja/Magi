@@ -128,6 +128,9 @@ const MagiConfig = Schema.Struct({
       council: Schema.optional(ConfigModelID).annotate({
         description: "Local model used by Magi council members for review, voting, and self-improvement decisions.",
       }),
+      councilFallbacks: Schema.optional(Schema.mutable(Schema.Array(ConfigModelID))).annotate({
+        description: "Fallback council models tried in order when the primary council model fails.",
+      }),
     }),
   ),
   council: Schema.optional(

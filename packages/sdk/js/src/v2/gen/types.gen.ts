@@ -1057,6 +1057,7 @@ export type MagiConfig = {
   models?: {
     executor?: string
     council?: string
+    councilFallbacks?: Array<string>
   }
   council?: {
     members?: Array<string>
@@ -4185,12 +4186,32 @@ export type MagiStatusResponses = {
   200: {
     executorModel: string
     councilModel: string
+    councilModels: Array<string>
     selfImprovement: {
       enabled: boolean
       state: "off" | "on" | "paused"
       mode: "suggest-only" | "suggest-and-execute"
       coreSelfEdit: "disabled" | "gated" | "allowed"
       intervalMinutes: number
+    }
+    activity?: {
+      id: string
+      state: "idle" | "debating" | "decided" | "executing" | "error"
+      topic: string
+      detail: string
+      round: number
+      startedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      decidedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      finalPosition?: "approve" | "revise" | "reject"
+      votes: Array<{
+        member: "melchior" | "balthasar" | "casper"
+        state: "pending" | "approve" | "revise" | "reject" | "error"
+        model?: string
+        rationale?: string
+        detail?: string
+        error?: string
+      }>
     }
   }
 }
