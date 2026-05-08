@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import {
   buildSelfImprovementQuestion,
+  buildSelfImprovementDraftPrompt,
   buildDebateRoundPrompt,
   canExecuteImprovementTask,
   finalDebatePosition,
@@ -9,6 +10,7 @@ import {
   majorityApproved,
   majorityPosition,
   nextCouncilProposer,
+  normalizeProposalDraft,
   normalizeJudgment,
   normalizeMembers,
   selfImprovementExecutorPrompt,
@@ -161,23 +163,100 @@ describe("Magi council", () => {
         requiresCoreSelfEdit: true,
       }),
     ).toBe(false)
+    expect(
+      canExecuteImprovementTask(
+        {
+          magi: {
+            selfImprovement: {
+              enabled: true,
+              state: "on" as const,
+              mode: "suggest-and-execute" as const,
+              coreSelfEdit: "gated" as const,
+            },
+          },
+        },
+        {
+          kind: "self-improvement",
+          title: "Rewrite executor loop",
+          prompt: "Edit core loop",
+          requiresCoreSelfEdit: true,
+        },
+      ),
+    ).toBe(false)
+    expect(
+      canExecuteImprovementTask(
+        {
+          magi: {
+            selfImprovement: {
+              enabled: true,
+              state: "on" as const,
+              mode: "suggest-and-execute" as const,
+              coreSelfEdit: "allowed" as const,
+            },
+          },
+        },
+        {
+          kind: "self-improvement",
+          title: "Rewrite executor loop",
+          prompt: "Edit core loop",
+          requiresCoreSelfEdit: true,
+        },
+      ),
+    ).toBe(true)
   })
 
   test("builds a self-improvement prompt for local council review", () => {
+    const draft = normalizeProposalDraft("balthasar", {
+      title: "Harden completion checks",
+      prompt: "Implement verifier-backed completion checks for Magi.",
+      rationale: "Rotation should depend on real completion.",
+      requiresCoreSelfEdit: true,
+    })
     const prompt = buildSelfImprovementQuestion({
       recentWork: "Changed the settings UI.",
       cycle: 2,
       proposer: "balthasar",
       previousCompleted: false,
+      draft,
+      memory: "Last cycle did not change files.",
     })
     expect(prompt).toContain("Magi council task: self-improvement")
     expect(prompt).toContain("autonomous self-improvement cycle #2")
     expect(prompt).toContain("Current proposal owner: BALTHASAR")
+    expect(prompt).toContain("Owner draft executor prompt")
+    expect(prompt).toContain("Implement verifier-backed completion checks")
     expect(prompt).toContain("keeps priority")
     expect(prompt).toContain("exact executor input")
     expect(prompt).toContain("STOP_SELF_IMPROVEMENT")
+    expect(prompt).toContain("Last cycle did not change files")
     expect(prompt).toContain("Recent work:")
     expect(prompt).toContain("approve, revise, or reject")
+  })
+
+  test("builds and normalizes proposer-only drafts", () => {
+    const prompt = buildSelfImprovementDraftPrompt({
+      recentWork: "Vote UI is visible.",
+      proposer: "casper",
+      previousCompleted: true,
+    })
+    expect(prompt).toContain("sole proposal owner")
+    expect(prompt).toContain("CASPER")
+    expect(
+      normalizeProposalDraft("casper", {
+        title: "Improve vote affordance",
+        prompt: "Add a clearer council vote status tooltip.",
+        rationale: "Users need legibility.",
+        requiresCoreSelfEdit: false,
+        terminal: false,
+      }),
+    ).toEqual({
+      proposer: "casper",
+      title: "Improve vote affordance",
+      prompt: "Add a clearer council vote status tooltip.",
+      rationale: "Users need legibility.",
+      requiresCoreSelfEdit: false,
+      terminal: false,
+    })
   })
 
   test("rotates proposal ownership after completed work", () => {
@@ -189,6 +268,11 @@ describe("Magi council", () => {
     expect(
       selfImprovementExecutorPrompt({
         proposer: "balthasar",
+        draft: normalizeProposalDraft("balthasar", {
+          title: "Fallback",
+          prompt: "Implement fallback prompt.",
+          rationale: "Fallback.",
+        }),
         rounds: [
           {
             round: 1,

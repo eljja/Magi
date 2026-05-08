@@ -1,15 +1,18 @@
 import { Config } from "@/config/config"
+import * as InstanceState from "@/effect/instance-state"
 import { Provider } from "@/provider/provider"
 import { SessionID } from "@/session/schema"
 import { Session } from "@/session/session"
 import { SessionPrompt } from "@/session/prompt"
 import {
   buildDebateRoundPrompt,
+  buildSelfImprovementDraftPrompt,
   buildSelfImprovementQuestion,
   canExecuteImprovementTask,
   magiConfig,
   magiReviewResult,
   nextCouncilProposer,
+  normalizeProposalDraft,
   normalizeJudgment,
   shouldContinueDebate,
   shouldStopSelfImprovement,
@@ -18,10 +21,12 @@ import {
   type MagiDecision,
   type MagiDebateRound,
   type MagiPosition,
+  type MagiProposalDraft,
   type MagiTaskKind,
 } from "@magi/core"
 import { Cause, Effect, Scope } from "effect"
 import { HttpApiBuilder, HttpApiSchema } from "effect/unstable/httpapi"
+import path from "path"
 import { InstanceHttpApi } from "../api"
 import { MagiReviewPayload, MagiSelfImprovePayload } from "../groups/magi"
 
@@ -37,6 +42,19 @@ const JUDGMENT_SCHEMA = {
     requiredChange: { type: "string" },
     newEvidence: { type: "boolean" },
     safetyCritical: { type: "boolean" },
+  },
+}
+
+const DRAFT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["title", "prompt", "rationale", "requiresCoreSelfEdit", "terminal"],
+  properties: {
+    title: { type: "string" },
+    prompt: { type: "string" },
+    rationale: { type: "string" },
+    requiresCoreSelfEdit: { type: "boolean" },
+    terminal: { type: "boolean" },
   },
 }
 
@@ -73,6 +91,22 @@ type MagiCouncilResult = {
   executed: boolean
 }
 
+type MagiMemoryEntry = {
+  cycle: number
+  proposer: MagiCouncilMember
+  title: string
+  finalPosition: MagiPosition
+  approved: boolean
+  executed: boolean
+  summary: string
+  createdAt: number
+}
+
+type MagiMemory = {
+  version: 1
+  entries: MagiMemoryEntry[]
+}
+
 const uniqueModels = (models: string[]) => models.filter((model, index) => model && models.indexOf(model) === index)
 
 const topicLine = (input: string) => input.trim().split("\n").find((line) => line.trim())?.trim().slice(0, 120) ?? "Magi"
@@ -90,12 +124,75 @@ const failedDecision = (member: MagiCouncilMember, rationale: string): MagiDecis
 
 const causeSummary = (cause: Cause.Cause<unknown>) => Cause.pretty(cause).split("\n").at(0) ?? "Unknown error"
 
+const emptyMemory = (): MagiMemory => ({ version: 1, entries: [] })
+
+const validMemory = (input: unknown): MagiMemory => {
+  if (typeof input !== "object" || input === null || !("entries" in input) || !Array.isArray(input.entries))
+    return emptyMemory()
+  return {
+    version: 1,
+    entries: input.entries.filter((entry): entry is MagiMemoryEntry => {
+      if (typeof entry !== "object" || entry === null) return false
+      if (!("proposer" in entry) || !["melchior", "balthasar", "casper"].includes(String(entry.proposer))) return false
+      return "summary" in entry && typeof entry.summary === "string"
+    }),
+  }
+}
+
+const memorySummary = (memory: MagiMemory) =>
+  memory.entries
+    .slice(-6)
+    .map((entry) => `${entry.proposer.toUpperCase()} cycle ${entry.cycle}: ${entry.summary}`)
+    .join("\n")
+
+const readMemory = (directory: string) =>
+  Effect.promise(async () => {
+    try {
+      if (!(await Bun.file(path.join(directory, ".magi-memory.json")).exists())) return emptyMemory()
+      return validMemory(await Bun.file(path.join(directory, ".magi-memory.json")).json())
+    } catch {
+      return emptyMemory()
+    }
+  })
+
+const writeMemory = (directory: string, entry: MagiMemoryEntry) =>
+  Effect.gen(function* () {
+    const memory = yield* readMemory(directory)
+    yield* Effect.promise(async () => {
+      try {
+        await Bun.write(
+          path.join(directory, ".magi-memory.json"),
+          `${JSON.stringify({ version: 1, entries: [...memory.entries, entry].slice(-50) }, null, 2)}\n`,
+        )
+      } catch {
+      }
+    })
+  })
+
+const gitStatus = (directory: string) =>
+  Effect.promise(async () => {
+    try {
+      const proc = Bun.spawn(["git", "status", "--porcelain"], {
+        cwd: directory,
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      const stdout = await new Response(proc.stdout).text()
+      const exit = await proc.exited
+      if (exit !== 0) return "GIT_STATUS_UNAVAILABLE"
+      return stdout.trim()
+    } catch {
+      return "GIT_STATUS_UNAVAILABLE"
+    }
+  })
+
 export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handlers) =>
   Effect.gen(function* () {
     const config = yield* Config.Service
     const session = yield* Session.Service
     const prompt = yield* SessionPrompt.Service
     const scope = yield* Scope.Scope
+    const instance = yield* InstanceState.context
     let activity: MagiActivity | undefined
     let selfImprovementRunning = false
 
@@ -110,6 +207,64 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
       }
     })
 
+    const askProposalDraft = Effect.fn("MagiHttpApi.askProposalDraft")(function* (input: {
+      sessionID?: SessionID
+      proposer: MagiCouncilMember
+      cycle: number
+      previousCompleted: boolean
+      recentWork: string
+      constraints?: string
+      memory?: string
+    }) {
+      const resolved = magiConfig(yield* config.get())
+      const councilModels = uniqueModels([resolved.councilModel, ...resolved.councilFallbackModels])
+      const councilModel = Provider.parseModel(councilModels[0] ?? resolved.councilModel)
+      const draftSession = yield* session.create({
+        parentID: input.sessionID,
+        title: `Magi ${input.proposer.toUpperCase()} Draft`,
+        agent: "plan",
+        model: { id: councilModel.modelID, providerID: councilModel.providerID },
+      })
+      const askWithModels: (models: string[]) => Effect.Effect<MagiProposalDraft> = (models) => {
+        const model = models[0]
+        const remaining = models.slice(1)
+        if (!model) return Effect.succeed(normalizeProposalDraft(input.proposer, undefined))
+
+        const parsed = Provider.parseModel(model)
+        return prompt
+          .prompt({
+            sessionID: draftSession.id,
+            agent: "plan",
+            model: { providerID: parsed.providerID, modelID: parsed.modelID },
+            format: { type: "json_schema", schema: DRAFT_SCHEMA },
+            parts: [
+              {
+                type: "text",
+                text: buildSelfImprovementDraftPrompt({
+                  recentWork: input.recentWork,
+                  constraints: input.constraints,
+                  cycle: input.cycle,
+                  proposer: input.proposer,
+                  previousCompleted: input.previousCompleted,
+                  memory: input.memory,
+                }),
+              },
+            ],
+          })
+          .pipe(
+            Effect.timeout(COUNCIL_MODEL_TIMEOUT),
+            Effect.flatMap((message) => {
+              if (message.info.role !== "assistant")
+                return Effect.fail(new Error("Magi draft prompt did not return an assistant message."))
+              if (message.info.error) return Effect.fail(new Error(JSON.stringify(message.info.error)))
+              return Effect.succeed(normalizeProposalDraft(input.proposer, message.info.structured))
+            }),
+            Effect.catchCause(() => (remaining.length > 0 ? askWithModels(remaining) : Effect.succeed(normalizeProposalDraft(input.proposer, undefined)))),
+          )
+      }
+      return yield* askWithModels(councilModels)
+    })
+
     const runCouncil = Effect.fn("MagiHttpApi.runCouncil")(function* (input: {
       sessionID?: SessionID
       proposal: string
@@ -117,6 +272,7 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
       kind: MagiTaskKind
       execute: boolean
       proposer?: MagiCouncilMember
+      draft?: MagiProposalDraft
     }) {
       const cfg = yield* config.get()
       const resolved = magiConfig(cfg)
@@ -285,46 +441,63 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
       const result = magiReviewResult({ config: cfg, rounds })
       const executorTask =
         input.kind === "self-improvement" && input.proposer
-          ? selfImprovementExecutorPrompt({ rounds: result.rounds, proposer: input.proposer })
+          ? selfImprovementExecutorPrompt({ rounds: result.rounds, proposer: input.proposer, draft: input.draft })
           : input.proposal
-      const executed = input.execute && result.approved && executorTask !== undefined
+      const shouldExecute = input.execute && result.approved && executorTask !== undefined
       activity = activity && {
         ...activity,
-        state: executed ? "executing" : "decided",
+        state: shouldExecute ? "executing" : "decided",
         finalPosition: result.finalPosition,
         decidedAt: Date.now(),
         updatedAt: Date.now(),
       }
-      if (executed) {
-        yield* prompt.prompt({
-          sessionID: root.id,
-          agent: "build",
-          model: { providerID: executorModel.providerID, modelID: executorModel.modelID },
-          parts: [
-            {
-              type: "text",
-              text: [
-                "Magi council approved this task. Execute it within the current repository constraints.",
-                "",
-                "Task:",
-                executorTask,
-                input.evidence ? "" : undefined,
-                input.evidence ? "Evidence:" : undefined,
-                input.evidence,
-                input.kind === "self-improvement" ? "" : undefined,
-                input.kind === "self-improvement" ? "Council question:" : undefined,
-                input.kind === "self-improvement" ? input.proposal : undefined,
-                "",
-                "Council result:",
-                JSON.stringify(result, null, 2),
-              ]
-                .filter((line): line is string => line !== undefined)
-                .join("\n"),
-            },
-          ],
-        })
-        activity = activity && { ...activity, state: "decided", updatedAt: Date.now() }
-      }
+      const execution = shouldExecute
+        ? yield* Effect.gen(function* () {
+            const before = yield* gitStatus(instance.directory)
+            const message = yield* prompt.prompt({
+              sessionID: root.id,
+              agent: "build",
+              model: { providerID: executorModel.providerID, modelID: executorModel.modelID },
+              parts: [
+                {
+                  type: "text",
+                  text: [
+                    "Magi council approved this task. Execute it within the current repository constraints.",
+                    "Do not claim completion unless code/config/docs were actually changed or a concrete verification result proves no change is needed.",
+                    "",
+                    "Task:",
+                    executorTask,
+                    input.evidence ? "" : undefined,
+                    input.evidence ? "Evidence:" : undefined,
+                    input.evidence,
+                    input.kind === "self-improvement" ? "" : undefined,
+                    input.kind === "self-improvement" ? "Council question:" : undefined,
+                    input.kind === "self-improvement" ? input.proposal : undefined,
+                    "",
+                    "Council result:",
+                    JSON.stringify(result, null, 2),
+                  ]
+                    .filter((line): line is string => line !== undefined)
+                    .join("\n"),
+                },
+              ],
+            })
+            const after = yield* gitStatus(instance.directory)
+            const errored = message.info.role !== "assistant" || message.info.error !== undefined
+            return {
+              executed: !errored && before !== after,
+              summary: errored
+                ? "Executor returned an error."
+                : before !== after
+                  ? "Executor changed the worktree."
+                  : "Executor finished without observable worktree changes.",
+            }
+          })
+        : {
+            executed: false,
+            summary: result.approved ? "No executor task was available." : `Council final position was ${result.finalPosition}.`,
+          }
+      activity = activity && { ...activity, state: "decided", updatedAt: Date.now() }
 
       return {
         sessionID: root.id,
@@ -332,7 +505,7 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
         rounds: result.rounds,
         finalPosition: result.finalPosition,
         approved: result.approved,
-        executed,
+        executed: execution.executed,
       }
     })
 
@@ -375,27 +548,53 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
           const currentProposer: MagiCouncilMember = resolved.members.includes(proposer)
             ? proposer
             : (resolved.members[0] ?? "melchior")
+          const memory = yield* readMemory(instance.directory)
+          const memoryText = memorySummary(memory)
+          const draft = yield* askProposalDraft({
+            sessionID: input.sessionID,
+            proposer: currentProposer,
+            cycle,
+            previousCompleted,
+            recentWork,
+            constraints: input.constraints,
+            memory: memoryText,
+          })
           const proposal = buildSelfImprovementQuestion({
             recentWork,
             constraints: input.constraints,
             cycle,
             proposer: currentProposer,
             previousCompleted,
+            draft,
+            memory: memoryText,
           })
-          const execute = canExecuteImprovementTask(cfg, {
-            kind: "self-improvement",
-            title: `Magi self-improvement cycle ${cycle}`,
-            prompt: proposal,
-            requiresCoreSelfEdit: false,
-          })
+          const execute =
+            !draft.terminal &&
+            canExecuteImprovementTask(cfg, {
+              kind: "self-improvement",
+              title: draft.title,
+              prompt: draft.prompt,
+              requiresCoreSelfEdit: draft.requiresCoreSelfEdit,
+            })
           const result: MagiCouncilResult = yield* runCouncil({
             sessionID: input.sessionID,
             proposal,
             kind: "self-improvement",
             execute,
             proposer: currentProposer,
+            draft,
           })
           if (shouldStopSelfImprovement(result.rounds)) return
+          yield* writeMemory(instance.directory, {
+            cycle,
+            proposer: currentProposer,
+            title: draft.title,
+            finalPosition: result.finalPosition,
+            approved: result.approved,
+            executed: result.executed,
+            summary: `${draft.title} -> ${result.finalPosition}; executed=${result.executed}`,
+            createdAt: Date.now(),
+          })
           previousCompleted = result.executed
           recentWork = result.executed
             ? `${currentProposer.toUpperCase()}'s previous improvement was approved and executed. Continue with the next project-specific improvement.`

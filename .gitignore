@@ -27,6 +27,7 @@ target
 opencode-dev
 .magi-app*.log
 .magi-server*.log
+.magi-memory.json
 UPCOMING_CHANGELOG.md
 logs/
 *.bun-build

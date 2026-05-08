@@ -67,6 +67,15 @@ export type MagiImprovementTask = {
   requiresCoreSelfEdit: boolean
 }
 
+export type MagiProposalDraft = {
+  proposer: MagiCouncilMember
+  title: string
+  prompt: string
+  rationale: string
+  requiresCoreSelfEdit: boolean
+  terminal: boolean
+}
+
 export type MagiCouncilJudgment = {
   position: MagiPosition
   rationale: string
@@ -172,7 +181,7 @@ export function canExecuteImprovementTask(config: MagiHostConfig, task: MagiImpr
   const self = magiConfig(config).selfImprovement
   if (!self.enabled) return false
   if (!task.requiresCoreSelfEdit) return self.mode === "suggest-and-execute"
-  return self.mode === "suggest-and-execute" && self.coreSelfEdit !== "disabled"
+  return self.mode === "suggest-and-execute" && self.coreSelfEdit === "allowed"
 }
 
 export function majorityApproved(decisions: MagiDecision[], policy: MagiVotePolicy = MagiDefault.votePolicy) {
@@ -375,14 +384,72 @@ export function nextCouncilProposer(members: MagiCouncilMember[], current: MagiC
 export function selfImprovementExecutorPrompt(input: {
   rounds: MagiDebateRound[]
   proposer: MagiCouncilMember
+  draft?: MagiProposalDraft
 }) {
   const last = input.rounds.at(-1)
   const choices = last?.decisions.filter((decision) => decision.requiredChange?.trim() !== STOP_SELF_IMPROVEMENT) ?? []
   return (
     choices.find((decision) => decision.member === input.proposer)?.requiredChange?.trim() ??
     choices.find((decision) => (decision.position ?? voteToPosition(decision.vote)) === "approve")?.requiredChange?.trim() ??
-    choices.find((decision) => (decision.position ?? voteToPosition(decision.vote)) === "revise")?.requiredChange?.trim()
+    choices.find((decision) => (decision.position ?? voteToPosition(decision.vote)) === "revise")?.requiredChange?.trim() ??
+    input.draft?.prompt.trim()
   )
+}
+
+export function normalizeProposalDraft(proposer: MagiCouncilMember, input: unknown): MagiProposalDraft {
+  const item = isRecord(input) ? input : {}
+  const terminal = item.terminal === true
+  return {
+    proposer,
+    title:
+      typeof item.title === "string" && item.title.trim()
+        ? item.title.trim()
+        : terminal
+          ? "Stop self-improvement"
+          : "Untitled Magi improvement",
+    prompt:
+      typeof item.prompt === "string" && item.prompt.trim()
+        ? item.prompt.trim()
+        : terminal
+          ? STOP_SELF_IMPROVEMENT
+          : "Inspect the project and propose a small, testable improvement.",
+    rationale: typeof item.rationale === "string" && item.rationale.trim() ? item.rationale.trim() : "No rationale.",
+    requiresCoreSelfEdit: item.requiresCoreSelfEdit === true,
+    terminal,
+  }
+}
+
+export function buildSelfImprovementDraftPrompt(input: {
+  recentWork: string
+  constraints?: string
+  cycle?: number
+  proposer: MagiCouncilMember
+  previousCompleted?: boolean
+  memory?: string
+}) {
+  return [
+    MagiPrompts[input.proposer],
+    "",
+    `Magi autonomous self-improvement draft${input.cycle ? ` #${input.cycle}` : ""}.`,
+    `You are the sole proposal owner for this cycle: ${input.proposer.toUpperCase()}.`,
+    input.previousCompleted === false
+      ? "The previous owned task did not complete cleanly. Prefer a narrower continuation, repair, or verification task before opening a new direction."
+      : "The previous owned task completed. Propose the next new project-specific improvement.",
+    "Observe the current project direction from repository instructions, README/package metadata, recent sessions, and the user's stated goals.",
+    "Return one concrete executor prompt that can be handed to the coding model if the council approves it.",
+    "Prefer improvements that increase product value, safety, tests, UX visibility, maintainability, or autonomous-loop reliability.",
+    "Do not claim the project is complete unless that conclusion is overwhelmingly justified.",
+    `Only for an extremely conservative terminal decision, set terminal true and set prompt exactly to ${STOP_SELF_IMPROVEMENT}.`,
+    input.constraints ? `Constraints: ${input.constraints}` : undefined,
+    input.memory ? "" : undefined,
+    input.memory ? "Memory:" : undefined,
+    input.memory,
+    "",
+    "Recent work:",
+    input.recentWork.trim(),
+  ]
+    .filter((line): line is string => line !== undefined)
+    .join("\n")
 }
 
 export function buildSelfImprovementQuestion(input: {
@@ -391,6 +458,8 @@ export function buildSelfImprovementQuestion(input: {
   cycle?: number
   proposer?: MagiCouncilMember
   previousCompleted?: boolean
+  draft?: MagiProposalDraft
+  memory?: string
 }) {
   const proposer = input.proposer ?? "melchior"
   return buildCouncilPrompt({
@@ -398,6 +467,12 @@ export function buildSelfImprovementQuestion(input: {
     proposal: [
       `Magi autonomous self-improvement cycle${input.cycle ? ` #${input.cycle}` : ""}.`,
       `Current proposal owner: ${proposer.toUpperCase()}.`,
+      input.draft ? `Owner draft title: ${input.draft.title}` : undefined,
+      input.draft ? "Owner draft executor prompt:" : undefined,
+      input.draft?.prompt,
+      input.draft ? "Owner draft rationale:" : undefined,
+      input.draft?.rationale,
+      input.draft?.requiresCoreSelfEdit ? "Owner draft requires core self-edit." : undefined,
       input.previousCompleted === false
         ? `${proposer.toUpperCase()} keeps priority because the previous owned task did not complete cleanly. Continue, repair, or narrow that line of work before opening a new one.`
         : `${proposer.toUpperCase()} has priority to propose the next new improvement item.`,
@@ -409,6 +484,9 @@ export function buildSelfImprovementQuestion(input: {
       "If you approve or revise, put the exact executor input or amendment in requiredChange.",
       `Only if the project is unquestionably complete, has no worthwhile improvement left, or should no longer be developed, reject and set requiredChange exactly to ${STOP_SELF_IMPROVEMENT}. This terminal decision must be extremely conservative.`,
       input.constraints ? `Constraints: ${input.constraints}` : undefined,
+      input.memory ? "" : undefined,
+      input.memory ? "Memory:" : undefined,
+      input.memory,
       "",
       "Recent work:",
       input.recentWork.trim(),
