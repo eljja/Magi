@@ -31,7 +31,10 @@ export const MagiSettingsRows: Component = () => {
   const selfImprovementEnabled = createMemo(() => selfImprovement().enabled ?? selfImprovement().state === "on")
   const executorModel = createMemo(() => magi().models?.executor ?? "")
   const councilModel = createMemo(() => magi().models?.council ?? "")
+  const councilFallbacks = createMemo(() => magi().models?.councilFallbacks?.join(", ") ?? "")
+  const coreSelfEdit = createMemo(() => selfImprovement().coreSelfEdit ?? "gated")
   const intervalMinutes = createMemo(() => selfImprovement().intervalMinutes ?? 30)
+  const maxCycles = createMemo(() => selfImprovement().maxCycles ?? 10)
 
   const updateMagiModel = (key: "executor" | "council", value: string) => {
     const trimmed = value.trim()
@@ -60,6 +63,34 @@ export const MagiSettingsRows: Component = () => {
     })
   }
 
+  const setCouncilFallbacks = (value: string) => {
+    const models = value
+      .split(",")
+      .map((model) => model.trim())
+      .filter((model) => model.length > 0)
+    if (models.join(", ") === councilFallbacks()) return
+    void globalSync.updateConfig({
+      magi: {
+        models: {
+          councilFallbacks: models,
+        },
+      },
+    })
+  }
+
+  const setCoreSelfEdit = (value: string) => {
+    const trimmed = value.trim()
+    if (trimmed !== "disabled" && trimmed !== "gated" && trimmed !== "allowed") return
+    if (trimmed === coreSelfEdit()) return
+    void globalSync.updateConfig({
+      magi: {
+        selfImprovement: {
+          coreSelfEdit: trimmed,
+        },
+      },
+    })
+  }
+
   const setIntervalMinutes = (value: string) => {
     const parsed = Number.parseInt(value, 10)
     if (!Number.isFinite(parsed) || parsed < 1 || parsed === intervalMinutes()) return
@@ -67,6 +98,18 @@ export const MagiSettingsRows: Component = () => {
       magi: {
         selfImprovement: {
           intervalMinutes: parsed,
+        },
+      },
+    })
+  }
+
+  const setMaxCycles = (value: string) => {
+    const parsed = Number.parseInt(value, 10)
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed === maxCycles()) return
+    void globalSync.updateConfig({
+      magi: {
+        selfImprovement: {
+          maxCycles: parsed,
         },
       },
     })
@@ -111,12 +154,48 @@ export const MagiSettingsRows: Component = () => {
       </MagiSettingsRow>
 
       <MagiSettingsRow
+        title={language.t("settings.general.row.magiCouncilFallbacks.title")}
+        description={language.t("settings.general.row.magiCouncilFallbacks.description")}
+      >
+        <TextField
+          data-action="settings-magi-council-fallbacks"
+          label={language.t("settings.general.row.magiCouncilFallbacks.title")}
+          hideLabel
+          defaultValue={councilFallbacks()}
+          onBlur={(event: FocusEvent & { currentTarget: HTMLInputElement }) =>
+            setCouncilFallbacks(event.currentTarget.value)
+          }
+          placeholder="google/gemini-3.1-flash-lite, google/gemini-3.1-pro-preview"
+          variant="ghost"
+          class="w-[320px]"
+        />
+      </MagiSettingsRow>
+
+      <MagiSettingsRow
         title={language.t("settings.general.row.magiSelfImprovement.title")}
         description={language.t("settings.general.row.magiSelfImprovement.description")}
       >
         <div data-action="settings-magi-self-improvement">
           <Switch checked={selfImprovementEnabled()} onChange={setSelfImprovementEnabled} />
         </div>
+      </MagiSettingsRow>
+
+      <MagiSettingsRow
+        title={language.t("settings.general.row.magiCoreSelfEdit.title")}
+        description={language.t("settings.general.row.magiCoreSelfEdit.description")}
+      >
+        <TextField
+          data-action="settings-magi-core-self-edit"
+          label={language.t("settings.general.row.magiCoreSelfEdit.title")}
+          hideLabel
+          defaultValue={coreSelfEdit()}
+          onBlur={(event: FocusEvent & { currentTarget: HTMLInputElement }) =>
+            setCoreSelfEdit(event.currentTarget.value)
+          }
+          placeholder="disabled | gated | allowed"
+          variant="ghost"
+          class="w-[120px]"
+        />
       </MagiSettingsRow>
 
       <MagiSettingsRow
@@ -131,6 +210,21 @@ export const MagiSettingsRows: Component = () => {
           onBlur={(event: FocusEvent & { currentTarget: HTMLInputElement }) =>
             setIntervalMinutes(event.currentTarget.value)
           }
+          variant="ghost"
+          class="w-[80px]"
+        />
+      </MagiSettingsRow>
+
+      <MagiSettingsRow
+        title={language.t("settings.general.row.magiMaxCycles.title")}
+        description={language.t("settings.general.row.magiMaxCycles.description")}
+      >
+        <TextField
+          data-action="settings-magi-max-cycles"
+          label={language.t("settings.general.row.magiMaxCycles.title")}
+          hideLabel
+          defaultValue={String(maxCycles())}
+          onBlur={(event: FocusEvent & { currentTarget: HTMLInputElement }) => setMaxCycles(event.currentTarget.value)}
           variant="ghost"
           class="w-[80px]"
         />

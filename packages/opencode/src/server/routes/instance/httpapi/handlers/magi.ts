@@ -145,6 +145,12 @@ const memorySummary = (memory: MagiMemory) =>
     .map((entry) => `${entry.proposer.toUpperCase()} cycle ${entry.cycle}: ${entry.summary}`)
     .join("\n")
 
+const redactSecrets = (input: string) =>
+  input
+    .replace(/AIza[0-9A-Za-z_-]{20,}/g, "[REDACTED_GOOGLE_API_KEY]")
+    .replace(/\bsk-[0-9A-Za-z_-]{20,}\b/g, "[REDACTED_OPENAI_API_KEY]")
+    .replace(/\b[A-Za-z0-9_-]*api[_-]?key[A-Za-z0-9_:= -]{8,}/gi, "[REDACTED_API_KEY]")
+
 const readMemory = (directory: string) =>
   Effect.promise(async () => {
     try {
@@ -545,6 +551,7 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
         while (magiConfig(yield* config.get()).selfImprovement.enabled) {
           const cfg = yield* config.get()
           const resolved = magiConfig(cfg)
+          if (cycle > resolved.selfImprovement.maxCycles) return
           const currentProposer: MagiCouncilMember = resolved.members.includes(proposer)
             ? proposer
             : (resolved.members[0] ?? "melchior")
@@ -555,12 +562,12 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
             proposer: currentProposer,
             cycle,
             previousCompleted,
-            recentWork,
+            recentWork: redactSecrets(recentWork),
             constraints: input.constraints,
             memory: memoryText,
           })
           const proposal = buildSelfImprovementQuestion({
-            recentWork,
+            recentWork: redactSecrets(recentWork),
             constraints: input.constraints,
             cycle,
             proposer: currentProposer,
@@ -592,7 +599,7 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
             finalPosition: result.finalPosition,
             approved: result.approved,
             executed: result.executed,
-            summary: `${draft.title} -> ${result.finalPosition}; executed=${result.executed}`,
+            summary: redactSecrets(`${draft.title} -> ${result.finalPosition}; executed=${result.executed}`),
             createdAt: Date.now(),
           })
           previousCompleted = result.executed

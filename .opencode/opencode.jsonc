@@ -59,6 +59,7 @@
       "mode": "suggest-and-execute",
       "coreSelfEdit": "gated",
       "intervalMinutes": 1,
+      "maxCycles": 5,
     },
   },
   "permission": {

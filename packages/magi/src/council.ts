@@ -35,6 +35,7 @@ export type MagiHostConfig = {
       mode?: MagiSelfImprovementMode
       coreSelfEdit?: MagiCoreSelfEditPolicy
       intervalMinutes?: number
+      maxCycles?: number
     }
   }
 }
@@ -105,6 +106,7 @@ export const MagiDefault = {
   debateSynthesisAfterEachRound: true,
   debateVetoPolicy: "safety-critical" as const,
   selfImprovementIntervalMinutes: 30,
+  selfImprovementMaxCycles: 10,
   selfImprovementMode: "suggest-and-execute" as const,
   coreSelfEdit: "gated" as const,
 }
@@ -144,6 +146,7 @@ export function magiConfig(config: MagiHostConfig) {
         magi.selfImprovement?.intervalMinutes,
         MagiDefault.selfImprovementIntervalMinutes,
       ),
+      maxCycles: positiveInt(magi.selfImprovement?.maxCycles, MagiDefault.selfImprovementMaxCycles),
     },
   }
 }

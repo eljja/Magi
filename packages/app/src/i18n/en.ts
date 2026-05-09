@@ -741,12 +741,21 @@ export const dict = {
   "settings.general.row.magiCouncilModel.title": "Local council model",
   "settings.general.row.magiCouncilModel.description":
     "LM Studio model used by the MELCHIOR, BALTHASAR, and CASPER council members.",
+  "settings.general.row.magiCouncilFallbacks.title": "Council fallback models",
+  "settings.general.row.magiCouncilFallbacks.description":
+    "Comma-separated model IDs tried when the primary council model fails.",
   "settings.general.row.magiSelfImprovement.title": "Self Improvement",
   "settings.general.row.magiSelfImprovement.description":
     "Allow Magi to continuously propose and run majority-approved improvement tasks.",
+  "settings.general.row.magiCoreSelfEdit.title": "Core self-edit policy",
+  "settings.general.row.magiCoreSelfEdit.description":
+    "disabled, gated, or allowed. Gated core edits are proposed but not automatically executed.",
   "settings.general.row.magiSelfImprovementInterval.title": "Self Improvement interval",
   "settings.general.row.magiSelfImprovementInterval.description":
     "Minutes between UI-driven Magi self-improvement cycles while enabled.",
+  "settings.general.row.magiMaxCycles.title": "Self Improvement max cycles",
+  "settings.general.row.magiMaxCycles.description":
+    "Maximum autonomous cycles started by one Self Improvement loop invocation.",
   "magi.selfImprovement.toggle.on": "Self Improvement: On",
   "magi.selfImprovement.toggle.off": "Self Improvement: Off",
   "magi.selfImprovement.toggle.paused": "Self Improvement: Paused",

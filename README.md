@@ -43,6 +43,20 @@
 
 ---
 
+## Magi
+
+Magi is an experimental OpenCode fork that adds a dual-LLM council layer for autonomous coding workflows.
+
+- **Executor model**: a high-performance external coding model for implementation and complex changes.
+- **Council model**: a lower-cost local or API model used by MELCHIOR, BALTHASAR, and CASPER to draft, critique, vote, and guide self-improvement.
+- **Self Improvement**: an opt-in loop that proposes project-specific improvements, votes on them, executes approved prompts, verifies worktree changes, and records a local `.magi-memory.json` journal.
+
+Self Improvement defaults to **off**. Do not enable it on a repository unless you are comfortable with autonomous agent edits and have a backup, source control, and a clear rollback path.
+
+Magi is based on [OpenCode](https://opencode.ai). It is not affiliated with or endorsed by the OpenCode team. See [MAGI.md](./MAGI.md), [UPSTREAM.md](./UPSTREAM.md), and [NOTICE.md](./NOTICE.md).
+
+---
+
 ### Installation
 
 ```bash

@@ -18,6 +18,16 @@ OpenCode does **not** sandbox the agent. The permission system exists as a UX fe
 
 If you need true isolation, run OpenCode inside a Docker container or VM.
 
+### Magi Self Improvement
+
+Magi adds an opt-in autonomous self-improvement loop. Treat it as agentic code execution with write access to your repository.
+
+- Keep Self Improvement off unless you intentionally want autonomous edits.
+- Do not store provider API keys in repository config. Use environment variables or provider credential stores.
+- Review generated diffs before publishing or merging.
+- Keep `magi.selfImprovement.coreSelfEdit` set to `gated` for public/default profiles.
+- `.magi-memory.json` is a local journal and is ignored by git. It redacts common API key shapes, but do not intentionally paste secrets into Magi prompts.
+
 ### Server Mode
 
 Server mode is opt-in only. When enabled, set `OPENCODE_SERVER_PASSWORD` to require HTTP Basic Auth. Without this, the server runs unauthenticated (with a warning). It is the end user's responsibility to secure the server - any functionality it provides is not a vulnerability.

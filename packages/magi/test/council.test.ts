@@ -56,6 +56,7 @@ describe("Magi council", () => {
         state: "on",
         mode: "suggest-and-execute",
         coreSelfEdit: "gated",
+        maxCycles: 10,
       },
     })
   })

@@ -185,6 +185,9 @@ const MagiConfig = Schema.Struct({
       intervalMinutes: Schema.optional(PositiveInt).annotate({
         description: "UI-driven interval for creating Magi self-improvement cycles while enabled.",
       }),
+      maxCycles: Schema.optional(PositiveInt).annotate({
+        description: "Maximum self-improvement cycles started by one loop invocation.",
+      }),
     }),
   ),
 }).annotate({

@@ -1799,7 +1799,7 @@ export class Magi extends HeyApiClient {
   /**
    * Start Magi self-improvement
    *
-   * Start one asynchronous Magi self-improvement cycle if self-improvement is enabled in config.
+   * Start the asynchronous Magi self-improvement loop if self-improvement is enabled in config.
    */
   public selfImproveAsync<ThrowOnError extends boolean = false>(
     parameters?: {
