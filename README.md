@@ -55,6 +55,17 @@ Self Improvement defaults to **off**. Do not enable it on a repository unless yo
 
 Magi is based on [OpenCode](https://opencode.ai). It is not affiliated with or endorsed by the OpenCode team. See [MAGI.md](./MAGI.md), [UPSTREAM.md](./UPSTREAM.md), and [NOTICE.md](./NOTICE.md).
 
+### Public Preview Status
+
+This repository is the Magi fork, not the upstream OpenCode distribution. The upstream install commands below still install OpenCode unless this fork publishes separate Magi release artifacts. For now, contributors should build and run Magi from this repository:
+
+```bash
+bun install
+bun --cwd packages/opencode dev
+```
+
+Use environment variables or provider auth for model keys. Do not commit API keys into `opencode.json`, `.opencode/opencode.jsonc`, or `.magi-memory.json`.
+
 ---
 
 ### Installation

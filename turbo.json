@@ -18,6 +18,10 @@
       "outputs": [".artifacts/unit/junit.xml"],
       "passThroughEnv": ["*"]
     },
+    "@magi/core#test:ci": {
+      "dependsOn": ["^build"],
+      "outputs": [".artifacts/unit/junit.xml"]
+    },
     "@opencode-ai/app#test": {
       "dependsOn": ["^build"],
       "outputs": []
