@@ -60,6 +60,19 @@ bun install
 bun --cwd packages/opencode dev
 ```
 
+Windows에서는 별도 `magi` 명령을 한 번만 설치할 수 있습니다.
+
+```powershell
+bun run magi:install
+```
+
+그 다음부터는 기존 `opencode` 명령을 바꾸지 않고 어떤 프로젝트 폴더에서든 Magi를 실행할 수 있습니다.
+
+```powershell
+magi
+magi D:\path\to\project
+```
+
 모델 API key는 환경 변수나 provider credential store에 보관하세요. `opencode.json`, `.opencode/opencode.jsonc`, `.magi-memory.json`에 API key를 커밋하지 마세요.
 
 자세한 내용은 [MAGI.md](./MAGI.md), [UPSTREAM.md](./UPSTREAM.md), [NOTICE.md](./NOTICE.md)를 참고하세요.

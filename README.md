@@ -64,6 +64,19 @@ bun install
 bun --cwd packages/opencode dev
 ```
 
+On Windows, install a separate `magi` command once:
+
+```powershell
+bun run magi:install
+```
+
+Then run Magi from any project directory without replacing your existing `opencode` command:
+
+```powershell
+magi
+magi D:\path\to\project
+```
+
 Use environment variables or provider auth for model keys. Do not commit API keys into `opencode.json`, `.opencode/opencode.jsonc`, or `.magi-memory.json`.
 
 ---
