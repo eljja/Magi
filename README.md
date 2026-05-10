@@ -9,6 +9,7 @@
 </p>
 <p align="center">The open source AI coding agent.</p>
 <p align="center">
+  <a href="https://github.com/eljja/Magi/actions/workflows/magi.yml"><img alt="Magi status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/magi.yml?style=flat-square&branch=dev&label=magi" /></a>
   <a href="https://github.com/eljja/Magi/actions/workflows/test.yml"><img alt="Test status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/test.yml?style=flat-square&branch=dev&label=test" /></a>
   <a href="https://github.com/eljja/Magi/actions/workflows/typecheck.yml"><img alt="Typecheck status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/typecheck.yml?style=flat-square&branch=dev&label=typecheck" /></a>
 </p>

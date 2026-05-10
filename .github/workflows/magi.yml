@@ -1,0 +1,35 @@
+name: magi
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: core checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Magi core tests
+        run: bun --cwd packages/magi test
+
+      - name: Magi core typecheck
+        run: bun --cwd packages/magi typecheck
+
+      - name: Magi HTTP API regression
+        run: bun --cwd packages/opencode test test/server/httpapi-magi.test.ts

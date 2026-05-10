@@ -40,6 +40,24 @@ https://github.com/anomalyco/models.dev
   bun dev
   ```
 
+### Magi Guardrail Checks
+
+Before changing Magi council behavior, run the fast Magi checks:
+
+```bash
+bun --cwd packages/magi test
+bun --cwd packages/magi typecheck
+bun --cwd packages/opencode test test/server/httpapi-magi.test.ts
+```
+
+Run broader package checks before publishing:
+
+```bash
+bun --cwd packages/opencode typecheck
+bun --cwd packages/app typecheck
+bun --cwd packages/sdk/js typecheck
+```
+
 ### Running against a different directory
 
 By default, `bun dev` runs OpenCode in the `packages/opencode` directory. To run it against a different directory or repository:

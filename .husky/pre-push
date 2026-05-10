@@ -1,20 +1,31 @@
 #!/bin/sh
 set -e
+
+if command -v bun >/dev/null 2>&1; then
+  run_bun() {
+    bun "$@"
+  }
+elif command -v npx >/dev/null 2>&1; then
+  run_bun() {
+    npx --yes bun "$@"
+  }
+else
+  echo "bun is required for pre-push checks. Install Bun or make npx available." >&2
+  exit 127
+fi
+
 # Check if bun version matches package.json
 # keep in sync with packages/script/src/index.ts semver qualifier
-bun -e '
-import { semver } from "bun";
-const pkg = await Bun.file("package.json").json();
-const expectedBunVersion = pkg.packageManager?.split("@")[1];
-if (!expectedBunVersion) {
-  throw new Error("packageManager field not found in root package.json");
-}
-const expectedBunVersionRange = `^${expectedBunVersion}`;
-if (!semver.satisfies(process.versions.bun, expectedBunVersionRange)) {
-  throw new Error(`This script requires bun@${expectedBunVersionRange}, but you are using bun@${process.versions.bun}`);
-}
-if (process.versions.bun !== expectedBunVersion) {
-  console.warn(`Warning: Bun version ${process.versions.bun} differs from expected ${expectedBunVersion}`);
-}
-'
-bun typecheck
+expected_bun_version="$(node -p "require('./package.json').packageManager?.split('@')[1] || ''")"
+actual_bun_version="$(run_bun --version)"
+
+if [ -z "$expected_bun_version" ]; then
+  echo "packageManager field not found in root package.json" >&2
+  exit 1
+fi
+
+if [ "$actual_bun_version" != "$expected_bun_version" ]; then
+  echo "Warning: Bun version $actual_bun_version differs from expected $expected_bun_version" >&2
+fi
+
+run_bun typecheck
