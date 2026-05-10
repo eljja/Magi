@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import path from "path"
+import net from "net"
 
 const repo = path.resolve(import.meta.dirname, "..")
 const opencode = path.join(repo, "packages/opencode")
@@ -88,6 +89,17 @@ const projectArg = (start: number, allowPositional = false) =>
 
 const serverBase = () => value("--server", `http://127.0.0.1:${value("--server-port", value("--port", "4096"))}`)
 
+const availablePort = (start: number, hostname: string): Promise<number> =>
+  new Promise((resolve) => {
+    const test = (port: number) => {
+      const server = net.createServer()
+      server.once("error", () => test(port + 1))
+      server.once("listening", () => server.close(() => resolve(port)))
+      server.listen(port, hostname)
+    }
+    test(start)
+  })
+
 const printStatus = (status: unknown) => {
   const input = status as {
     executorModel?: string
@@ -144,7 +156,7 @@ if (command === "web") {
   const project = projectArg(1, true)
   const hostname = value("--hostname", "127.0.0.1")
   const serverPort = value("--server-port", value("--port", "4096"))
-  const appPort = value("--app-port", "3000")
+  const appPort = String(await availablePort(Number(value("--app-port", "3000")), "127.0.0.1"))
   const appURL = `http://127.0.0.1:${appPort}`
   const serverURL = `http://${hostname}:${serverPort}`
   const server = Bun.spawn(
@@ -167,10 +179,13 @@ if (command === "web") {
     ],
     { stdio: ["inherit", "inherit", "inherit"], env: opencodeEnv() },
   )
-  const web = Bun.spawn([process.execPath, "--cwd", app, "dev", "--host", "127.0.0.1", "--port", appPort], {
-    stdio: ["inherit", "inherit", "inherit"],
-    env: process.env,
-  })
+  const web = Bun.spawn(
+    [process.execPath, "--cwd", app, "dev", "--host", "127.0.0.1", "--port", appPort, "--strictPort"],
+    {
+      stdio: ["inherit", "inherit", "inherit"],
+      env: process.env,
+    },
+  )
   const stop = () => {
     server.kill()
     web.kill()

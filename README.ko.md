@@ -79,7 +79,7 @@ Magi web UI와 API server를 한 번에 실행하려면:
 magi web /path/to/project
 ```
 
-이 명령은 Magi API를 `http://127.0.0.1:4096`, local web UI를 `http://127.0.0.1:3000`에서 실행합니다.
+이 명령은 Magi API를 `http://127.0.0.1:4096`, local web UI를 `http://127.0.0.1:3000`에서 실행합니다. `3000`이 이미 사용 중이면 Magi가 다음 사용 가능한 UI URL을 출력합니다.
 
 같은 server가 켜져 있는 동안 shell에서도 Magi를 사용할 수 있습니다.
 

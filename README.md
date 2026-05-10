@@ -83,7 +83,7 @@ Run the local Magi web UI and API server with one command:
 magi web /path/to/project
 ```
 
-This starts the Magi API on `http://127.0.0.1:4096` and the local web UI on `http://127.0.0.1:3000`.
+This starts the Magi API on `http://127.0.0.1:4096` and the local web UI on `http://127.0.0.1:3000`. If `3000` is already in use, Magi prints the next available UI URL.
 
 Use Magi from the shell while that server is running:
 
