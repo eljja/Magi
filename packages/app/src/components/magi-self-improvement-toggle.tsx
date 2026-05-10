@@ -64,6 +64,7 @@ export const MagiSelfImprovementToggle: Component = () => {
         },
       })
       .then(() => {
+        if (next) runSelfImprovement()
         showToast({
           variant: "success",
           icon: next ? "brain" : "stop",

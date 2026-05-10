@@ -566,6 +566,28 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
           const currentProposer: MagiCouncilMember = resolved.members.includes(proposer)
             ? proposer
             : (resolved.members[0] ?? "melchior")
+          const startedAt = Date.now()
+          activity = {
+            id: crypto.randomUUID(),
+            state: "debating",
+            topic: `${currentProposer.toUpperCase()} is proposing the next improvement`,
+            detail: [
+              "Self Improvement is on.",
+              `${currentProposer.toUpperCase()} has proposer priority and is drafting a project-specific improvement.`,
+              "The full council will vote after the draft is ready.",
+            ].join("\n"),
+            round: 1,
+            startedAt,
+            updatedAt: startedAt,
+            votes: resolved.members.map((member) => ({
+              member,
+              state: "pending",
+              detail:
+                member === currentProposer
+                  ? `${member.toUpperCase()} is drafting the proposal.`
+                  : `${member.toUpperCase()} is waiting to vote on the draft.`,
+            })),
+          }
           const memory = yield* readMemory(instance.directory)
           const memoryText = memorySummary(memory)
           const draft = yield* askProposalDraft({

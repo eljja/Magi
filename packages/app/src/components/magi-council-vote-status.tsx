@@ -49,6 +49,9 @@ const voteDetail = (vote: MagiActivityVote) =>
     .filter((line): line is string => line !== undefined)
     .join("\n")
 
+const magiGuide =
+  "Magi vote is idle.\nClick the brain button to start Self Improvement, or run:\nmagi review --proposal \"your proposal\""
+
 export const MagiCouncilVoteStatus: Component = () => {
   const globalSDK = useGlobalSDK()
   const [activity, setActivity] = createSignal<MagiActivity>()
@@ -77,13 +80,35 @@ export const MagiCouncilVoteStatus: Component = () => {
   const background = createMemo(() => (decidedRecently() ? decisionColor(activity()?.finalPosition) : undefined))
 
   return (
-    <Show when={activity()} keyed>
-      {(item) => (
-        <div
-          class="hidden lg:flex max-w-[460px] items-center gap-2 rounded-md px-2 py-1 text-12-regular text-text-base transition-colors"
-          style={{ "background-color": background() }}
-          data-action="magi-council-vote-status"
-        >
+    <div
+      class="hidden lg:flex max-w-[520px] items-center gap-2 rounded-md px-2 py-1 text-12-regular text-text-base transition-colors"
+      style={{ "background-color": background() }}
+      data-action="magi-council-vote-status"
+    >
+      <Show
+        when={activity()}
+        keyed
+        fallback={
+          <>
+            <Tooltip placement="bottom" value={magiGuide}>
+              <div class="min-w-0 truncate text-text-muted">Magi idle: click brain or run magi review</div>
+            </Tooltip>
+            <div class="flex shrink-0 items-center gap-1 font-mono text-[13px] leading-none">
+              <Tooltip placement="bottom" value="MELCHIOR waiting for a proposal">
+                <span style={{ color: voteColor("pending") }}>O</span>
+              </Tooltip>
+              <Tooltip placement="bottom" value="BALTHASAR waiting for a proposal">
+                <span style={{ color: voteColor("pending") }}>O</span>
+              </Tooltip>
+              <Tooltip placement="bottom" value="CASPER waiting for a proposal">
+                <span style={{ color: voteColor("pending") }}>O</span>
+              </Tooltip>
+            </div>
+          </>
+        }
+      >
+        {(item) => (
+          <>
           <Tooltip placement="bottom" value={[item.detail, `round: ${item.round}`, `state: ${item.state}`].join("\n")}>
             <div class="min-w-0 truncate">{item.topic}</div>
           </Tooltip>
@@ -94,8 +119,9 @@ export const MagiCouncilVoteStatus: Component = () => {
               </Tooltip>
             ))}
           </div>
-        </div>
-      )}
-    </Show>
+          </>
+        )}
+      </Show>
+    </div>
   )
 }
