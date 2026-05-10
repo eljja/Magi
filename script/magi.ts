@@ -100,6 +100,50 @@ const availablePort = (start: number, hostname: string): Promise<number> =>
     test(start)
   })
 
+const runQuiet = async (cmd: string[]) => {
+  const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" })
+  await proc.exited
+  return new TextDecoder().decode(proc.stdout).trim()
+}
+
+const killProcess = async (pid: string) => {
+  if (pid === String(process.pid) || pid === String(process.ppid)) return
+  const command =
+    process.platform === "win32"
+      ? ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", `Stop-Process -Id ${pid} -Force -ErrorAction SilentlyContinue`]
+      : ["kill", "-TERM", pid]
+  await runQuiet(command)
+}
+
+const cleanupExistingWeb = async () => {
+  if (flag("--no-clean")) return
+  const output =
+    process.platform === "win32"
+      ? await runQuiet([
+          "powershell.exe",
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          [
+            "$current = $PID",
+            "$parent = (Get-CimInstance Win32_Process -Filter \"ProcessId=$current\").ParentProcessId",
+            `Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $current -and $_.ProcessId -ne $parent -and $_.CommandLine -like ${JSON.stringify(`*${repo}*`)} -and ($_.CommandLine -match 'script[\\\\/]magi\\.ts web|packages[\\\\/]opencode|packages[\\\\/]app.*vite|packages[\\\\/]app dev') } | Select-Object -ExpandProperty ProcessId`,
+          ].join("; "),
+        ])
+      : await runQuiet(["ps", "-eo", "pid=,args="])
+          .then((text) =>
+            text
+              .split("\n")
+              .filter((line) => line.includes(repo) && /script\/magi\.ts web|packages\/opencode|packages\/app.*vite|packages\/app dev/.test(line))
+              .map((line) => line.trim().split(/\s+/, 1)[0])
+              .join("\n"),
+          )
+  const pids = output.split(/\s+/).filter(Boolean)
+  if (pids.length === 0) return
+  console.log(`Stopping existing Magi web processes: ${pids.join(", ")}`)
+  await Promise.all(pids.map(killProcess))
+}
+
 const printStatus = (status: unknown) => {
   const input = status as {
     executorModel?: string
@@ -156,6 +200,7 @@ if (command === "web") {
   const project = projectArg(1, true)
   const hostname = value("--hostname", "127.0.0.1")
   const serverPort = value("--server-port", value("--port", "4096"))
+  await cleanupExistingWeb()
   const appPort = String(await availablePort(Number(value("--app-port", "3000")), "127.0.0.1"))
   const appURL = `http://127.0.0.1:${appPort}`
   const serverURL = `http://${hostname}:${serverPort}`

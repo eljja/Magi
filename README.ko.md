@@ -80,6 +80,7 @@ magi web /path/to/project
 ```
 
 이 명령은 Magi API를 `http://127.0.0.1:4096`, local web UI를 `http://127.0.0.1:3000`에서 실행합니다. `3000`이 이미 사용 중이면 Magi가 다음 사용 가능한 UI URL을 출력합니다.
+`magi web`은 같은 checkout에서 실행 중인 기존 Magi web/server 프로세스를 먼저 종료합니다. 유지해야 한다면 `--no-clean`을 사용하세요.
 
 같은 server가 켜져 있는 동안 shell에서도 Magi를 사용할 수 있습니다.
 
