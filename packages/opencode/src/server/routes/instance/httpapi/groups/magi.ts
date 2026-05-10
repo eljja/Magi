@@ -104,6 +104,7 @@ export const MagiStatusResponse = Schema.Struct({
     mode: Schema.Literals(["suggest-only", "suggest-and-execute"]),
     coreSelfEdit: Schema.Literals(["disabled", "gated", "allowed"]),
     intervalMinutes: PositiveInt,
+    maxCycles: PositiveInt,
   }),
   activity: Schema.optional(MagiActivity),
 })

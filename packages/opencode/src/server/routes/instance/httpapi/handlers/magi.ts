@@ -58,7 +58,8 @@ const DRAFT_SCHEMA = {
   },
 }
 
-const COUNCIL_MODEL_TIMEOUT = "45 seconds"
+const COUNCIL_MODEL_TIMEOUT = "20 seconds"
+const COUNCIL_MEMBER_TIMEOUT = "60 seconds"
 
 type MagiActivityVote = {
   member: MagiCouncilMember
@@ -198,7 +199,6 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
     const session = yield* Session.Service
     const prompt = yield* SessionPrompt.Service
     const scope = yield* Scope.Scope
-    const instance = yield* InstanceState.context
     let activity: MagiActivity | undefined
     let selfImprovementRunning = false
 
@@ -281,6 +281,7 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
       draft?: MagiProposalDraft
     }) {
       const cfg = yield* config.get()
+      const instance = yield* InstanceState.context
       const resolved = magiConfig(cfg)
       const councilModels = uniqueModels([resolved.councilModel, ...resolved.councilFallbackModels])
       const councilModel = Provider.parseModel(councilModels[0] ?? resolved.councilModel)
@@ -428,7 +429,16 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
               sessionID: memberSessions[member],
               round,
               previousRounds: rounds,
-            }),
+            }).pipe(
+              Effect.timeout(COUNCIL_MEMBER_TIMEOUT),
+              Effect.catchCause((cause) =>
+                Effect.sync(() => {
+                  const rationale = `Magi council member timed out: ${causeSummary(cause)}`
+                  updateVote(member, { state: "error", rationale, detail: rationale, error: rationale })
+                  return failedDecision(member, rationale)
+                }),
+              ),
+            ),
           ),
           { concurrency: "unbounded" },
         )
@@ -544,6 +554,7 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
       selfImprovementRunning = true
 
       yield* Effect.gen(function* () {
+        const instance = yield* InstanceState.context
         let cycle = 1
         let proposer: MagiCouncilMember = "melchior"
         let previousCompleted = true

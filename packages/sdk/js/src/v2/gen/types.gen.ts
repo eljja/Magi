@@ -4194,6 +4194,7 @@ export type MagiStatusResponses = {
       mode: "suggest-only" | "suggest-and-execute"
       coreSelfEdit: "disabled" | "gated" | "allowed"
       intervalMinutes: number
+      maxCycles: number
     }
     activity?: {
       id: string
