@@ -1,13 +1,11 @@
+<h1 align="center">MAGI</h1>
+<p align="center"><strong>Dual-LLM council coding IDE built on OpenCode.</strong></p>
+<p align="center">MELCHIOR, BALTHASAR, and CASPER debate, vote, and guide self-improvement before execution.</p>
+
 <p align="center">
-  <a href="https://opencode.ai">
-    <picture>
-      <source srcset="packages/console/app/src/asset/logo-ornate-dark.svg" media="(prefers-color-scheme: dark)">
-      <source srcset="packages/console/app/src/asset/logo-ornate-light.svg" media="(prefers-color-scheme: light)">
-      <img src="packages/console/app/src/asset/logo-ornate-light.svg" alt="OpenCode logo">
-    </picture>
-  </a>
+  <img src="assets/magi-execution.svg" alt="Magi execution screen showing council votes and self-improvement status" width="900">
 </p>
-<p align="center">The open source AI coding agent.</p>
+
 <p align="center">
   <a href="https://github.com/eljja/Magi/actions/workflows/magi.yml"><img alt="Magi status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/magi.yml?style=flat-square&branch=dev&label=magi" /></a>
   <a href="https://github.com/eljja/Magi/actions/workflows/test.yml"><img alt="Test status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/test.yml?style=flat-square&branch=dev&label=test" /></a>
@@ -39,7 +37,9 @@
   <a href="README.vi.md">Tiếng Việt</a>
 </p>
 
-[![OpenCode Terminal UI](packages/web/src/assets/lander/screenshot.png)](https://opencode.ai)
+<p align="center">
+  <img src="assets/magi-council.svg" alt="Magi council interface with MELCHIOR, BALTHASAR, and CASPER" width="760">
+</p>
 
 ---
 
