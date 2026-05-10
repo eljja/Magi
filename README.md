@@ -77,6 +77,22 @@ magi
 magi /path/to/project
 ```
 
+Run the local Magi web UI and API server with one command:
+
+```bash
+magi web /path/to/project
+```
+
+This starts the Magi API on `http://127.0.0.1:4096` and the local web UI on `http://127.0.0.1:3000`.
+
+Use Magi from the shell while that server is running:
+
+```bash
+magi status --project /path/to/project
+magi review --project /path/to/project --proposal "Review onboarding clarity" --evidence "Windows user"
+magi self-improve --project /path/to/project --recent-work "Start safe project-specific improvements"
+```
+
 Use environment variables or provider auth for model keys. Do not commit API keys into `opencode.json`, `.opencode/opencode.jsonc`, or `.magi-memory.json`.
 
 ### Running Magi Directly
@@ -94,6 +110,14 @@ On Windows PowerShell:
 bun run magi
 bun run magi -- D:\path\to\project
 ```
+
+For the web UI on Windows:
+
+```powershell
+magi.cmd web D:\path\to\project
+```
+
+Then open `http://127.0.0.1:3000`, connect to `http://127.0.0.1:4096`, and select the project.
 
 ### Installing The `magi` Command
 

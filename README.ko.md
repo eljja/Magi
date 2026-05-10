@@ -73,6 +73,22 @@ magi
 magi /path/to/project
 ```
 
+Magi web UI와 API server를 한 번에 실행하려면:
+
+```bash
+magi web /path/to/project
+```
+
+이 명령은 Magi API를 `http://127.0.0.1:4096`, local web UI를 `http://127.0.0.1:3000`에서 실행합니다.
+
+같은 server가 켜져 있는 동안 shell에서도 Magi를 사용할 수 있습니다.
+
+```bash
+magi status --project /path/to/project
+magi review --project /path/to/project --proposal "Review onboarding clarity" --evidence "Windows user"
+magi self-improve --project /path/to/project --recent-work "Start safe project-specific improvements"
+```
+
 모델 API key는 환경 변수나 provider credential store에 보관하세요. `opencode.json`, `.opencode/opencode.jsonc`, `.magi-memory.json`에 API key를 커밋하지 마세요.
 
 자세한 내용은 [MAGI.md](./MAGI.md), [UPSTREAM.md](./UPSTREAM.md), [NOTICE.md](./NOTICE.md)를 참고하세요.
@@ -92,6 +108,14 @@ Windows PowerShell:
 bun run magi
 bun run magi -- D:\path\to\project
 ```
+
+Windows에서 web UI까지 한 번에 실행하려면:
+
+```powershell
+magi.cmd web D:\path\to\project
+```
+
+그 다음 `http://127.0.0.1:3000`을 열고, server는 `http://127.0.0.1:4096`에 연결한 뒤 project를 선택하세요.
 
 ### `magi` 명령 설치
 
