@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+set -eu
+
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if command -v bun >/dev/null 2>&1; then
+  exec bun "$DIR/magi.ts" "$@"
+elif command -v npx >/dev/null 2>&1; then
+  exec npx --yes bun "$DIR/magi.ts" "$@"
+fi
+
+echo "Bun is required to run Magi. Install Bun or make npx available." >&2
+exit 127

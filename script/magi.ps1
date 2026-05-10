@@ -6,16 +6,15 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repo = Resolve-Path (Join-Path $PSScriptRoot "..")
-$opencode = Join-Path $repo "packages/opencode"
-$targetArgs = if ($MagiArgs.Count -eq 0) { @((Get-Location).Path) } else { $MagiArgs }
+$runner = Join-Path $repo "script/magi.ts"
 
 if (Get-Command bun -ErrorAction SilentlyContinue) {
-  & bun run --cwd $opencode --conditions=browser src/index.ts @targetArgs
+  & bun $runner @MagiArgs
   exit $LASTEXITCODE
 }
 
 if (Get-Command npx -ErrorAction SilentlyContinue) {
-  & npx --yes bun run --cwd $opencode --conditions=browser src/index.ts @targetArgs
+  & npx --yes bun $runner @MagiArgs
   exit $LASTEXITCODE
 }
 

@@ -1,0 +1,4 @@
+script/magi text eol=lf
+script/install-magi.sh text eol=lf
+script/magi.ts text eol=lf
+script/install-magi.ts text eol=lf

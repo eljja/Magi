@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repo = Resolve-Path (Join-Path $PSScriptRoot "..")
-$runner = Join-Path $repo "script/magi.ps1"
+$runner = Join-Path $repo "script/magi.ts"
 $bin = New-Item -ItemType Directory -Force -Path $BinDir
 $cmdPath = Join-Path $bin.FullName "$CommandName.cmd"
 $psPath = Join-Path $bin.FullName "$CommandName.ps1"
@@ -20,11 +20,11 @@ if ($existing -and -not $Force -and -not $existing.Source.StartsWith($bin.FullNa
 
 Set-Content -LiteralPath $cmdPath -Encoding ASCII -Value @"
 @echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$runner" %*
+bun "$runner" %*
 "@
 
 Set-Content -LiteralPath $psPath -Encoding ASCII -Value @"
-& "$runner" @args
+& bun "$runner" @args
 exit `$LASTEXITCODE
 "@
 

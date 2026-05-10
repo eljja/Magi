@@ -61,23 +61,118 @@ This repository is the Magi fork, not the upstream OpenCode distribution. The up
 
 ```bash
 bun install
-bun --cwd packages/opencode dev
+bun run magi
 ```
 
-On Windows, install a separate `magi` command once:
+Install a separate `magi` command once. This does not replace your existing `opencode` command.
 
-```powershell
+```bash
 bun run magi:install
 ```
 
-Then run Magi from any project directory without replacing your existing `opencode` command:
+Then run Magi from any project directory:
+
+```bash
+magi
+magi /path/to/project
+```
+
+Use environment variables or provider auth for model keys. Do not commit API keys into `opencode.json`, `.opencode/opencode.jsonc`, or `.magi-memory.json`.
+
+### Running Magi Directly
+
+If you do not want to install a command, run the fork directly:
+
+```bash
+bun run magi
+bun run magi -- /path/to/project
+```
+
+On Windows PowerShell:
+
+```powershell
+bun run magi
+bun run magi -- D:\path\to\project
+```
+
+### Installing The `magi` Command
+
+The installer writes a small shim that points at this checkout. Pulling updates in `D:\Code\Magi` or your clone updates the behavior automatically.
+
+#### macOS
+
+```bash
+git clone https://github.com/eljja/Magi.git
+cd Magi
+bun install
+bun run magi:install
+```
+
+If `~/.magi/bin` is not already in PATH, add this to `~/.zshrc`:
+
+```bash
+export PATH="$HOME/.magi/bin:$PATH"
+```
+
+Restart the terminal, then run:
+
+```bash
+magi ~/path/to/project
+```
+
+#### Linux / Ubuntu
+
+```bash
+git clone https://github.com/eljja/Magi.git
+cd Magi
+bun install
+bun run magi:install
+```
+
+If `~/.magi/bin` is not already in PATH, add this to `~/.bashrc` or `~/.profile`:
+
+```bash
+export PATH="$HOME/.magi/bin:$PATH"
+```
+
+Restart the terminal, then run:
+
+```bash
+magi ~/path/to/project
+```
+
+#### Windows PowerShell
+
+```powershell
+git clone https://github.com/eljja/Magi.git D:\Code\Magi
+cd D:\Code\Magi
+bun install
+bun run magi:install
+```
+
+The installer adds `%USERPROFILE%\.magi\bin` to the user PATH. Open a new PowerShell window, then run:
 
 ```powershell
 magi
 magi D:\path\to\project
 ```
 
-Use environment variables or provider auth for model keys. Do not commit API keys into `opencode.json`, `.opencode/opencode.jsonc`, or `.magi-memory.json`.
+If PowerShell script execution is restricted, the generated `magi.cmd` shim still works from `cmd.exe`, PowerShell, and most IDE terminals.
+
+#### Advanced Installer Options
+
+```bash
+bun run magi:install -- --command magi-dev
+bun run magi:install -- --bin-dir /custom/bin
+bun run magi:install -- --force
+```
+
+Windows-specific PowerShell entrypoints are also available:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\script\install-magi.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\script\magi.ps1 D:\path\to\project
+```
 
 ---
 
