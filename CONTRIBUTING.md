@@ -1,7 +1,8 @@
-# Contributing to OpenCode
+# Contributing to Magi
 
-We want to make it easy for you to contribute to OpenCode. Here are the most common type of changes that get merged:
+Magi is an experimental OpenCode fork. We want to keep Magi-specific work easy to review and easy to rebase onto upstream OpenCode. Here are the most common type of changes that get merged:
 
+- Magi council, self-improvement, model configuration, and safety improvements
 - Bug fixes
 - Additional LSPs / Formatters
 - Improvements to LLM performance
@@ -10,14 +11,14 @@ We want to make it easy for you to contribute to OpenCode. Here are the most com
 - Missing standard behavior
 - Documentation improvements
 
-However, any UI or core product feature must go through a design review with the core team before implementation.
+However, any UI or core product feature should keep the OpenCode patch surface small. Prefer Magi-specific code in `packages/magi` and thin integration points in OpenCode files.
 
 If you are unsure if a PR would be accepted, feel free to ask a maintainer or look for issues with any of the following labels:
 
-- [`help wanted`](https://github.com/anomalyco/opencode/issues?q=is%3Aissue%20state%3Aopen%20label%3Ahelp-wanted)
-- [`good first issue`](https://github.com/anomalyco/opencode/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22)
-- [`bug`](https://github.com/anomalyco/opencode/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug)
-- [`perf`](https://github.com/anomalyco/opencode/issues?q=is%3Aopen%20is%3Aissue%20label%3A%22perf%22)
+- [`help wanted`](https://github.com/eljja/Magi/issues?q=is%3Aissue%20state%3Aopen%20label%3Ahelp-wanted)
+- [`good first issue`](https://github.com/eljja/Magi/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22)
+- [`bug`](https://github.com/eljja/Magi/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug)
+- [`perf`](https://github.com/eljja/Magi/issues?q=is%3Aopen%20is%3Aissue%20label%3A%22perf%22)
 
 > [!NOTE]
 > PRs that ignore these guardrails will likely be closed.
@@ -29,7 +30,7 @@ Want to take on an issue? Leave a comment and a maintainer may assign it to you 
 New providers shouldn't require many if ANY code changes, but if you want to add support for a new provider first make a PR to:
 https://github.com/anomalyco/models.dev
 
-## Developing OpenCode
+## Developing Magi
 
 - Requirements: Bun 1.3+
 - Install dependencies and start the dev server from the repo root:

@@ -9,9 +9,8 @@
 </p>
 <p align="center">오픈 소스 AI 코딩 에이전트.</p>
 <p align="center">
-  <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
-  <a href="https://www.npmjs.com/package/opencode-ai"><img alt="npm" src="https://img.shields.io/npm/v/opencode-ai?style=flat-square" /></a>
-  <a href="https://github.com/anomalyco/opencode/actions/workflows/publish.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/publish.yml?style=flat-square&branch=dev" /></a>
+  <a href="https://github.com/eljja/Magi/actions/workflows/test.yml"><img alt="Test status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/test.yml?style=flat-square&branch=dev&label=test" /></a>
+  <a href="https://github.com/eljja/Magi/actions/workflows/typecheck.yml"><img alt="Typecheck status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/typecheck.yml?style=flat-square&branch=dev&label=typecheck" /></a>
 </p>
 
 <p align="center">
@@ -40,6 +39,29 @@
 </p>
 
 [![OpenCode Terminal UI](packages/web/src/assets/lander/screenshot.png)](https://opencode.ai)
+
+---
+
+## Magi
+
+Magi는 OpenCode 기반의 실험적 dual-LLM coding IDE fork입니다.
+
+- **Executor model**: 구현, 복잡한 설계, 대형 수정을 맡는 고성능 코딩 모델입니다.
+- **Council model**: MELCHIOR, BALTHASAR, CASPER가 초안 작성, 비판, 투표, 자기개선 판단에 사용하는 저비용 local/API 모델입니다.
+- **Self Improvement**: 프로젝트별 개선안을 제안하고, 3인 council이 투표하며, 승인된 작업을 실행하고, `.magi-memory.json` 로컬 journal에 기록하는 opt-in 루프입니다.
+
+Self Improvement는 기본값이 **off**입니다. 자율 agent edit을 허용할 준비가 되었고, source control과 rollback 경로가 있을 때만 켜세요.
+
+이 저장소는 upstream OpenCode 배포판이 아니라 Magi fork입니다. 아래 upstream 설치 명령은 별도 Magi release artifact가 나오기 전까지 OpenCode를 설치합니다. 현재는 저장소에서 직접 실행하세요.
+
+```bash
+bun install
+bun --cwd packages/opencode dev
+```
+
+모델 API key는 환경 변수나 provider credential store에 보관하세요. `opencode.json`, `.opencode/opencode.jsonc`, `.magi-memory.json`에 API key를 커밋하지 마세요.
+
+자세한 내용은 [MAGI.md](./MAGI.md), [UPSTREAM.md](./UPSTREAM.md), [NOTICE.md](./NOTICE.md)를 참고하세요.
 
 ---
 
@@ -138,4 +160,4 @@ OpenCode 와 관련된 프로젝트를 진행하면서 이름에 "opencode"(예:
 
 ---
 
-**커뮤니티에 참여하기** [Discord](https://discord.gg/opencode) | [X.com](https://x.com/opencode)
+Upstream OpenCode 커뮤니티 링크는 [opencode.ai](https://opencode.ai)를 참고하세요. Magi 이슈와 논의는 이 저장소를 사용하세요.

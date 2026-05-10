@@ -9,9 +9,8 @@
 </p>
 <p align="center">開源的 AI Coding Agent。</p>
 <p align="center">
-  <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
-  <a href="https://www.npmjs.com/package/opencode-ai"><img alt="npm" src="https://img.shields.io/npm/v/opencode-ai?style=flat-square" /></a>
-  <a href="https://github.com/anomalyco/opencode/actions/workflows/publish.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/publish.yml?style=flat-square&branch=dev" /></a>
+  <a href="https://github.com/eljja/Magi/actions/workflows/test.yml"><img alt="Test status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/test.yml?style=flat-square&branch=dev&label=test" /></a>
+  <a href="https://github.com/eljja/Magi/actions/workflows/typecheck.yml"><img alt="Typecheck status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/typecheck.yml?style=flat-square&branch=dev&label=typecheck" /></a>
 </p>
 
 <p align="center">
