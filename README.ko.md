@@ -73,6 +73,14 @@ magi
 magi /path/to/project
 ```
 
+OpenCode 안에서 `/magi`가 플러그인 경로로 동작하게 하려면 대상 프로젝트에 Magi OpenCode 플러그인을 설치하세요.
+
+```bash
+magi install-plugin /path/to/project
+```
+
+이 명령은 `/magi` command와 server/TUI plugin 설정을 프로젝트의 `.opencode`에 추가합니다. 사소한 요청은 executor로 fast-track할 수 있지만, 아키텍처 변경, 위험한 변경, 여러 줄 요청, `--council` 요청은 항상 MELCHIOR, BALTHASAR, CASPER가 별도 페르소나로 판단하고 다수결로 결정합니다. Council prompt에는 git 상태, 변경 파일, diff stat, package script를 포함한 제한된 context pack이 함께 들어갑니다.
+
 Magi web UI와 API server를 한 번에 실행하려면:
 
 ```bash

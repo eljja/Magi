@@ -1,0 +1,30 @@
+{
+  "$schema": "https://github.com/eljja/Magi/schema/magi.config.json",
+  "council": {
+    "provider": "google",
+    "model": "gemini-3.1-flash-lite-preview",
+    "fallbacks": ["gemini-3.1-flash-lite", "gemini-3-flash-preview", "gemini-3.1-pro-preview"],
+    "apiKeyEnv": ["MAGI_GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY"],
+    "dryRun": false
+  },
+  "loop": {
+    "maxRounds": 1,
+    "injectApprovedPrompt": true
+  },
+  "display": {
+    "transcriptLimit": 24
+  },
+  "router": {
+    "fastTrack": true,
+    "maxFastTrackChars": 220
+  },
+  "safety": {
+    "branchSelfImprovement": true,
+    "branchPrefix": "magi/self-improve/",
+    "writeRunReport": true
+  },
+  "context": {
+    "enabled": true,
+    "maxChars": 6000
+  }
+}

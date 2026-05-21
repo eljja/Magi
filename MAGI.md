@@ -18,6 +18,25 @@ Magi-specific core logic lives in `packages/magi` so OpenCode upstream updates c
 
 The three members should debate through thesis, antithesis, and synthesis before falling back to majority vote. They must always be honest and must not concede without citing a concrete new fact, contradiction, test result, clearer purpose, or lower-risk alternative.
 
+## Plugin Mode
+
+The plugin-first path lives in `packages/magi-opencode-plugin` and uses `packages/magi` as the shared core. Install it into a project with:
+
+```bash
+magi install-plugin /path/to/project
+```
+
+This writes the `/magi` command plus server and TUI plugin entries into the project's `.opencode` directory. The plugin can fast-track clearly trivial work, but council mode must always use MELCHIOR, BALTHASAR, and CASPER as separate personas with majority vote.
+
+Fast-track routing is controlled by `.magi/config.jsonc`:
+
+- `router.fastTrack`: enables low-risk executor bypass for small tasks.
+- `router.maxFastTrackChars`: caps the size of requests eligible for fast-track.
+- `context.enabled`: includes a bounded project context pack in council prompts.
+- `context.maxChars`: caps the context pack size.
+
+Users can force behavior with `--fast-track` or `--council` in the `/magi` arguments. Council votes for one round are requested in parallel so MELCHIOR, BALTHASAR, and CASPER judge the same context independently without serial latency.
+
 ## Debate Loop
 
 Magi supports bounded continuous debate before final vote.
@@ -48,6 +67,12 @@ Each cycle follows:
 4. Magi compares `git status --porcelain` before and after execution.
 5. A local `.magi-memory.json` journal records the cycle summary.
 6. Proposal ownership rotates only when execution produces observable worktree changes.
+
+In plugin runtime, approved self-improvement prompts are guarded before injection:
+
+- Clean git worktrees get an isolated `magi/self-improve/...` branch.
+- Dirty worktrees do not switch branches; the injected prompt blocks edits until the user explicitly approves.
+- `.magi/runs/<id>/plan.json` records the selected task, prompt, branch, safety warnings, final council position, and each persona's vote rationale.
 
 Core self-editing is controlled by `magi.selfImprovement.coreSelfEdit`:
 

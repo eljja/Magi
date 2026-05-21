@@ -334,6 +334,21 @@
         "typescript": "catalog:",
       },
     },
+    "packages/magi-opencode-plugin": {
+      "name": "@magi/opencode-plugin",
+      "version": "0.1.0",
+      "dependencies": {
+        "@magi/core": "workspace:*",
+        "@opencode-ai/plugin": "workspace:*",
+        "solid-js": "catalog:",
+      },
+      "devDependencies": {
+        "@opentui/solid": "catalog:",
+        "@types/bun": "catalog:",
+        "@typescript/native-preview": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/opencode": {
       "name": "opencode",
       "version": "1.14.40",
@@ -374,6 +389,7 @@
         "@hono/standard-validator": "0.1.5",
         "@hono/zod-validator": "catalog:",
         "@lydell/node-pty": "catalog:",
+        "@magi/core": "workspace:*",
         "@modelcontextprotocol/sdk": "1.27.1",
         "@octokit/graphql": "9.0.2",
         "@octokit/rest": "catalog:",
@@ -1417,6 +1433,8 @@
     "@lydell/node-pty-win32-x64": ["@lydell/node-pty-win32-x64@1.2.0-beta.10", "", { "os": "win32", "cpu": "x64" }, "sha512-ExFgWrzyldNAMi45U9PLIOu+g/RatP+f0c/dZxaooifME6yLW32BoHveH26/TtoAjZyJrc2iL0u48pgnR1fzmg=="],
 
     "@magi/core": ["@magi/core@workspace:packages/magi"],
+
+    "@magi/opencode-plugin": ["@magi/opencode-plugin@workspace:packages/magi-opencode-plugin"],
 
     "@malept/cross-spawn-promise": ["@malept/cross-spawn-promise@2.0.0", "", { "dependencies": { "cross-spawn": "^7.0.1" } }, "sha512-1DpKU0Z5ThltBwjNySMC14g0CkbyhCaz9FkhxqNsZI6uAPJXFS8cMXlBKo26FJ8ZuW6S9GCMcR9IO5k2X5/9Fg=="],
 

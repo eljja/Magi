@@ -77,6 +77,14 @@ magi
 magi /path/to/project
 ```
 
+Install the Magi OpenCode plugin into a target project when you want `/magi` inside OpenCode to run the plugin path:
+
+```bash
+magi install-plugin /path/to/project
+```
+
+The plugin installs the `/magi` command plus server and TUI plugin entries. Trivial requests can fast-track to the executor, but architectural, risky, multi-line, or `--council` requests still convene MELCHIOR, BALTHASAR, and CASPER for majority vote. Council prompts include a bounded context pack with git state, changed files, diff stat, and package scripts.
+
 Run the local Magi web UI and API server with one command:
 
 ```bash

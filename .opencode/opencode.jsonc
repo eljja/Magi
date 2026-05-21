@@ -30,44 +30,12 @@
       },
     },
   },
-  "magi": {
-    "models": {
-      "executor": "openai/gpt-5.2",
-      "council": "google/gemini-3.1-flash-lite-preview",
-      "councilFallbacks": [
-        "google/gemini-3.1-flash-lite",
-        "google/gemini-3-flash-preview",
-        "google/gemini-3.1-pro-preview",
-      ],
-    },
-    "council": {
-      "members": ["melchior", "balthasar", "casper"],
-      "votePolicy": "majority",
-      "externalAppeal": false,
-    },
-    "debate": {
-      "maxRounds": 3,
-      "requireNewEvidence": true,
-      "stagnationLimit": 1,
-      "synthesisAfterEachRound": true,
-      "finalVotePolicy": "majority",
-      "vetoPolicy": "safety-critical",
-    },
-    "selfImprovement": {
-      "enabled": false,
-      "state": "off",
-      "mode": "suggest-and-execute",
-      "coreSelfEdit": "gated",
-      "intervalMinutes": 1,
-      "maxCycles": 5,
-    },
-  },
+  "plugin": ["../packages/magi-opencode-plugin"],
   "permission": {
     "edit": {
       "packages/opencode/migration/*": "deny",
     },
   },
-  "mcp": {},
   "tools": {
     "github-triage": false,
     "github-pr-search": false,

@@ -1,0 +1,32 @@
+{
+  "name": "@magi/opencode-plugin",
+  "version": "0.1.0",
+  "description": "Magi plugin for OpenCode council routing, TUI status, and safe self-improvement.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsgo --noEmit"
+  },
+  "exports": {
+    ".": "./src/server.ts",
+    "./server": "./src/server.ts",
+    "./tui": "./src/tui.tsx"
+  },
+  "files": [
+    "src",
+    "command",
+    "package.json"
+  ],
+  "dependencies": {
+    "@magi/core": "workspace:*",
+    "@opencode-ai/plugin": "workspace:*",
+    "solid-js": "catalog:"
+  },
+  "devDependencies": {
+    "@opentui/solid": "catalog:",
+    "@types/bun": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "typescript": "catalog:"
+  }
+}

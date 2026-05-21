@@ -10,7 +10,14 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./council": "./src/council.ts"
+    "./config": "./src/config.ts",
+    "./context": "./src/context.ts",
+    "./council": "./src/council.ts",
+    "./plugin-installer": "./src/plugin-installer.ts",
+    "./router": "./src/router.ts",
+    "./runner": "./src/runner.ts",
+    "./safety": "./src/safety.ts",
+    "./state": "./src/state.ts"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

@@ -12,6 +12,7 @@ const usage = () =>
   [
     "Usage:",
     "  magi [project] [opencode options]",
+    "  magi install-plugin [project] [--plugin <path>]",
     "  magi web [project] [--server-port 4096] [--app-port 3000]",
     "  magi status [--project <path>] [--server http://127.0.0.1:4096]",
     "  magi review --proposal <text> [--evidence <text>] [--execute] [--project <path>]",
@@ -45,6 +46,7 @@ const optionsWithValue = new Set([
   "--port",
   "--app-port",
   "--hostname",
+  "--plugin",
   "--proposal",
   "--evidence",
   "--recent-work",
@@ -78,6 +80,14 @@ const runOpencode = async (input: string[]) => {
   const proc = Bun.spawn([process.execPath, "run", "--cwd", opencode, "--conditions=browser", "src/index.ts", ...input], {
     stdio: ["inherit", "inherit", "inherit"],
     env: opencodeEnv(),
+  })
+  process.exit(await proc.exited)
+}
+
+const runScript = async (script: string, input: string[]) => {
+  const proc = Bun.spawn([process.execPath, path.join(repo, "script", script), ...input], {
+    stdio: ["inherit", "inherit", "inherit"],
+    env: process.env,
   })
   process.exit(await proc.exited)
 }
@@ -250,6 +260,10 @@ if (command === "web") {
   process.exit(0)
 }
 
+if (command === "install-plugin") {
+  await runScript("install-magi-plugin.ts", installPluginArgs())
+}
+
 if (command === "status") {
   printStatus(await request("GET", "/magi"))
   process.exit(0)
@@ -284,3 +298,25 @@ if (command === "self-improve") {
 }
 
 await runOpencode(args.length === 0 ? [process.cwd()] : args)
+
+function installPluginArgs() {
+  const result = ["--project", projectArg(1, true)]
+  let skippedProjectPositional = false
+  for (let index = 1; index < args.length; index++) {
+    const arg = args[index]
+    if (arg.startsWith("--")) {
+      result.push(arg)
+      if (!arg.includes("=") && optionsWithValue.has(arg) && args[index + 1] !== undefined) {
+        index++
+        result.push(args[index])
+      }
+      continue
+    }
+    if (!skippedProjectPositional) {
+      skippedProjectPositional = true
+      continue
+    }
+    result.push(arg)
+  }
+  return result
+}
