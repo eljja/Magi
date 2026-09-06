@@ -109,6 +109,19 @@ export const MagiStatusResponse = Schema.Struct({
   activity: Schema.optional(MagiActivity),
 })
 
+export const MagiBranchesResponse = Schema.Struct({
+  branches: Schema.Array(Schema.String),
+})
+
+export const MagiMergePayload = Schema.Struct({
+  branch: Schema.String,
+})
+
+export const MagiMergeResponse = Schema.Struct({
+  success: Schema.Boolean,
+  message: Schema.String,
+})
+
 export const MagiApi = HttpApi.make("magi")
   .add(
     HttpApiGroup.make("magi")
@@ -143,6 +156,26 @@ export const MagiApi = HttpApi.make("magi")
             summary: "Start Magi self-improvement",
             description:
               "Start the asynchronous Magi self-improvement loop if self-improvement is enabled in config.",
+          }),
+        ),
+        HttpApiEndpoint.get("branches", `${root}/branches`, {
+          success: described(MagiBranchesResponse, "Magi branches list"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "magi.branches",
+            summary: "Get Magi self-improvement branches",
+            description: "Get the list of pending magi/self-improve/* branches.",
+          }),
+        ),
+        HttpApiEndpoint.post("merge", `${root}/merge`, {
+          payload: MagiMergePayload,
+          success: described(MagiMergeResponse, "Magi branch merge result"),
+          error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "magi.merge",
+            summary: "Merge Magi branch",
+            description: "Merge a selected magi/self-improve/* branch into the current branch.",
           }),
         ),
       )

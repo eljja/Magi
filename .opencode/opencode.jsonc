@@ -30,7 +30,7 @@
       },
     },
   },
-  "plugin": ["../packages/magi-opencode-plugin"],
+  "plugin": ["../packages/magi-opencode-plugin", "../packages/oh-my-magi"],
   "permission": {
     "edit": {
       "packages/opencode/migration/*": "deny",

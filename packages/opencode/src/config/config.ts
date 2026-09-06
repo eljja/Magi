@@ -131,6 +131,15 @@ const MagiConfig = Schema.Struct({
       councilFallbacks: Schema.optional(Schema.mutable(Schema.Array(ConfigModelID))).annotate({
         description: "Fallback council models tried in order when the primary council model fails.",
       }),
+      melchior: Schema.optional(ConfigModelID).annotate({
+        description: "Model used by MELCHIOR.",
+      }),
+      balthasar: Schema.optional(ConfigModelID).annotate({
+        description: "Model used by BALTHASAR.",
+      }),
+      casper: Schema.optional(ConfigModelID).annotate({
+        description: "Model used by CASPER.",
+      }),
     }),
   ),
   council: Schema.optional(

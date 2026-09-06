@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["bun"],
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "jsx": "preserve",
+    "jsxImportSource": "@opentui/solid"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "bin/**/*.ts", "test/**/*.ts"]
+}

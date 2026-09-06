@@ -1058,6 +1058,9 @@ export type MagiConfig = {
     executor?: string
     council?: string
     councilFallbacks?: Array<string>
+    melchior?: string
+    balthasar?: string
+    casper?: string
   }
   council?: {
     members?: Array<string>
@@ -4320,6 +4323,64 @@ export type MagiSelfImproveAsyncResponses = {
 }
 
 export type MagiSelfImproveAsyncResponse = MagiSelfImproveAsyncResponses[keyof MagiSelfImproveAsyncResponses]
+
+export type MagiBranchesData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/magi/branches"
+}
+
+export type MagiBranchesResponses = {
+  /**
+   * Magi branches list
+   */
+  200: {
+    branches: Array<string>
+  }
+}
+
+export type MagiBranchesResponse = MagiBranchesResponses[keyof MagiBranchesResponses]
+
+export type MagiMergeData = {
+  body?: {
+    branch: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/magi/merge"
+}
+
+export type MagiMergeErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type MagiMergeError = MagiMergeErrors[keyof MagiMergeErrors]
+
+export type MagiMergeResponses = {
+  /**
+   * Magi branch merge result
+   */
+  200: {
+    success: boolean
+    message: string
+  }
+}
+
+export type MagiMergeResponse = MagiMergeResponses[keyof MagiMergeResponses]
 
 export type McpStatusData = {
   body?: never

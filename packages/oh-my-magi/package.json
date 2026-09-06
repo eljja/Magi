@@ -1,0 +1,58 @@
+{
+  "name": "oh-my-magi",
+  "version": "0.1.0",
+  "description": "Autonomous multi-agent council plugin for OpenCode, featuring Melchior, Balthasar, and Casper.",
+  "type": "module",
+  "license": "MIT",
+  "author": "eljja",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eljja/Magi.git",
+    "directory": "packages/oh-my-magi"
+  },
+  "bin": {
+    "oh-my-magi": "./bin/cli.ts",
+    "omm": "./bin/cli.ts"
+  },
+  "scripts": {
+    "typecheck": "tsgo --noEmit",
+    "test": "bun test --timeout 30000"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts",
+    "./council": "./src/council.ts",
+    "./agents": "./src/agents/index.ts",
+    "./resilience": "./src/resilience.ts",
+    "./state": "./src/state.ts",
+    "./config": "./src/config.ts",
+    "./continuation": "./src/continuation.ts",
+    "./bridge": "./src/bridge.ts",
+    "./context": "./src/context.ts",
+    "./safety": "./src/safety.ts",
+    "./router": "./src/router.ts",
+    "./verification": "./src/verification.ts",
+    "./installer": "./src/installer.ts",
+    "./tui": "./src/tui.tsx"
+  },
+  "files": [
+    "src",
+    "bin",
+    "agent",
+    "command",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@opencode-ai/plugin": "workspace:*",
+    "@opencode-ai/sdk": "workspace:*",
+    "solid-js": "catalog:"
+  },
+  "devDependencies": {
+    "@opentui/solid": "catalog:",
+    "@types/bun": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "typescript": "catalog:"
+  }
+}

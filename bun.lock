@@ -349,6 +349,24 @@
         "typescript": "catalog:",
       },
     },
+    "packages/oh-my-magi": {
+      "name": "oh-my-magi",
+      "version": "0.1.0",
+      "bin": {
+        "oh-my-magi": "./bin/cli.ts",
+      },
+      "dependencies": {
+        "@opencode-ai/plugin": "workspace:*",
+        "@opencode-ai/sdk": "workspace:*",
+        "solid-js": "catalog:",
+      },
+      "devDependencies": {
+        "@opentui/solid": "catalog:",
+        "@types/bun": "catalog:",
+        "@typescript/native-preview": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/opencode": {
       "name": "opencode",
       "version": "1.14.40",
@@ -3316,7 +3334,7 @@
 
     "get-tsconfig": ["get-tsconfig@4.13.8", "", { "dependencies": { "resolve-pkg-maps": "^1.0.0" } }, "sha512-J87BxkLXykmisLQ+KA4x2+O6rVf+PJrtFUO8lGyiRg4lyxJLJ8/v0sRAKdVZQOy6tR6lMRAF1NqzCf9BQijm0w=="],
 
-    "ghostty-web": ["ghostty-web@github:anomalyco/ghostty-web#20bd361", {}, "anomalyco-ghostty-web-20bd361", "sha512-dW0nwaiBBcun9y5WJSvm3HxDLe5o9V0xLCndQvWonRVubU8CS1PHxZpLffyPt1YujPWC13ez03aWxcuKBPYYGQ=="],
+    "ghostty-web": ["ghostty-web@github:anomalyco/ghostty-web#83c0a07", {}, "anomalyco-ghostty-web-83c0a07", "sha512-Lf2v1agHkVUpMpHBWWuCZrhOEmcwwin5/Hboc9rZwQ7/CKkIh5rU1r1CvfLlhkMoFv+ed8z52RZ8hkzGZZj3MQ=="],
 
     "gifwrap": ["gifwrap@0.10.1", "", { "dependencies": { "image-q": "^4.0.0", "omggif": "^1.0.10" } }, "sha512-2760b1vpJHNmLzZ/ubTtNnEx5WApN/PYWJvXvgS+tL1egTTthayFYIQQNi136FLEDcN/IyEY2EcGpIITD6eYUw=="],
 
@@ -4081,6 +4099,8 @@
     "obug": ["obug@2.1.1", "", {}, "sha512-uTqF9MuPraAQ+IsnPf366RG4cP9RtUi7MLO1N3KEc+wb0a6yKpeL0lmk2IB1jY5KHPAlTc6T/JRdC/YqxHNwkQ=="],
 
     "ofetch": ["ofetch@2.0.0-alpha.3", "", {}, "sha512-zpYTCs2byOuft65vI3z43Dd6iSdFbOZZLb9/d21aCpx2rGastVU9dOCv0lu4ykc1Ur1anAYjDi3SUvR0vq50JA=="],
+
+    "oh-my-magi": ["oh-my-magi@workspace:packages/oh-my-magi"],
 
     "ohash": ["ohash@2.0.11", "", {}, "sha512-RdR9FQrFwNBNXAr4GixM8YaRZRJ5PUWbKYbE5eOsrwAjJW0q2REGcf79oYPsLyskQCZG1PLN+S/K1V00joZAoQ=="],
 

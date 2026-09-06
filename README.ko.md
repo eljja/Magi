@@ -43,7 +43,73 @@
 
 ---
 
-## Magi
+## Oh-My-Magi (OpenCode 최고 의회 플러그인) 🧙‍♂️
+
+`oh-my-openagent`(OmO) 스타일에서 착안한 **oh-my-magi** (`packages/oh-my-magi`)는 OpenCode의 **Sisyphus(총괄 PM)** 및 전문 실무 에이전트단(`librarian`, `explore`, `hephaestus`, `atlas`) 위에 **MELCHIOR, BALTHASAR, CASPER 3인 최고 평의회(Supreme Council)**를 얹어 지휘·감사하는 이사회-실무총괄(Executive-Manager) 계층형 자율 완성 플러그인입니다.
+
+### 🏛️ 계층형 시스템 구조도 (Executive-Manager Hierarchy)
+
+```mermaid
+graph TB
+    subgraph "최고 평의회 (Supreme Council: Magi)"
+        M[MELCHIOR: 이론/결정학/구조 아키텍트] <--> B[BALTHASAR: 공정 리스크/실패 분석/보안 거부권]
+        B <--> C[CASPER: 응용 가치/소자 스펙/방향성]
+        M <--> C
+    end
+
+    subgraph "실무 총괄 PM (Lead Orchestrator)"
+        S[Sisyphus (OmO)]
+    end
+
+    subgraph "전문 실무진 (Specialist Sub-agents)"
+        E[Explore: 고속 코드 및 데이터 탐색]
+        L[Librarian: 학술 논문 및 기술 문서 수집]
+        A[Atlas / Hephaestus: 심층 구현, 디버깅, 스크립트 작성]
+    end
+
+    User[사용자 연구/개발 목표] -->|에이전트: magi 또는 /magi start| M
+    Magi -->|승인된 마일스톤 지령 하달 (agent: sisyphus)| S
+    S -->|세부 작업 위임| E
+    S -->|세부 작업 위임| L
+    S -->|세부 작업 위임| A
+    A -->|코드/시뮬레이션 완성| S
+    S -->|작업 완료 보고 (session.idle)| Magi
+    Magi -->|Balthasar 결함 감사 / 반려 시 수정 지령 / 만장일치 시 STOP| S
+```
+
+### ⚡ 왜 Sisyphus 위에 Magi 의회가 필요한가?
+- **OmO 단일 Sisyphus의 치명적 한계**: Sisyphus 혼자 계획을 세우면 환각(Hallucination)이나 물리적/공정상 결함을 눈치채지 못하고 하위 10개 에이전트들이 엉뚱한 방향으로 삽질을 합니다.
+- **Magi의 이사회 해결책**: Magi 3인이 **이사회(Supreme Council)** 자리에 앉아 Sisyphus에게 지령을 내리기 전 이론(Melchior), 리스크(Balthasar), 가치(Casper) 관점에서 상호 비판하고 걸러냅니다.
+- **폐쇄 루프 감사 (Closed-Loop Audit)**: Sisyphus가 작업을 마치면 Balthasar가 현미경으로 결함을 감사하여, 리스크가 발견되면 즉시 **반려 및 재작업 지령**을 내려보냅니다.
+- **만장일치 종료 게이트**: 3인 전원이 프로그램이 100% 완성되었다고 만장일치 합의(`STOP_SELF_IMPROVEMENT`)하거나 사용자가 `/magi stop`할 때까지 스스로 멈추지 않고 개발을 완주합니다.
+
+### 🚀 빠른 설치 방법
+
+원하는 프로젝트 폴더의 `.opencode`에 설치합니다:
+
+```bash
+# 로컬 저장소에서 대상 프로젝트로 설치
+bun run packages/oh-my-magi/bin/cli.ts install --project /path/to/your/project
+
+# 설치 무결성 진단
+bun run packages/oh-my-magi/bin/cli.ts doctor --project /path/to/your/project
+```
+
+### OpenCode 사용 방법
+
+1. **에이전트 선택창 (`Tab` 키)**:
+   - `magi`: **[최고 의회 모드]** 3인 의회가 합의하여 Sisyphus와 실무진을 지휘·감사하는 자율 완성 모드
+   - `sisyphus`: **[일반 PM 모드]** omo 기본 오케스트레이터
+   - `hephaestus`: **[단독 장인 모드]** 집중 단독 코딩
+2. **슬래시 커맨드**:
+   - `/magi <요청내용>`: 의회 3인이 사용자의 요청을 심의/토론한 후 승인된 태스크를 주입합니다.
+   - `/magi start [목표]`: **지속적 자율 완성 루프 가동**. 의회가 Sisyphus를 지휘하며 완료될 때까지 자율 개발합니다.
+   - `/magi stop`: 자율 루프를 즉시 수동 정지합니다.
+   - `/magi status`: 현재 사이클 번호, 작업 주제, 실시간 의회 투표 현황을 출력합니다.
+
+---
+
+## Magi (단독 포크 모드)
 
 Magi는 OpenCode 기반의 실험적 dual-LLM coding IDE fork입니다.
 

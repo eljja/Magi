@@ -108,6 +108,7 @@ export async function runMagiOnce(input: MagiRunInput): Promise<MagiRunResult> {
       recentWork,
       previousCompleted: memory.previousCompleted ?? true,
     }),
+    member: proposer,
   })
   const draft = normalizeProposalDraft(proposer, draftResult.json)
 
@@ -154,6 +155,7 @@ export async function runMagiOnce(input: MagiRunInput): Promise<MagiRunResult> {
             round,
             previousRounds: rounds,
           }),
+          member,
         })
         return decisionFromJudgment(member, normalizeCouncilJudgment(result.json))
       }),

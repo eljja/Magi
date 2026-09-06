@@ -15,6 +15,9 @@ export type MagiHostConfig = {
       executor?: string
       council?: string
       councilFallbacks?: string[]
+      melchior?: string
+      balthasar?: string
+      casper?: string
     }
     council?: {
       members?: string[]
@@ -126,6 +129,9 @@ export function magiConfig(config: MagiHostConfig) {
     executorModel: magi.models?.executor ?? MagiDefault.executorModel,
     councilModel: magi.models?.council ?? MagiDefault.councilModel,
     councilFallbackModels: magi.models?.councilFallbacks ?? MagiDefault.councilFallbackModels,
+    melchiorModel: magi.models?.melchior,
+    balthasarModel: magi.models?.balthasar,
+    casperModel: magi.models?.casper,
     members: normalizeMembers(magi.council?.members),
     votePolicy: magi.council?.votePolicy ?? MagiDefault.votePolicy,
     externalAppeal: magi.council?.externalAppeal ?? false,

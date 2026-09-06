@@ -1,6 +1,14 @@
 import path from "node:path"
 
-export type MagiCouncilProvider = "google"
+export type MagiCouncilProvider = "google" | "openai" | "anthropic" | "opencode"
+
+export type MagiMemberRuntimeConfig = {
+  provider?: MagiCouncilProvider
+  model?: string
+  fallbacks?: string[]
+  apiKeyEnv?: string[]
+  endpoint?: string
+}
 
 export type MagiRuntimeConfig = {
   council: {
@@ -10,6 +18,9 @@ export type MagiRuntimeConfig = {
     apiKeyEnv: string[]
     endpoint?: string
     dryRun: boolean
+    melchior?: MagiMemberRuntimeConfig
+    balthasar?: MagiMemberRuntimeConfig
+    casper?: MagiMemberRuntimeConfig
   }
   loop: {
     maxRounds: number
@@ -78,6 +89,9 @@ export async function loadMagiRuntimeConfig(directory: string): Promise<MagiRunt
       apiKeyEnv: local.council?.apiKeyEnv ?? MagiRuntimeDefault.council.apiKeyEnv,
       endpoint: local.council?.endpoint,
       dryRun: envDryRun || (local.council?.dryRun ?? MagiRuntimeDefault.council.dryRun),
+      melchior: parseMemberConfig(local.council?.melchior),
+      balthasar: parseMemberConfig(local.council?.balthasar),
+      casper: parseMemberConfig(local.council?.casper),
     },
     loop: {
       maxRounds: positiveInt(local.loop?.maxRounds, MagiRuntimeDefault.loop.maxRounds),
@@ -130,4 +144,16 @@ export function parseJsonc(input: string) {
 
 function positiveInt(value: number | undefined, fallback: number) {
   return Number.isInteger(value) && value !== undefined && value > 0 ? value : fallback
+}
+
+function parseMemberConfig(val: unknown): MagiMemberRuntimeConfig | undefined {
+  if (typeof val !== "object" || val === null) return undefined
+  const obj = val as Record<string, unknown>
+  return {
+    provider: typeof obj.provider === "string" ? (obj.provider as MagiCouncilProvider) : undefined,
+    model: typeof obj.model === "string" ? obj.model : undefined,
+    fallbacks: Array.isArray(obj.fallbacks) ? obj.fallbacks.filter((x): x is string => typeof x === "string") : undefined,
+    apiKeyEnv: Array.isArray(obj.apiKeyEnv) ? obj.apiKeyEnv.filter((x): x is string => typeof x === "string") : undefined,
+    endpoint: typeof obj.endpoint === "string" ? obj.endpoint : undefined,
+  }
 }

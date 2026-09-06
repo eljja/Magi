@@ -32,3 +32,8 @@ UPCOMING_CHANGELOG.md
 logs/
 *.bun-build
 tsconfig.tsbuildinfo
+
+# Magi runtime & local state
+.magi/runtime/
+.magi/runs/
+.opencode/opencode.json

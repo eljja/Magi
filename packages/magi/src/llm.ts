@@ -18,33 +18,161 @@ type GoogleResponse = {
   }[]
 }
 
+type OpenAiResponse = {
+  choices?: {
+    message?: {
+      content?: string
+    }
+  }[]
+}
+
+type AnthropicResponse = {
+  content?: {
+    type?: string
+    text?: string
+  }[]
+}
+
+function defaultApiKeyEnv(provider: string): string[] {
+  if (provider === "openai") return ["MAGI_OPENAI_API_KEY", "OPENAI_API_KEY"]
+  if (provider === "anthropic") return ["MAGI_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY"]
+  return ["MAGI_GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY"]
+}
+
 export async function callMagiJson(input: {
   config: MagiRuntimeConfig
   system: string
   prompt: string
   schema: MagiJsonSchema
+  member?: "melchior" | "balthasar" | "casper"
 }) {
   if (input.config.council.dryRun) return dryRun(input.schema)
-  const key = apiKey(input.config)
-  if (!key) return dryRun(input.schema, "No Magi API key env var was set; using dry-run output.")
 
-  const models = [input.config.council.model, ...input.config.council.fallbacks]
-  for (const model of models) {
-    const result = await callGoogle({
-      apiKey: key,
-      model,
-      endpoint: input.config.council.endpoint,
-      system: input.system,
-      prompt: input.prompt,
-      schema: input.schema,
-    })
+  const memberConfig = input.member ? input.config.council[input.member] : undefined
+  const provider = memberConfig?.provider ?? input.config.council.provider
+  const model = memberConfig?.model ?? input.config.council.model
+  
+  if (provider === "opencode") {
+    return dryRun(input.schema, "opencode provider selected in standalone mode; using dry-run output.")
+  }
+
+  const fallbacks = memberConfig?.fallbacks ?? 
+    (provider === input.config.council.provider ? input.config.council.fallbacks : [])
+
+  const apiKeyEnv = memberConfig?.apiKeyEnv ?? defaultApiKeyEnv(provider)
+  const endpoint = memberConfig?.endpoint ?? 
+    (provider === input.config.council.provider ? input.config.council.endpoint : undefined)
+
+  const key = apiKeyEnv.map((name) => process.env[name]).find((value): value is string => Boolean(value))
+  if (!key) return dryRun(input.schema, `No Magi API key env var was set for provider ${provider}; using dry-run output.`)
+
+  const models = [model, ...fallbacks]
+  for (const currentModel of models) {
+    let result: MagiLlmResult | undefined
+    if (provider === "openai") {
+      result = await callOpenAi({
+        apiKey: key,
+        model: currentModel,
+        endpoint,
+        system: input.system,
+        prompt: input.prompt,
+        schema: input.schema,
+      })
+    } else if (provider === "anthropic") {
+      result = await callAnthropic({
+        apiKey: key,
+        model: currentModel,
+        endpoint,
+        system: input.system,
+        prompt: input.prompt,
+        schema: input.schema,
+      })
+    } else {
+      result = await callGoogle({
+        apiKey: key,
+        model: currentModel,
+        endpoint,
+        system: input.system,
+        prompt: input.prompt,
+        schema: input.schema,
+      })
+    }
     if (result) return result
   }
-  return dryRun(input.schema, "All Magi LLM calls failed; using dry-run output.")
+  return dryRun(input.schema, `All Magi LLM calls failed for provider ${provider}; using dry-run output.`)
 }
 
-function apiKey(config: MagiRuntimeConfig) {
-  return config.council.apiKeyEnv.map((name) => process.env[name]).find((value): value is string => Boolean(value))
+async function callOpenAi(input: {
+  apiKey: string
+  model: string
+  endpoint?: string
+  system: string
+  prompt: string
+  schema: MagiJsonSchema
+}): Promise<MagiLlmResult | undefined> {
+  try {
+    const url = `${input.endpoint ?? "https://api.openai.com/v1"}/chat/completions`
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "authorization": `Bearer ${input.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: input.model,
+        messages: [
+          { role: "system", content: input.system },
+          { role: "user", content: `${input.prompt}\n\nReturn only JSON matching this shape:\n${shape(input.schema)}` },
+        ],
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+      }),
+    })
+    if (!response.ok) return
+    const data = (await response.json()) as OpenAiResponse
+    const text = data.choices?.[0]?.message?.content
+    if (!text) return
+    return { model: input.model, text, json: parseJson(text) }
+  } catch {
+    return
+  }
+}
+
+async function callAnthropic(input: {
+  apiKey: string
+  model: string
+  endpoint?: string
+  system: string
+  prompt: string
+  schema: MagiJsonSchema
+}): Promise<MagiLlmResult | undefined> {
+  try {
+    const url = `${input.endpoint ?? "https://api.anthropic.com/v1"}/messages`
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": input.apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: input.model,
+        system: input.system,
+        messages: [
+          { role: "user", content: `${input.prompt}\n\nReturn only JSON matching this shape:\n${shape(input.schema)}` },
+        ],
+        max_tokens: 4000,
+        temperature: 0.2,
+      }),
+    })
+    if (!response.ok) return
+    const data = (await response.json()) as AnthropicResponse
+    const text = data.content?.find((part) => part.type === "text")?.text
+    if (!text) return
+    return { model: input.model, text, json: parseJson(text) }
+  } catch {
+    return
+  }
 }
 
 async function callGoogle(input: {

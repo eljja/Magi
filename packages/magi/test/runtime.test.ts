@@ -121,6 +121,39 @@ describe("Magi runtime", () => {
       await rm(dir, { recursive: true, force: true })
     }
   })
+
+  test("loads member-specific configurations", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "magi-runtime-"))
+    await mkdir(path.join(dir, ".magi"), { recursive: true })
+    await Bun.write(
+      path.join(dir, ".magi", "config.jsonc"),
+      JSON.stringify({
+        council: {
+          model: "gemini-global",
+          melchior: {
+            provider: "openai",
+            model: "gpt-4o-test",
+          },
+          balthasar: {
+            provider: "anthropic",
+            model: "claude-test",
+          }
+        },
+      }),
+    )
+
+    try {
+      const config = await loadMagiRuntimeConfig(dir)
+      expect(config.council.model).toBe("gemini-global")
+      expect(config.council.melchior?.provider).toBe("openai")
+      expect(config.council.melchior?.model).toBe("gpt-4o-test")
+      expect(config.council.balthasar?.provider).toBe("anthropic")
+      expect(config.council.balthasar?.model).toBe("claude-test")
+      expect(config.council.casper).toBeUndefined()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
 })
 
 async function git(directory: string, args: string[]) {

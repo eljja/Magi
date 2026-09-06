@@ -43,9 +43,72 @@
 
 ---
 
-## Magi
+## Oh-My-Magi (Supreme Council Plugin for OpenCode) 🧙‍♂️
 
-Magi is an experimental OpenCode fork that adds a dual-LLM council layer for autonomous coding workflows.
+Inspired by `oh-my-openagent` (OmO), **oh-my-magi** (`packages/oh-my-magi`) crowns OpenCode with a **Supreme Council (MELCHIOR, BALTHASAR, CASPER)** that governs, directs, and audits **Sisyphus** and the OmO specialist workforce (`librarian`, `explore`, `hephaestus`, `atlas`).
+
+### 🏛️ Executive-Manager Hierarchy
+
+```mermaid
+graph TB
+    subgraph "Supreme Council (Magi)"
+        M[MELCHIOR: Theory & Architecture] <--> B[BALTHASAR: Risk, Flaws & Safety Veto]
+        B <--> C[CASPER: Product Value & User Intent]
+        M <--> C
+    end
+
+    subgraph "Lead PM & Orchestrator"
+        S[Sisyphus (OmO)]
+    end
+
+    subgraph "Specialist Workforce (OmO Sub-agents)"
+        E[Explore: Fast Grep & Search]
+        L[Librarian: Papers & Documentation]
+        A[Atlas / Hephaestus: Deep Implementation & Debugging]
+    end
+
+    User[User Goal / Task] -->|Agent: magi or /magi start| M
+    Magi -->|Approved Milestones & Directives| S
+    S -->|Delegates Tasks| E
+    S -->|Delegates Tasks| L
+    S -->|Delegates Tasks| A
+    A -->|Completed Code & Artifacts| S
+    S -->|Status Report (session.idle)| Magi
+    Magi -->|Balthasar Flaw Check / Corrective Orders / STOP| S
+```
+
+### ⚡ Why This Solves Sisyphus's Core Flaw
+- **The Sisyphus Bottleneck in OmO**: Sisyphus acts as a solo manager. If Sisyphus makes a hallucinated plan, the sub-agents blindly execute it without prior peer review.
+- **The Magi Solution**: Magi sits above Sisyphus as the **Board of Directors / Supreme Council**. Before any work begins, Melchior (theory), Balthasar (risk), and Casper (value) debate and approve the plan.
+- **Closed-Loop Audit**: When Sisyphus and its sub-agents finish a sprint, Balthasar conducts a flaw audit. If regressions, broken constraints, or safety risks are found, Magi issues a **rejection & corrective order** back to Sisyphus.
+- **Consensus Termination Gate**: Autonomous development continues until all 3 council members unanimously agree that the software is 100% complete (`STOP_SELF_IMPROVEMENT`), or upon `/magi stop`.
+
+### 🚀 Quick Installation
+
+```bash
+# Install into your project's .opencode
+bun run packages/oh-my-magi/bin/cli.ts install --project /path/to/your/project
+
+# Check installation health
+bun run packages/oh-my-magi/bin/cli.ts doctor --project /path/to/your/project
+```
+
+### Usage in OpenCode
+
+1. **Agent Selector (`Tab` in OpenCode)**:
+   - Select `magi` for **Supreme Council Mode** (3-member debate, Sisyphus governance, closed-loop completion).
+   - Select `sisyphus` for standard PM mode, or `hephaestus` for solo deep coding.
+2. **Slash Commands**:
+   - `/magi <prompt>`: Convenes Melchior, Balthasar, and Casper to deliberate on your task before execution.
+   - `/magi start [optional goal]`: **Launches the autonomous completion loop**. Magi directs Sisyphus and advances the codebase until full completion.
+   - `/magi stop`: Immediately halts the autonomous loop.
+   - `/magi status`: Displays active cycle number, topic, and live council votes.
+
+---
+
+## Magi (Full Fork Mode)
+
+Magi is also available as an experimental OpenCode fork that adds a dual-LLM council layer for autonomous coding workflows.
 
 - **Executor model**: a high-performance external coding model for implementation and complex changes.
 - **Council model**: a lower-cost local or API model used by MELCHIOR, BALTHASAR, and CASPER to draft, critique, vote, and guide self-improvement.

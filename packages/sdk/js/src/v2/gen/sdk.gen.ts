@@ -57,6 +57,9 @@ import type {
   GlobalUpgradeResponses,
   InstanceDisposeResponses,
   LspStatusResponses,
+  MagiBranchesResponses,
+  MagiMergeErrors,
+  MagiMergeResponses,
   MagiReviewErrors,
   MagiReviewResponses,
   MagiSelfImproveAsyncErrors,
@@ -1831,6 +1834,73 @@ export class Magi extends HeyApiClient {
       ThrowOnError
     >({
       url: "/magi/self_improve_async",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Get Magi self-improvement branches
+   *
+   * Get the list of pending magi/self-improve* branches.
+   */
+  public branches<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<MagiBranchesResponses, unknown, ThrowOnError>({
+      url: "/magi/branches",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Merge Magi branch
+   *
+   * Merge a selected magi/self-improve* branch into the current branch.
+   */
+  public merge<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      branch?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "branch" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<MagiMergeResponses, MagiMergeErrors, ThrowOnError>({
+      url: "/magi/merge",
       ...options,
       ...params,
       headers: {

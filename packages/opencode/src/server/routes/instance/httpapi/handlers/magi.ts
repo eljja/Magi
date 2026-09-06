@@ -193,6 +193,23 @@ const gitStatus = (directory: string) =>
     }
   })
 
+const runGit = (directory: string, args: string[]) =>
+  Effect.promise(async () => {
+    try {
+      const proc = Bun.spawn(["git", ...args], {
+        cwd: directory,
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      const stdout = await new Response(proc.stdout).text()
+      const stderr = await new Response(proc.stderr).text()
+      const exit = await proc.exited
+      return { code: exit, stdout: stdout.trim(), stderr: stderr.trim() }
+    } catch (err) {
+      return { code: -1, stdout: "", stderr: String(err) }
+    }
+  })
+
 export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handlers) =>
   Effect.gen(function* () {
     const config = yield* Config.Service
@@ -223,8 +240,9 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
       memory?: string
     }) {
       const resolved = magiConfig(yield* config.get())
-      const councilModels = uniqueModels([resolved.councilModel, ...resolved.councilFallbackModels])
-      const councilModel = Provider.parseModel(councilModels[0] ?? resolved.councilModel)
+      const proposerModel = resolved[`${input.proposer}Model`] ?? resolved.councilModel
+      const proposerModels = uniqueModels([proposerModel, ...resolved.councilFallbackModels])
+      const councilModel = Provider.parseModel(proposerModels[0] ?? resolved.councilModel)
       const draftSession = yield* session.create({
         parentID: input.sessionID,
         title: `Magi ${input.proposer.toUpperCase()} Draft`,
@@ -268,7 +286,7 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
             Effect.catchCause(() => (remaining.length > 0 ? askWithModels(remaining) : Effect.succeed(normalizeProposalDraft(input.proposer, undefined)))),
           )
       }
-      return yield* askWithModels(councilModels)
+      return yield* askWithModels(proposerModels)
     })
 
     const runCouncil = Effect.fn("MagiHttpApi.runCouncil")(function* (input: {
@@ -313,6 +331,8 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
         round: number
         previousRounds: MagiDebateRound[]
       }) {
+        const memberModel = resolved[`${memberInput.member}Model`] ?? resolved.councilModel
+        const memberModels = uniqueModels([memberModel, ...resolved.councilFallbackModels])
         const askWithModels: (models: string[]) => Effect.Effect<MagiDecision> = (models) => {
           const model = models[0]
           const remaining = models.slice(1)
@@ -387,7 +407,7 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
             )
         }
 
-        return yield* askWithModels(councilModels)
+        return yield* askWithModels(memberModels)
       })
 
       const root = yield* session.create({
@@ -674,6 +694,57 @@ export const magiHandlers = HttpApiBuilder.group(InstanceHttpApi, "magi", (handl
       return HttpApiSchema.NoContent.make()
     })
 
-    return handlers.handle("status", status).handle("review", review).handle("selfImproveAsync", selfImproveAsync)
+    const branches = Effect.fn("MagiHttpApi.branches")(function* () {
+      const instance = yield* InstanceState.context
+      const res = yield* runGit(instance.directory, ["branch", "--list", "magi/self-improve/*"])
+      if (res.code !== 0) return { branches: [] }
+      const list = res.stdout
+        .split("\n")
+        .map((line) => line.replace(/^\*\s*/, "").trim())
+        .filter(Boolean)
+      return { branches: list }
+    })
+
+    const merge = Effect.fn("MagiHttpApi.merge")(function* (ctx: { payload: { branch: string } }) {
+      const instance = yield* InstanceState.context
+      const branch = ctx.payload.branch.trim()
+      if (!branch.startsWith("magi/self-improve/")) {
+        return { success: false, message: "Invalid branch name. Must start with magi/self-improve/." }
+      }
+      const check = yield* runGit(instance.directory, ["branch", "--list", branch])
+      if (check.code !== 0 || !check.stdout) {
+        return { success: false, message: `Branch ${branch} does not exist.` }
+      }
+      const current = yield* runGit(instance.directory, ["branch", "--show-current"])
+      const base = current.stdout || "dev"
+      const status = yield* gitStatus(instance.directory)
+      if (status !== "" && status !== "GIT_STATUS_UNAVAILABLE") {
+        return { success: false, message: "Working tree is dirty. Please stash or commit changes first." }
+      }
+      if (base === branch) {
+        const hasDev = yield* runGit(instance.directory, ["branch", "--list", "dev"])
+        const targetBase = hasDev.stdout ? "dev" : "main"
+        const switchRes = yield* runGit(instance.directory, ["switch", targetBase])
+        if (switchRes.code !== 0) {
+          return { success: false, message: `Failed to switch to base branch: ${switchRes.stderr}` }
+        }
+      }
+      const mergeRes = yield* runGit(instance.directory, ["merge", "--no-edit", branch])
+      if (mergeRes.code !== 0) {
+        return { success: false, message: `Merge failed: ${mergeRes.stderr}` }
+      }
+      const deleteRes = yield* runGit(instance.directory, ["branch", "-D", branch])
+      return {
+        success: true,
+        message: `Successfully merged ${branch} and deleted the branch.`,
+      }
+    })
+
+    return handlers
+      .handle("status", status)
+      .handle("review", review)
+      .handle("selfImproveAsync", selfImproveAsync)
+      .handle("branches", branches)
+      .handle("merge", merge)
   }),
 )

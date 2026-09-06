@@ -18,7 +18,7 @@ function memberLabel(member: string) {
   return "?"
 }
 
-function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
+function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState; branches: () => string[] }) {
   const theme = () => props.api.theme.current
   const topic = createMemo(() => props.state().topic || "Magi is idle. Type /magi.")
   const events = createMemo(() => props.state().events.slice(-5).toReversed())
@@ -58,6 +58,18 @@ function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
           </box>
         )}
       </For>
+      <Show when={props.branches().length > 0}>
+        <box flexDirection="column" gap={0}>
+          <text fg={theme().success}><b>Magi review branches:</b></text>
+          <For each={props.branches()}>
+            {(branch) => (
+              <text fg={theme().textMuted}>
+                - {branch.replace("magi/self-improve/", "")}
+              </text>
+            )}
+          </For>
+        </box>
+      </Show>
     </box>
   )
 }
@@ -70,41 +82,96 @@ async function read(directory: string) {
 
 const tui: TuiPlugin = async (api) => {
   const [state, setState] = createSignal<MagiRuntimeState>(emptyMagiState())
+  const [branches, setBranches] = createSignal<string[]>([])
+  
+  const refreshBranches = () => {
+    void api.client.magi.branches().then((res) => {
+      if (res && res.data && Array.isArray(res.data.branches)) {
+        setBranches(res.data.branches)
+      }
+    }).catch(() => {})
+  }
+
   const refresh = () => {
     void read(api.state.path.directory || process.cwd()).then(setState)
+    refreshBranches()
   }
   refresh()
-  const timer = setInterval(refresh, 1000)
+  const timer = setInterval(refresh, 2000)
   api.lifecycle.onDispose(() => clearInterval(timer))
 
-  api.command.register(() => [
-    {
-      title: "Show Magi status",
-      value: "magi.status",
-      description: "Show the current Magi council state. Type /magi to run a cycle.",
-      category: "Magi",
-      slash: {
-        name: "magi-status",
+  api.command.register(() => {
+    const list: any[] = [
+      {
+        title: "Show Magi status",
+        value: "magi.status",
+        description: "Show the current Magi council state. Type /magi to run a cycle.",
+        category: "Magi",
+        slash: {
+          name: "magi-status",
+        },
+        onSelect: () => {
+          api.ui.toast({
+            variant: state().status === "error" ? "error" : "info",
+            title: "Magi",
+            message: state().topic,
+            duration: 4000,
+          })
+        },
       },
-      onSelect: () => {
-        api.ui.toast({
-          variant: state().status === "error" ? "error" : "info",
-          title: "Magi",
-          message: state().topic,
-          duration: 4000,
-        })
-      },
-    },
-  ])
+    ]
+
+    for (const branch of branches()) {
+      list.push({
+        title: `Merge Magi Branch: ${branch.replace("magi/self-improve/", "")}`,
+        value: `magi.merge:${branch}`,
+        description: `Merge the changes from ${branch} into your current branch`,
+        category: "Magi",
+        onSelect: () => {
+          api.ui.toast({
+            variant: "info",
+            title: "Magi",
+            message: `Merging branch ${branch}...`,
+          })
+          void api.client.magi.merge({ branch })
+            .then((res) => {
+              if (res && res.data && res.data.success) {
+                api.ui.toast({
+                  variant: "success",
+                  title: "Magi",
+                  message: res.data.message,
+                })
+                refreshBranches()
+              } else {
+                api.ui.toast({
+                  variant: "error",
+                  title: "Magi",
+                  message: res?.data?.message || "Merge failed.",
+                })
+              }
+            })
+            .catch((err) => {
+              api.ui.toast({
+                variant: "error",
+                title: "Magi",
+                message: err instanceof Error ? err.message : "Merge error.",
+              })
+            })
+        },
+      })
+    }
+
+    return list
+  })
 
   api.slots.register({
     order: 350,
     slots: {
       sidebar_content() {
-        return <View api={api} state={state} />
+        return <View api={api} state={state} branches={branches} />
       },
       home_bottom() {
-        return <View api={api} state={state} />
+        return <View api={api} state={state} branches={branches} />
       },
     },
   })
