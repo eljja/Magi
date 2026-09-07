@@ -27,6 +27,16 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       if (!config.default_agent) {
         config.default_agent = "magi"
       }
+      if (!config.command || typeof config.command !== "object") {
+        config.command = {}
+      }
+      const commands = config.command as Record<string, unknown>
+      if (!commands.magi) {
+        commands.magi = {
+          description: "Run the Magi council to deliberate on tasks or manage autonomous self-improvement",
+          template: "Magi council is deliberating.\n\n$ARGUMENTS",
+        }
+      }
     },
 
     "command.execute.before": async (input, output) => {
