@@ -83,16 +83,35 @@ graph TB
 - **폐쇄 루프 감사 (Closed-Loop Audit)**: Sisyphus가 작업을 마치면 Balthasar가 현미경으로 결함을 감사하여, 리스크가 발견되면 즉시 **반려 및 재작업 지령**을 내려보냅니다.
 - **만장일치 종료 게이트**: 3인 전원이 프로그램이 100% 완성되었다고 만장일치 합의(`STOP_SELF_IMPROVEMENT`)하거나 사용자가 `/magi stop`할 때까지 스스로 멈추지 않고 개발을 완주합니다.
 
-### 🚀 빠른 설치 방법
+### 🚀 설치 방법 (Installation Methods)
 
-원하는 프로젝트 폴더의 `.opencode`에 설치합니다:
+환경에 맞춰 아래 방법 중 하나를 선택해 설치할 수 있습니다:
 
+#### 방법 1: OpenCode 표준 플러그인 명령 (권장)
 ```bash
-# 로컬 저장소에서 대상 프로젝트로 설치
-bun run packages/oh-my-magi/bin/cli.ts install --project /path/to/your/project
+# OpenCode 공식 플러그인 설치 (NPM 배포본)
+opencode plugin oh-my-magi
 
-# 설치 무결성 진단
+# 또는 로컬 저장소 경로로 직접 설치
+opencode plugin ./packages/oh-my-magi
+```
+
+#### 방법 2: Oh-My-Magi 전용 원클릭 CLI 설치
+```bash
+# 전용 CLI 원클릭 설치 (NPM)
+bunx oh-my-magi install
+
+# 또는 로컬 레포지토리에서 대상 프로젝트로 설치
+bun run packages/oh-my-magi/bin/cli.ts install --project /path/to/your/project
+```
+
+#### 🩺 설치 무결성 진단 (Doctor)
+```bash
+# 로컬 CLI로 진단
 bun run packages/oh-my-magi/bin/cli.ts doctor --project /path/to/your/project
+
+# 또는 전용 CLI로 진단
+bunx oh-my-magi doctor
 ```
 
 ### OpenCode 사용 방법

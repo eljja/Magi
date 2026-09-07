@@ -83,14 +83,34 @@ graph TB
 - **Closed-Loop Audit**: When Sisyphus and its sub-agents finish a sprint, Balthasar conducts a flaw audit. If regressions, broken constraints, or safety risks are found, Magi issues a **rejection & corrective order** back to Sisyphus.
 - **Consensus Termination Gate**: Autonomous development continues until all 3 council members unanimously agree that the software is 100% complete (`STOP_SELF_IMPROVEMENT`), or upon `/magi stop`.
 
-### 🚀 Quick Installation
+### 🚀 Installation Methods
 
+Choose any of the following methods to install Oh-My-Magi:
+
+#### Option 1: OpenCode Standard Plugin Command (Recommended)
 ```bash
-# Install into your project's .opencode
-bun run packages/oh-my-magi/bin/cli.ts install --project /path/to/your/project
+# Standard OpenCode plugin installation (from NPM)
+opencode plugin oh-my-magi
 
-# Check installation health
+# Or install directly from local repository path
+opencode plugin ./packages/oh-my-magi
+```
+
+#### Option 2: Dedicated CLI One-Click Installer
+```bash
+# Global CLI install (from NPM)
+bunx oh-my-magi install
+
+# Or install from local repository into a target project
+bun run packages/oh-my-magi/bin/cli.ts install --project /path/to/your/project
+```
+
+#### 🩺 Verification & Health Check
+```bash
+# Check installation health with the built-in doctor
 bun run packages/oh-my-magi/bin/cli.ts doctor --project /path/to/your/project
+# Or via global CLI
+bunx oh-my-magi doctor
 ```
 
 ### Usage in OpenCode

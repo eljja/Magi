@@ -107,19 +107,32 @@ OpenCode is fully interactive. While Magi and Sisyphus are running:
 
 ## 🚀 Quick Start
 
-### Installation
+### Installation Methods
 
-Inside any project with an `.opencode` directory (or a new project):
-
+#### Option 1: OpenCode Standard Plugin Command (Recommended)
 ```bash
-# Global install / CLI usage
+# Install via OpenCode CLI from NPM
+opencode plugin oh-my-magi
+
+# Or install from local path
+opencode plugin /path/to/Magi/packages/oh-my-magi
+```
+
+#### Option 2: Dedicated CLI One-Click Installer
+```bash
+# Global install via bunx / npx
 bunx oh-my-magi install
 
 # Or install with local repo path
 bun run bin/cli.ts install --local
+```
 
+#### 🩺 Verification & Health Check
+```bash
 # Check installation health
 bun run bin/cli.ts doctor
+# Or with global CLI
+bunx oh-my-magi doctor
 
 # Check current council status
 bun run bin/cli.ts status
