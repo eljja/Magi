@@ -1,5 +1,3 @@
 export * from "./types"
 export * from "./magi"
-export * from "./sisyphus"
-export * from "./specialists"
 export * from "./builtin-agents"

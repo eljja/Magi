@@ -51,6 +51,23 @@ function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
           )}
         </For>
       </box>
+      <Show when={props.state().telemetry && (props.state().telemetry?.toolCallCount ?? 0) > 0}>
+        <text fg={theme().textMuted}>
+          Workforce: {props.state().telemetry?.toolCallCount} ops | Last: {props.state().telemetry?.lastTool ?? "none"}
+          <Show when={(props.state().telemetry?.modifiedFiles.length ?? 0) > 0}>
+            {" "}| Files: {props.state().telemetry?.modifiedFiles.length}
+          </Show>
+        </text>
+      </Show>
+      <Show when={props.state().observations && (props.state().observations?.length ?? 0) > 0}>
+        <For each={props.state().observations!.slice(-2).toReversed()}>
+          {(obs) => (
+            <text fg={obs.member === "balthasar" ? theme().warning : theme().textMuted}>
+              👁 [{obs.member.toUpperCase()}]: {obs.observation}
+            </text>
+          )}
+        </For>
+      </Show>
       <Show when={props.state().selectedPrompt}>
         <text fg={theme().success}>✓ Approved prompt injected into session</text>
       </Show>

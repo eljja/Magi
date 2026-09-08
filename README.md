@@ -1,18 +1,22 @@
-# Magi / oh-my-magi
+# OMM (Oh-My-Magi)
 
-**One persistent goal. Continuous research and development inside OpenCode.**
+**Supreme Council Governance & Continuous Orchestration for OpenCode & OmO (oh-my-openagent).**
 
 [한국어](README.ko.md) · [Plugin guide](packages/oh-my-magi/README.md) · [Compatibility and audit](docs/RELEASE-AUDIT.md) · [Contributing](CONTRIBUTING.md)
 
-oh-my-magi is a server plugin with an optional terminal panel. MELCHIOR proposes a step, the three council roles review it, and Sisyphus executes approved work through OpenCode. Mechanical checks and a separate reviewer evaluate the result before the roadmap advances.
+OMM operates as the **Supreme Council Governor** above `oh-my-openagent` (OmO). The Council—**MELCHIOR** (Architecture), **BALTHASAR** (Safety Veto), and **CASPER** (Product Value)—maintains the master roadmap, deliberates on milestones, conducts real-time progress observation during execution, and delegates code authoring and tool execution to OmO's Sisyphus and specialist subagent workforce.
 
-The default mode has **no cycle limit**. After the initial milestones, Magi keeps proposing research increments for the same goal. Transient failures and withheld council approval cause a delayed reconsideration. `/magi stop` stops continuation.
+The default mode has **no cycle limit**. Mechanical verification checks and independent reviewer evaluation must pass before advancing milestones.
 
 ## Install
 
-The npm package was **not yet published** when checked on 2026-09-08. The intended public command, after publication, is:
+For the complete multi-agent setup, install both `oh-my-openagent` (execution workforce) and `oh-my-magi` (Supreme Council governor):
 
 ```sh
+# 1. Install OmO workforce
+opencode plugin oh-my-openagent
+
+# 2. Install OMM Supreme Council governor
 opencode plugin oh-my-magi
 ```
 

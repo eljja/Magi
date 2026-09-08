@@ -5,6 +5,8 @@ import { handleSessionIdleEvent, pauseMagi, runMagiCycle, setAutonomousLoop } fr
 import { readMagiState, updateMagiState } from "./state"
 import { createControllerLease } from "./controller"
 import { getStatusReport } from "./installer"
+import { recordToolExecution } from "./observer"
+import { resolveExecutorAgent } from "./omo-bridge"
 
 export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
   const controller = createControllerLease(directory)
@@ -54,11 +56,12 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
         )
         const latest = await readMagiState(directory)
         if (!latest.loopActive || latest.runID !== state.runID) return
+        const executorAgent = await resolveExecutorAgent(directory)
         const response = await client.session.promptAsync({
           path: { id: state.sessionID },
           query: { directory },
           body: {
-            agent: "sisyphus",
+            ...(executorAgent ? { agent: executorAgent } : {}),
             parts: [
               {
                 type: "text",
@@ -78,10 +81,11 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
     const result = await runMagiCycle({ directory, sessionID: state.sessionID, client })
     const current = await readMagiState(directory)
     if (!result.injected || !current.loopActive || current.runID !== state.runID) return
+    const executorAgent = await resolveExecutorAgent(directory)
     const response = await client.session.promptAsync({
       path: { id: state.sessionID },
       query: { directory },
-      body: { agent: "sisyphus", parts: [{ type: "text", text: result.prompt }] },
+      body: { ...(executorAgent ? { agent: executorAgent } : {}), parts: [{ type: "text", text: result.prompt }] },
     })
     if (response.error)
       await pauseMagi(directory, "Executor dispatch failed: " + JSON.stringify(response.error), state.runID)
@@ -99,8 +103,6 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       const settings = await loadMagiConfig(directory)
       const agents = createBuiltinAgents(config.model, {
         councilModel: settings.roles.council,
-        sisyphusModel: settings.roles.sisyphus,
-        specialistModel: settings.roles.specialists,
       })
       config.agent ??= {}
       Object.entries(agents).forEach(([name, agent]) => {
@@ -117,8 +119,21 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       config.command ??= {}
       config.command.magi ??= {
         description: "Start, resume, stop, or inspect the persistent Magi goal",
-        agent: "sisyphus",
+        agent: "magi",
         template: "Magi control request:\n$ARGUMENTS",
+      }
+    },
+    "tool.execute.after": async (input, output) => {
+      const state = await readMagiState(directory)
+      if (state.loopActive && state.sessionID === input.sessionID) {
+        await recordToolExecution(directory, {
+          tool: input.tool,
+          sessionID: input.sessionID,
+          callID: input.callID,
+          args: input.args,
+          title: output.title,
+          output: output.output,
+        })
       }
     },
     tool: {

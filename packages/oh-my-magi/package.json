@@ -41,6 +41,8 @@
     "./router": "./src/router.ts",
     "./verification": "./src/verification.ts",
     "./installer": "./src/installer.ts",
+    "./observer": "./src/observer.ts",
+    "./omo-bridge": "./src/omo-bridge.ts",
     "./tui": "./dist/tui.js"
   },
   "files": [

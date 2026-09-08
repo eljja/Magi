@@ -1,12 +1,39 @@
-# oh-my-magi
+# OMM (Oh-My-Magi)
 
-Persistent, unlimited research and development for one goal inside OpenCode.
+**Supreme Council Governance & Continuous Orchestration for OpenCode & OmO (oh-my-openagent).**
+
+OMM provides high-integrity multi-agent governance above `oh-my-openagent` (OmO). The Supreme Council (**Melchior**, **Balthasar**, **Casper**) maintains master roadmaps, deliberates on milestones, conducts real-time progress observation, and guides Sisyphus and specialist subagents with safety-critical vetoes and mechanical verification gates.
+
+## Architecture: OMM + OmO
+
+```text
+┌────────────────────────────────────────────────────────┐
+│               OMM SUPREME COUNCIL                      │
+│   [Melchior: Architecture] [Balthasar: Risk/Safety]    │
+│   [Casper: Product Value & Human Intent]               │
+│   - Live Progress Telemetry & Real-Time Observation   │
+│   - Falsifiable Verification Gates & Safety Veto       │
+│   - Model Resilience (Automatic Fallback & Retries)   │
+└───────────────────────────┬────────────────────────────┘
+                            │ Milestone Directives & Audits
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│            oh-my-openagent (OmO Workforce)             │
+│   - Sisyphus (Lead Execution PM)                       │
+│   - Tool Guards (18 slots) & LSP Diagnostics Core      │
+│   - Specialist Subagents (explore, librarian, oracle)  │
+└────────────────────────────────────────────────────────┘
+```
 
 ## Installation
 
-Requires Bun 1.3.13+ and OpenCode 1.18.29. The npm package is not published as of the 2026-09-08 audit. After publication:
+For full multi-agent power, install both `oh-my-openagent` (for the execution workforce) and `oh-my-magi` (for the Supreme Council governor):
 
 ```sh
+# 1. Install OmO (workforce engine)
+opencode plugin oh-my-openagent
+
+# 2. Install OMM (Supreme Council governor)
 opencode plugin oh-my-magi
 ```
 

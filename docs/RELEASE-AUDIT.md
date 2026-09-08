@@ -24,9 +24,10 @@ This does not imply that an LLM can always solve a task, run while its host is o
 
 Primary sources: [OpenCode release](https://github.com/anomalyco/opencode/releases/tag/v1.18.29), [OpenCode plugin specification](https://github.com/anomalyco/opencode/blob/v1.18.29/packages/opencode/specs/tui-plugins.md), [OmO beta release](https://github.com/code-yeongyu/oh-my-openagent/releases/tag/v5.0.0-beta.48), [OmO registry metadata](https://registry.npmjs.org/oh-my-opencode), [OpenCode plugin registry metadata](https://registry.npmjs.org/@opencode-ai/plugin/1.18.29).
 
-Magi has local council/executor/specialist implementations. It does not import or vendor the upstream OmO engine, background-agent scheduler, tool suite, or workflow hooks. Preserving existing agent definitions is an interoperability provision, not proof of harness parity or coexistence. Upstream package metadata declares `SUL-1.0`; any future vendoring/distribution needs an explicit provenance and license review. Do not relabel this independent MIT package as a current OmO fork.
+On the `omm` branch, Magi operates as a **pure Supreme Council governor** above `oh-my-openagent` (OmO). Clone workforce agents (`sisyphus`, `explore`, etc.) have been removed from Magi; instead, Magi delegates execution to OmO's installed workforce, harmonizes continuation hooks (`omo-bridge.ts`), and actively monitors ongoing tool execution via live council observation (`observer.ts`).
 
-A future full OmO integration should pin a chosen channel, define which controller owns idle/continuation events, isolate shared agent/command names, preserve third-party notices, and test against that exact harness. That integration has **not** been represented as implemented.
+OmO provides the execution engine (Sisyphus, tool guards, LSP core, and specialist subagents), while OMM provides the executive council (Melchior, Balthasar, Casper), roadmaps, safety vetoes, model resilience, and live progress reporting.
+
 
 ## Defects addressed
 

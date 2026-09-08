@@ -2,78 +2,64 @@ import { describe, expect, it } from "bun:test"
 import {
   createBuiltinAgents,
   createMagiAgent,
-  createSisyphusAgent,
-  createExploreAgent,
-  createLibrarianAgent,
+  createMelchiorAgent,
+  createBalthasarAgent,
+  createCasperAgent,
 } from "../src/agents"
 import { MagiServerPlugin } from "../src/server"
 
-describe("Magi & OmO Agent System", () => {
-  it("creates builtin agents with proper modes and count", () => {
+describe("Magi Supreme Council Pure Governor System", () => {
+  it("creates Supreme Council agents (magi, melchior, balthasar, casper)", () => {
     const agents = createBuiltinAgents()
 
     expect(agents.magi).toBeDefined()
-    expect(agents.sisyphus).toBeDefined()
-    expect(agents.hephaestus).toBeDefined()
-    expect(agents.atlas).toBeDefined()
-    expect(agents.explore).toBeDefined()
-    expect(agents.librarian).toBeDefined()
-    expect(agents.oracle).toBeDefined()
-    expect(agents.metis).toBeDefined()
-    expect(agents.momus).toBeDefined()
-    expect(agents["multimodal-looker"]).toBeDefined()
+    expect(agents.melchior).toBeDefined()
+    expect(agents.balthasar).toBeDefined()
+    expect(agents.casper).toBeDefined()
 
-    // Execution specialists must be callable through task delegation.
+    // Magi is the primary orchestrator, members are subagents
     expect(agents.magi?.mode).toBe("primary")
-    expect(agents.sisyphus?.mode).toBe("primary")
-    expect(agents.hephaestus?.mode).toBe("subagent")
-    expect(agents.atlas?.mode).toBe("subagent")
+    expect(agents.melchior?.mode).toBe("subagent")
+    expect(agents.balthasar?.mode).toBe("subagent")
+    expect(agents.casper?.mode).toBe("subagent")
 
-    // Specialist Subagents
-    expect(agents.explore?.mode).toBe("subagent")
-    expect(agents.librarian?.mode).toBe("subagent")
-    expect(agents.oracle?.mode).toBe("subagent")
-    expect(agents.metis?.mode).toBe("subagent")
-    expect(agents.momus?.mode).toBe("subagent")
-    expect(agents["multimodal-looker"]?.mode).toBe("subagent")
+    // Workforce clones are removed; OMM expects OmO to supply sisyphus and specialist subagents
+    expect(agents.sisyphus).toBeUndefined()
+    expect(agents.explore).toBeUndefined()
+    expect(agents.librarian).toBeUndefined()
   })
 
-  it("configures Magi Supreme Council prompt with governance and roadmap protocol", () => {
+  it("configures Magi Supreme Council prompt with governance protocol", () => {
     const magi = createMagiAgent()
     expect(magi.prompt).toContain("MAGI SUPREME COUNCIL")
     expect(magi.prompt).toContain("MELCHIOR-1")
     expect(magi.prompt).toContain("BALTHASAR-2")
     expect(magi.prompt).toContain("CASPER-3")
     expect(magi.prompt).toContain(".magi/ROADMAP.md")
-    expect(magi.prompt).toContain("[EXECUTIVE DIRECTIVE FOR SISYPHUS]")
-    expect(magi.prompt).toContain("STOP_SELF_IMPROVEMENT")
   })
 
-  it("configures Sisyphus lead execution prompt with milestone completion protocol", () => {
-    const sisyphus = createSisyphusAgent()
-    expect(sisyphus.prompt).toContain("SISYPHUS - LEAD EXECUTION ORCHESTRATOR")
-    expect(sisyphus.prompt).toContain("[MILESTONE_COMPLETE:")
-    expect(sisyphus.prompt).toContain("explore")
-    expect(sisyphus.prompt).toContain("librarian")
-    expect(sisyphus.prompt).toContain("oracle")
+  it("configures Melchior, Balthasar, and Casper with distinct focus areas", () => {
+    const melchior = createMelchiorAgent()
+    expect(melchior.description).toContain("Architect & Scientist")
+
+    const balthasar = createBalthasarAgent()
+    expect(balthasar.description).toContain("Risk & Flaw Auditor")
+    expect(balthasar.description).toContain("veto")
+
+    const casper = createCasperAgent()
+    expect(casper.description).toContain("Practical Realist")
   })
 
-  it("enforces tool restrictions on read-only exploration specialists", () => {
-    const explore = createExploreAgent()
-    const tools = (explore as unknown as { tools: Record<string, boolean> }).tools
-    expect(tools.write).toBe(false)
-    expect(tools.edit).toBe(false)
-    expect(tools.apply_patch).toBe(false)
-
-    const librarian = createLibrarianAgent()
-    const libTools = (librarian as unknown as { tools: Record<string, boolean> }).tools
-    expect(libTools.write).toBe(false)
-    expect(libTools.edit).toBe(false)
-  })
-
-  it("config hook registers agents without replacing the user's default", async () => {
+  it("config hook registers Council agents without replacing the user's default", async () => {
     const pluginInstance = await MagiServerPlugin({
       directory: process.cwd(),
+      client: {
+        session: {
+          status: async () => ({ data: {} }),
+          abort: async () => ({}),
+          promptAsync: async () => ({}),
+        },
+      } as unknown,
     } as unknown as Parameters<typeof MagiServerPlugin>[0])
 
     const configRecord: Record<string, unknown> = {}
@@ -85,16 +71,21 @@ describe("Magi & OmO Agent System", () => {
     const registeredAgents = configRecord.agent as Record<string, unknown>
     expect(registeredAgents).toBeDefined()
     expect(registeredAgents.magi).toBeDefined()
-    expect(registeredAgents.sisyphus).toBeDefined()
-    expect(registeredAgents.hephaestus).toBeDefined()
-    expect(registeredAgents.atlas).toBeDefined()
-    expect(registeredAgents.explore).toBeDefined()
-    expect(registeredAgents.librarian).toBeDefined()
+    expect(registeredAgents.melchior).toBeDefined()
+    expect(registeredAgents.balthasar).toBeDefined()
+    expect(registeredAgents.casper).toBeDefined()
   })
 
   it("respects user pre-configured default_agent if already set", async () => {
     const pluginInstance = await MagiServerPlugin({
       directory: process.cwd(),
+      client: {
+        session: {
+          status: async () => ({ data: {} }),
+          abort: async () => ({}),
+          promptAsync: async () => ({}),
+        },
+      } as unknown,
     } as unknown as Parameters<typeof MagiServerPlugin>[0])
 
     const configRecord: Record<string, unknown> = {

@@ -5,6 +5,8 @@ import { pathToFileURL } from "node:url"
 import { applyEdits, modify } from "jsonc-parser"
 import { parseJsonc } from "./config"
 import { readMagiState } from "./state"
+import { detectOmO } from "./omo-bridge"
+import { formatCouncilObservationBulletin } from "./observer"
 
 export type InstallOptions = { projectDirectory: string; pluginSpecifier?: string }
 export type DoctorReport = {
@@ -14,7 +16,9 @@ export type DoctorReport = {
   tuiRegistered: boolean
   opencodeDirExists: boolean
   configExists: boolean
+  omoInstalled: boolean
   issues: string[]
+  recommendations: string[]
 }
 
 export async function installOhMyMagi(options: InstallOptions) {
@@ -150,9 +154,19 @@ export async function doctorOhMyMagi(projectDirectory: string): Promise<DoctorRe
     )
     return found.some(Boolean)
   }
-  const [pluginRegistered, tuiRegistered] = await Promise.all([registered("opencode"), registered("tui")])
+  const [pluginRegistered, tuiRegistered, omoStatus] = await Promise.all([
+    registered("opencode"),
+    registered("tui"),
+    detectOmO(project),
+  ])
+  const recommendations: string[] = []
   if (!pluginRegistered) issues.push("Server plugin not registered in project configuration")
   if (!tuiRegistered) issues.push("Optional TUI panel not registered in project configuration")
+  if (!omoStatus.installed) {
+    recommendations.push("oh-my-openagent (OmO) workforce plugin is not registered. Run 'opencode plugin oh-my-openagent' to provide Sisyphus and specialist subagents.")
+  } else if (!omoStatus.todoEnforcerDisabled) {
+    recommendations.push("OmO 'todo-continuation-enforcer' hook is enabled; harmonize it via oh-my-openagent.jsonc to prevent loop contention with Magi council.")
+  }
   return {
     ok: issues.length === 0,
     projectDirectory: project,
@@ -162,13 +176,15 @@ export async function doctorOhMyMagi(projectDirectory: string): Promise<DoctorRe
       .then((item) => item.isDirectory())
       .catch(() => false),
     configExists: await Bun.file(path.join(project, ".magi", "config.jsonc")).exists(),
+    omoInstalled: omoStatus.installed,
     issues,
+    recommendations,
   }
 }
 
 export async function getStatusReport(projectDirectory: string) {
   const state = await readMagiState(projectDirectory)
-  return [
+  const lines = [
     "=== Oh-My-Magi Status ===",
     "Directory: " + projectDirectory,
     "Status: " + state.status,
@@ -182,5 +198,12 @@ export async function getStatusReport(projectDirectory: string) {
         .map(([member, vote]) => member + "=" + vote)
         .join(", "),
     state.error ? "Last error: " + state.error : "",
-  ].join("\n")
+  ]
+
+  const bulletin = formatCouncilObservationBulletin(state)
+  if (bulletin.length > 0) {
+    lines.push("", ...bulletin)
+  }
+
+  return lines.filter(Boolean).join("\n")
 }

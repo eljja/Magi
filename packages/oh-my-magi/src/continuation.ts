@@ -24,6 +24,7 @@ import {
 import { formatSafetyEnvelope, prepareBranchSafety, writeRunDecision } from "./safety"
 import { mutateMagiState, readMagiMemory, readMagiState, updateMagiState, writeMagiMemory } from "./state"
 import { runIndependentJudge, runMechanicalVerification } from "./verification"
+import { resolveExecutorAgent } from "./omo-bridge"
 
 export type CycleResult = {
   injected: boolean
@@ -384,10 +385,11 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<void> {
       state.runID,
     )
     if (!result.injected || !(await active(input, state.runID))) return
+    const executorAgent = await resolveExecutorAgent(input.directory)
     const response = await input.client.session.promptAsync({
       path: { id: input.sessionID },
       query: { directory: input.directory },
-      body: { agent: "sisyphus", parts: [{ type: "text", text: result.prompt }] },
+      body: { ...(executorAgent ? { agent: executorAgent } : {}), parts: [{ type: "text", text: result.prompt }] },
     })
     if (response.error) throw new Error("Executor dispatch failed: " + JSON.stringify(response.error))
   } catch (error) {

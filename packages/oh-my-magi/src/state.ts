@@ -5,11 +5,30 @@ import type { MagiCouncilMember, MagiPosition } from "./council"
 
 export type MagiRuntimeEvent = {
   time: number
-  type: "status" | "proposal" | "vote" | "decision" | "error" | "continuation"
+  type: "status" | "proposal" | "vote" | "decision" | "error" | "continuation" | "observation"
   member?: MagiCouncilMember
   title: string
   text: string
   position?: MagiPosition
+}
+
+export type MagiCouncilObservation = {
+  time: number
+  member: MagiCouncilMember
+  perspective: "architecture" | "safety" | "progress"
+  observation: string
+  tool?: string
+  target?: string
+}
+
+export type MagiTelemetry = {
+  toolCallCount: number
+  lastTool?: string
+  lastToolArgs?: string
+  lastToolOutput?: string
+  modifiedFiles: string[]
+  lastActiveAt: number
+  stallCount: number
 }
 
 export type MagiRuntimeState = {
@@ -30,6 +49,8 @@ export type MagiRuntimeState = {
   executionAfter?: number
   lastMessageID?: string
   stopReason?: "user" | "completed" | "max_cycles" | "error" | "council"
+  telemetry?: MagiTelemetry
+  observations?: MagiCouncilObservation[]
 }
 
 export type MagiRuntimeMemory = {
@@ -61,6 +82,13 @@ export function emptyMagiState(): MagiRuntimeState {
     updatedAt: Date.now(),
     events: [],
     votes: {},
+    telemetry: {
+      toolCallCount: 0,
+      modifiedFiles: [],
+      lastActiveAt: Date.now(),
+      stallCount: 0,
+    },
+    observations: [],
   }
 }
 

@@ -13,6 +13,8 @@ export * from "./roadmap"
 export * from "./installer"
 export * from "./agents"
 export * from "./resilience"
+export * from "./observer"
+export * from "./omo-bridge"
 export { MagiServerPlugin }
 
 export default plugin

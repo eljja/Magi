@@ -1,18 +1,22 @@
-# Magi / oh-my-magi
+# OMM (Oh-My-Magi)
 
-**목표 하나를 저장하고 OpenCode 안에서 연구·개발을 계속하는 플러그인입니다.**
+**OpenCode 및 OmO(oh-my-openagent)를 위한 3인 평의회 자율 거버넌스 & 실시간 관찰 플러그인입니다.**
 
 [English](README.md) · [설치·운영 가이드](packages/oh-my-magi/README.md) · [공개 준비 점검표](docs/RELEASE-AUDIT.md)
 
-MELCHIOR가 작업을 제안하고 MELCHIOR·BALTHASAR·CASPER가 검토합니다. 승인한 작업은 Sisyphus가 OpenCode 도구로 실행합니다. 검증 명령과 별도 LLM 리뷰를 모두 통과해야 마일스톤을 완료로 기록합니다.
+OMM은 OmO(oh-my-openagent) 상위에서 동작하는 **최고 지휘통제 평의회(Supreme Council)**입니다. **MELCHIOR**(아키텍처), **BALTHASAR**(안전 거부권), **CASPER**(제품 가치) 3인이 로드맵을 수립하고, 실제 코드 작성 및 도구 실행은 OmO의 `sisyphus` 및 전문 에이전트 인력망에 위임하며, 실행 중 도구 사용 현황을 실시간 관찰하고 주기적으로 브리핑합니다.
 
-기본 동작에는 **반복 횟수 제한이 없습니다**. 초기 마일스톤을 마쳐도 원래 목표에 대한 후속 연구를 계속합니다. 일시적 오류나 합의 실패는 일정 시간 후 재검토하며, 사용자가 `/magi stop`으로 중지할 수 있습니다.
+기본 동작에는 **반복 횟수 제한이 없습니다**. 기계적 검증(테스트/린트)과 독립 심사를 모두 통과해야 마일스톤 완료로 인정하며, 사용자가 `/magi stop`으로 중지할 수 있습니다.
 
 ## 설치
 
-2026-09-08 확인 시점에는 npm에 아직 게시되지 않았습니다. 게시 후 사용할 공개 설치 명령은 다음과 같습니다.
+실행 인력망(OmO)과 상위 평의회 거버너(OMM)를 함께 설치하는 것을 권장합니다:
 
 ```sh
+# 1. OmO 실행 인력망 설치
+opencode plugin oh-my-openagent
+
+# 2. OMM 최고 평의회 거버너 설치
 opencode plugin oh-my-magi
 ```
 
