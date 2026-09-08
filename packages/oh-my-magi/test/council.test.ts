@@ -49,7 +49,13 @@ describe("Council Engine", () => {
         newEvidence: true,
         decisions: [
           { member: "melchior", vote: "approve", position: "approve", rationale: "Good structure" },
-          { member: "balthasar", vote: "reject", position: "reject", rationale: "Will drop production DB!", safetyCritical: true },
+          {
+            member: "balthasar",
+            vote: "reject",
+            position: "reject",
+            rationale: "Will drop production DB!",
+            safetyCritical: true,
+          },
           { member: "casper", vote: "approve", position: "approve", rationale: "Ship it fast" },
         ],
       },
@@ -74,8 +80,20 @@ describe("Council Engine", () => {
         round: 1,
         newEvidence: false,
         decisions: [
-          { member: "melchior", vote: "reject", position: "reject", rationale: "Done", requiredChange: STOP_SELF_IMPROVEMENT },
-          { member: "balthasar", vote: "reject", position: "reject", rationale: "Done", requiredChange: STOP_SELF_IMPROVEMENT },
+          {
+            member: "melchior",
+            vote: "reject",
+            position: "reject",
+            rationale: "Done",
+            requiredChange: STOP_SELF_IMPROVEMENT,
+          },
+          {
+            member: "balthasar",
+            vote: "reject",
+            position: "reject",
+            rationale: "Done",
+            requiredChange: STOP_SELF_IMPROVEMENT,
+          },
           { member: "casper", vote: "approve", position: "approve", rationale: "More features needed" },
         ],
       },
@@ -87,9 +105,27 @@ describe("Council Engine", () => {
         round: 1,
         newEvidence: false,
         decisions: [
-          { member: "melchior", vote: "reject", position: "reject", rationale: "Done", requiredChange: STOP_SELF_IMPROVEMENT },
-          { member: "balthasar", vote: "reject", position: "reject", rationale: "Done", requiredChange: STOP_SELF_IMPROVEMENT },
-          { member: "casper", vote: "reject", position: "reject", rationale: "Done", requiredChange: STOP_SELF_IMPROVEMENT },
+          {
+            member: "melchior",
+            vote: "reject",
+            position: "reject",
+            rationale: "Done",
+            requiredChange: STOP_SELF_IMPROVEMENT,
+          },
+          {
+            member: "balthasar",
+            vote: "reject",
+            position: "reject",
+            rationale: "Done",
+            requiredChange: STOP_SELF_IMPROVEMENT,
+          },
+          {
+            member: "casper",
+            vote: "reject",
+            position: "reject",
+            rationale: "Done",
+            requiredChange: STOP_SELF_IMPROVEMENT,
+          },
         ],
       },
     ]

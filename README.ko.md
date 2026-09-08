@@ -1,361 +1,55 @@
-<h1 align="center">MAGI</h1>
-<p align="center"><strong>OpenCode 기반 dual-LLM council coding IDE.</strong></p>
-<p align="center">MELCHIOR, BALTHASAR, CASPER가 실행 전에 토론하고 투표하며 자기개선을 이끕니다.</p>
+# Magi / oh-my-magi
 
-<p align="center">
-  <img src="assets/magi-execution.svg" alt="Magi 실행 화면: council 투표와 self-improvement 상태" width="900">
-</p>
+**목표 하나를 저장하고 OpenCode 안에서 연구·개발을 계속하는 플러그인입니다.**
 
-<p align="center">
-  <a href="https://github.com/eljja/Magi/actions/workflows/magi.yml"><img alt="Magi status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/magi.yml?style=flat-square&branch=dev&label=magi" /></a>
-  <a href="https://github.com/eljja/Magi/actions/workflows/test.yml"><img alt="Test status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/test.yml?style=flat-square&branch=dev&label=test" /></a>
-  <a href="https://github.com/eljja/Magi/actions/workflows/typecheck.yml"><img alt="Typecheck status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/typecheck.yml?style=flat-square&branch=dev&label=typecheck" /></a>
-</p>
+[English](README.md) · [설치·운영 가이드](packages/oh-my-magi/README.md) · [공개 준비 점검표](docs/RELEASE-AUDIT.md)
 
-<p align="center">
-  <a href="README.md">English</a> |
-  <a href="README.zh.md">简体中文</a> |
-  <a href="README.zht.md">繁體中文</a> |
-  <a href="README.ko.md">한국어</a> |
-  <a href="README.de.md">Deutsch</a> |
-  <a href="README.es.md">Español</a> |
-  <a href="README.fr.md">Français</a> |
-  <a href="README.it.md">Italiano</a> |
-  <a href="README.da.md">Dansk</a> |
-  <a href="README.ja.md">日本語</a> |
-  <a href="README.pl.md">Polski</a> |
-  <a href="README.ru.md">Русский</a> |
-  <a href="README.bs.md">Bosanski</a> |
-  <a href="README.ar.md">العربية</a> |
-  <a href="README.no.md">Norsk</a> |
-  <a href="README.br.md">Português (Brasil)</a> |
-  <a href="README.th.md">ไทย</a> |
-  <a href="README.tr.md">Türkçe</a> |
-  <a href="README.uk.md">Українська</a> |
-  <a href="README.bn.md">বাংলা</a> |
-  <a href="README.gr.md">Ελληνικά</a> |
-  <a href="README.vi.md">Tiếng Việt</a>
-</p>
+MELCHIOR가 작업을 제안하고 MELCHIOR·BALTHASAR·CASPER가 검토합니다. 승인한 작업은 Sisyphus가 OpenCode 도구로 실행합니다. 검증 명령과 별도 LLM 리뷰를 모두 통과해야 마일스톤을 완료로 기록합니다.
 
-<p align="center">
-  <img src="assets/magi-council.svg" alt="Magi council interface: MELCHIOR, BALTHASAR, CASPER" width="760">
-</p>
+기본 동작에는 **반복 횟수 제한이 없습니다**. 초기 마일스톤을 마쳐도 원래 목표에 대한 후속 연구를 계속합니다. 일시적 오류나 합의 실패는 일정 시간 후 재검토하며, 사용자가 `/magi stop`으로 중지할 수 있습니다.
 
----
+## 설치
 
-## Oh-My-Magi (OpenCode 최고 의회 플러그인) 🧙‍♂️
+2026-09-08 확인 시점에는 npm에 아직 게시되지 않았습니다. 게시 후 사용할 공개 설치 명령은 다음과 같습니다.
 
-`oh-my-openagent`(OmO) 스타일에서 착안한 **oh-my-magi** (`packages/oh-my-magi`)는 OpenCode의 **Sisyphus(총괄 PM)** 및 전문 실무 에이전트단(`librarian`, `explore`, `hephaestus`, `atlas`) 위에 **MELCHIOR, BALTHASAR, CASPER 3인 최고 평의회(Supreme Council)**를 얹어 지휘·감사하는 이사회-실무총괄(Executive-Manager) 계층형 자율 완성 플러그인입니다.
-
-### 🏛️ 계층형 시스템 구조도 (Executive-Manager Hierarchy)
-
-```mermaid
-graph TB
-    subgraph "최고 평의회 (Supreme Council: Magi)"
-        M[MELCHIOR: 이론/결정학/구조 아키텍트] <--> B[BALTHASAR: 공정 리스크/실패 분석/보안 거부권]
-        B <--> C[CASPER: 응용 가치/소자 스펙/방향성]
-        M <--> C
-    end
-
-    subgraph "실무 총괄 PM (Lead Orchestrator)"
-        S[Sisyphus (OmO)]
-    end
-
-    subgraph "전문 실무진 (Specialist Sub-agents)"
-        E[Explore: 고속 코드 및 데이터 탐색]
-        L[Librarian: 학술 논문 및 기술 문서 수집]
-        A[Atlas / Hephaestus: 심층 구현, 디버깅, 스크립트 작성]
-    end
-
-    User[사용자 연구/개발 목표] -->|에이전트: magi 또는 /magi start| M
-    Magi -->|승인된 마일스톤 지령 하달 (agent: sisyphus)| S
-    S -->|세부 작업 위임| E
-    S -->|세부 작업 위임| L
-    S -->|세부 작업 위임| A
-    A -->|코드/시뮬레이션 완성| S
-    S -->|작업 완료 보고 (session.idle)| Magi
-    Magi -->|Balthasar 결함 감사 / 반려 시 수정 지령 / 만장일치 시 STOP| S
-```
-
-### ⚡ 왜 Sisyphus 위에 Magi 의회가 필요한가?
-- **OmO 단일 Sisyphus의 치명적 한계**: Sisyphus 혼자 계획을 세우면 환각(Hallucination)이나 물리적/공정상 결함을 눈치채지 못하고 하위 10개 에이전트들이 엉뚱한 방향으로 삽질을 합니다.
-- **Magi의 이사회 해결책**: Magi 3인이 **이사회(Supreme Council)** 자리에 앉아 Sisyphus에게 지령을 내리기 전 이론(Melchior), 리스크(Balthasar), 가치(Casper) 관점에서 상호 비판하고 걸러냅니다.
-- **폐쇄 루프 감사 (Closed-Loop Audit)**: Sisyphus가 작업을 마치면 Balthasar가 현미경으로 결함을 감사하여, 리스크가 발견되면 즉시 **반려 및 재작업 지령**을 내려보냅니다.
-- **만장일치 종료 게이트**: 3인 전원이 프로그램이 100% 완성되었다고 만장일치 합의(`STOP_SELF_IMPROVEMENT`)하거나 사용자가 `/magi stop`할 때까지 스스로 멈추지 않고 개발을 완주합니다.
-
-### 🚀 설치 방법 (Installation Methods)
-
-환경에 맞춰 아래 방법 중 하나를 선택해 설치할 수 있습니다:
-
-#### 방법 1: OpenCode 표준 플러그인 명령 (권장)
-```bash
-# OpenCode 공식 플러그인 설치 (NPM 배포본)
+```sh
 opencode plugin oh-my-magi
-
-# 또는 로컬 저장소 경로로 직접 설치
-opencode plugin ./packages/oh-my-magi
 ```
 
-#### 방법 2: Oh-My-Magi 전용 원클릭 CLI 설치
-```bash
-# 전용 CLI 원클릭 설치 (NPM)
-bunx oh-my-magi install
+현재 소스로 설치하려면 Bun과 OpenCode **1.18.29**를 준비하고 다음을 실행합니다.
 
-# 또는 로컬 레포지토리에서 대상 프로젝트로 설치
-bun run packages/oh-my-magi/bin/cli.ts install --project /path/to/your/project
-```
-
-#### 🩺 설치 무결성 진단 (Doctor)
-```bash
-# 로컬 CLI로 진단
-bun run packages/oh-my-magi/bin/cli.ts doctor --project /path/to/your/project
-
-# 또는 전용 CLI로 진단
-bunx oh-my-magi doctor
-```
-
-### OpenCode 사용 방법
-
-1. **에이전트 선택창 (`Tab` 키)**:
-   - `magi`: **[최고 의회 모드]** 3인 의회가 합의하여 Sisyphus와 실무진을 지휘·감사하는 자율 완성 모드
-   - `sisyphus`: **[일반 PM 모드]** omo 기본 오케스트레이터
-   - `hephaestus`: **[단독 장인 모드]** 집중 단독 코딩
-2. **슬래시 커맨드**:
-   - `/magi <요청내용>`: 의회 3인이 사용자의 요청을 심의/토론한 후 승인된 태스크를 주입합니다.
-   - `/magi start [목표]`: **지속적 자율 완성 루프 가동**. 의회가 Sisyphus를 지휘하며 완료될 때까지 자율 개발합니다.
-   - `/magi stop`: 자율 루프를 즉시 수동 정지합니다.
-   - `/magi status`: 현재 사이클 번호, 작업 주제, 실시간 의회 투표 현황을 출력합니다.
-
----
-
-## Magi (단독 포크 모드)
-
-Magi는 OpenCode 기반의 실험적 dual-LLM coding IDE fork입니다.
-
-- **Executor model**: 구현, 복잡한 설계, 대형 수정을 맡는 고성능 코딩 모델입니다.
-- **Council model**: MELCHIOR, BALTHASAR, CASPER가 초안 작성, 비판, 투표, 자기개선 판단에 사용하는 저비용 local/API 모델입니다.
-- **Self Improvement**: 프로젝트별 개선안을 제안하고, 3인 council이 투표하며, 승인된 작업을 실행하고, `.magi-memory.json` 로컬 journal에 기록하는 opt-in 루프입니다.
-
-Self Improvement는 기본값이 **off**입니다. 자율 agent edit을 허용할 준비가 되었고, source control과 rollback 경로가 있을 때만 켜세요.
-
-이 저장소는 upstream OpenCode 배포판이 아니라 Magi fork입니다. 아래 upstream 설치 명령은 별도 Magi release artifact가 나오기 전까지 OpenCode를 설치합니다. 현재는 저장소에서 직접 실행하세요.
-
-```bash
-bun install
-bun run magi
-```
-
-기존 `opencode` 명령을 바꾸지 않고 별도 `magi` 명령을 한 번만 설치할 수 있습니다.
-
-```bash
-bun run magi:install
-```
-
-그 다음부터는 어떤 프로젝트 폴더에서든 Magi를 실행할 수 있습니다.
-
-```bash
-magi
-magi /path/to/project
-```
-
-OpenCode 안에서 `/magi`가 플러그인 경로로 동작하게 하려면 대상 프로젝트에 Magi OpenCode 플러그인을 설치하세요.
-
-```bash
-magi install-plugin /path/to/project
-```
-
-이 명령은 `/magi` command와 server/TUI plugin 설정을 프로젝트의 `.opencode`에 추가합니다. 사소한 요청은 executor로 fast-track할 수 있지만, 아키텍처 변경, 위험한 변경, 여러 줄 요청, `--council` 요청은 항상 MELCHIOR, BALTHASAR, CASPER가 별도 페르소나로 판단하고 다수결로 결정합니다. Council prompt에는 git 상태, 변경 파일, diff stat, package script를 포함한 제한된 context pack이 함께 들어갑니다.
-
-Magi web UI와 API server를 한 번에 실행하려면:
-
-```bash
-magi web /path/to/project
-```
-
-이 명령은 Magi API를 `http://127.0.0.1:4096`, local web UI를 `http://127.0.0.1:3000`에서 실행합니다. `3000`이 이미 사용 중이면 Magi가 다음 사용 가능한 UI URL을 출력합니다.
-`magi web`은 같은 checkout에서 실행 중인 기존 Magi web/server 프로세스를 먼저 종료합니다. 유지해야 한다면 `--no-clean`을 사용하세요.
-
-같은 server가 켜져 있는 동안 shell에서도 Magi를 사용할 수 있습니다.
-
-```bash
-magi status --project /path/to/project
-magi review --project /path/to/project --proposal "Review onboarding clarity" --evidence "Windows user"
-magi self-improve --project /path/to/project --recent-work "Start safe project-specific improvements"
-```
-
-모델 API key는 환경 변수나 provider credential store에 보관하세요. `opencode.json`, `.opencode/opencode.jsonc`, `.magi-memory.json`에 API key를 커밋하지 마세요.
-
-자세한 내용은 [MAGI.md](./MAGI.md), [UPSTREAM.md](./UPSTREAM.md), [NOTICE.md](./NOTICE.md)를 참고하세요.
-
-### Magi 직접 실행
-
-명령을 설치하지 않고 바로 실행하려면:
-
-```bash
-bun run magi
-bun run magi -- /path/to/project
-```
-
-Windows PowerShell:
-
-```powershell
-bun run magi
-bun run magi -- D:\path\to\project
-```
-
-Windows에서 web UI까지 한 번에 실행하려면:
-
-```powershell
-magi.cmd web D:\path\to\project
-```
-
-그 다음 `http://127.0.0.1:3000`을 열고, server는 `http://127.0.0.1:4096`에 연결한 뒤 project를 선택하세요.
-
-### `magi` 명령 설치
-
-설치기는 현재 checkout을 가리키는 작은 shim을 만듭니다. 이후 `D:\Code\Magi` 또는 clone 위치에서 pull하면 `magi` 명령도 최신 코드로 동작합니다.
-
-#### macOS
-
-```bash
+```sh
 git clone https://github.com/eljja/Magi.git
 cd Magi
-bun install
-bun run magi:install
+bun install --ignore-scripts
+cd packages/oh-my-magi
+bun run build
+bun bin/cli.ts install --local --project /absolute/path/to/your/project
 ```
 
-`~/.magi/bin`이 PATH에 없다면 `~/.zshrc`에 추가하세요.
+프로젝트에서 OpenCode를 다시 열고 모델/provider를 설정한 뒤 시작합니다.
 
-```bash
-export PATH="$HOME/.magi/bin:$PATH"
+```text
+/magi start 연구 파이프라인의 재현성과 정확도를 계속 개선해
+/magi status
+/magi stop
+/magi resume
 ```
 
-#### Linux / Ubuntu
+`magi` 에이전트의 `magi_start` 도구로도 시작할 수 있습니다. 에이전트를 선택하기만 해서는 자동 반복이 시작되지 않습니다. Magi 전용 API 키는 필요하지 않으며 OpenCode에 연결된 모델을 사용합니다. 로컬 LLM도 OpenCode provider로 연결할 수 있습니다.
 
-```bash
-git clone https://github.com/eljja/Magi.git
-cd Magi
-bun install
-bun run magi:install
-```
+## 운영과 지원 범위
 
-`~/.magi/bin`이 PATH에 없다면 `~/.bashrc` 또는 `~/.profile`에 추가하세요.
+- 목표·세션·로드맵·진행 상태를 `.magi/`에 저장합니다. 재시작 후 해당 프로젝트가 로드되면 저장된 작업을 이어받습니다.
+- 서버가 종료되거나 컴퓨터가 꺼지면 연구도 멈춥니다. 무인 운용에는 계속 실행 중인 OpenCode 서버가 필요합니다.
+- 검증 명령이 없거나 리뷰가 실패하면 완료로 기록하지 않습니다. 연구 프로젝트와 모노레포는 [검증 명령 설정](packages/oh-my-magi/README.md#verification)을 먼저 확인하세요.
+- 실제 OpenCode `1.18.29`에서 설치, 에이전트 등록, 두 실행 검증 후 3번째 사이클 진입, 중지를 로컬 테스트 provider로 검증했습니다.
+- CLI·데스크톱·웹은 공통 서버 기능을 사용합니다. 전용 상태 패널은 TUI용이며 GUI·웹에 동일한 위젯을 추가하지 않습니다. 웹 프로젝트·세션 열기, Magi 선택, /magi status 실행까지 확인했습니다. 데스크톱 앱, 재연결, 장시간 실제 모델 실행은 남은 검증 항목입니다.
 
-```bash
-export PATH="$HOME/.magi/bin:$PATH"
-```
+## OmO와의 관계
 
-#### Windows PowerShell
+현재 코드는 OmO의 역할 구성을 참고한 **독립 구현**입니다. 최신 oh-my-openagent 엔진을 포함하거나 동일한 기능을 제공하는 것은 아닙니다. 확인 시점의 npm 안정판은 `oh-my-opencode@4.19.4`, beta는 `5.0.0-beta.48`입니다. [기반 구성과 호환성 기록](docs/RELEASE-AUDIT.md#upstream-and-omo)을 확인하세요.
 
-```powershell
-git clone https://github.com/eljja/Magi.git D:\Code\Magi
-cd D:\Code\Magi
-bun install
-bun run magi:install
-```
+저장소에 남아 있는 예전 OpenCode 포크와 `packages/magi-opencode-plugin`은 별도 경로입니다. 기존 플러그인과 `oh-my-magi`를 함께 로드하면 충돌할 수 있으므로 [마이그레이션 절차](packages/oh-my-magi/README.md#migrating-from-the-legacy-magi-plugin)를 따르세요.
 
-설치기는 `%USERPROFILE%\.magi\bin`을 user PATH에 추가합니다. 새 PowerShell을 연 뒤 실행하세요.
-
-```powershell
-magi
-magi D:\path\to\project
-```
-
----
-
-### 설치
-
-```bash
-# YOLO
-curl -fsSL https://opencode.ai/install | bash
-
-# 패키지 매니저
-npm i -g opencode-ai@latest        # bun/pnpm/yarn 도 가능
-scoop install opencode             # Windows
-choco install opencode             # Windows
-brew install anomalyco/tap/opencode # macOS 및 Linux (권장, 항상 최신)
-brew install opencode              # macOS 및 Linux (공식 brew formula, 업데이트 빈도 낮음)
-sudo pacman -S opencode            # Arch Linux (Stable)
-paru -S opencode-bin               # Arch Linux (Latest from AUR)
-mise use -g opencode               # 어떤 OS든
-nix run nixpkgs#opencode           # 또는 github:anomalyco/opencode 로 최신 dev 브랜치
-```
-
-> [!TIP]
-> 설치 전에 0.1.x 보다 오래된 버전을 제거하세요.
-
-### 데스크톱 앱 (BETA)
-
-OpenCode 는 데스크톱 앱으로도 제공됩니다. [releases page](https://github.com/anomalyco/opencode/releases) 에서 직접 다운로드하거나 [opencode.ai/download](https://opencode.ai/download) 를 이용하세요.
-
-| 플랫폼                | 다운로드                           |
-| --------------------- | ---------------------------------- |
-| macOS (Apple Silicon) | `opencode-desktop-mac-arm64.dmg`   |
-| macOS (Intel)         | `opencode-desktop-mac-x64.dmg`     |
-| Windows               | `opencode-desktop-windows-x64.exe` |
-| Linux                 | `.deb`, `.rpm`, 또는 AppImage      |
-
-```bash
-# macOS (Homebrew)
-brew install --cask opencode-desktop
-# Windows (Scoop)
-scoop bucket add extras; scoop install extras/opencode-desktop
-```
-
-#### 설치 디렉터리
-
-설치 스크립트는 설치 경로를 다음 우선순위로 결정합니다.
-
-1. `$OPENCODE_INSTALL_DIR` - 사용자 지정 설치 디렉터리
-2. `$XDG_BIN_DIR` - XDG Base Directory Specification 준수 경로
-3. `$HOME/bin` - 표준 사용자 바이너리 디렉터리 (존재하거나 생성 가능할 경우)
-4. `$HOME/.opencode/bin` - 기본 폴백
-
-```bash
-# 예시
-OPENCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://opencode.ai/install | bash
-XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://opencode.ai/install | bash
-```
-
-### Agents
-
-OpenCode 에는 내장 에이전트 2개가 있으며 `Tab` 키로 전환할 수 있습니다.
-
-- **build** - 기본값, 개발 작업을 위한 전체 권한 에이전트
-- **plan** - 분석 및 코드 탐색을 위한 읽기 전용 에이전트
-  - 기본적으로 파일 편집을 거부
-  - bash 명령 실행 전에 권한을 요청
-  - 낯선 코드베이스를 탐색하거나 변경을 계획할 때 적합
-
-또한 복잡한 검색과 여러 단계 작업을 위한 **general** 서브 에이전트가 포함되어 있습니다.
-내부적으로 사용되며, 메시지에서 `@general` 로 호출할 수 있습니다.
-
-[agents](https://opencode.ai/docs/agents) 에 대해 더 알아보세요.
-
-### 문서
-
-OpenCode 설정에 대한 자세한 내용은 [**문서**](https://opencode.ai/docs) 를 참고하세요.
-
-### 기여하기
-
-OpenCode 에 기여하고 싶다면, Pull Request 를 제출하기 전에 [contributing docs](./CONTRIBUTING.md) 를 읽어주세요.
-
-### OpenCode 기반으로 만들기
-
-OpenCode 와 관련된 프로젝트를 진행하면서 이름에 "opencode"(예: "opencode-dashboard" 또는 "opencode-mobile") 를 포함한다면, README 에 해당 프로젝트가 OpenCode 팀이 만든 것이 아니며 어떤 방식으로도 우리와 제휴되어 있지 않다는 점을 명시해 주세요.
-
-### FAQ
-
-#### Claude Code 와는 무엇이 다른가요?
-
-기능 면에서는 Claude Code 와 매우 유사합니다. 주요 차이점은 다음과 같습니다.
-
-- 100% 오픈 소스
-- 특정 제공자에 묶여 있지 않습니다. [OpenCode Zen](https://opencode.ai/zen) 을 통해 제공하는 모델을 권장하지만, OpenCode 는 Claude, OpenAI, Google 또는 로컬 모델과도 사용할 수 있습니다. 모델이 발전하면서 격차는 줄고 가격은 내려가므로 provider-agnostic 인 것이 중요합니다.
-- 기본으로 제공되는 LSP 지원
-- TUI 에 집중. OpenCode 는 neovim 사용자와 [terminal.shop](https://terminal.shop) 제작자가 만들었으며, 터미널에서 가능한 것의 한계를 밀어붙입니다.
-- 클라이언트/서버 아키텍처. 예를 들어 OpenCode 를 내 컴퓨터에서 실행하면서 모바일 앱으로 원격 조작할 수 있습니다. 즉, TUI 프런트엔드는 가능한 여러 클라이언트 중 하나일 뿐입니다.
-
----
-
-Upstream OpenCode 커뮤니티 링크는 [opencode.ai](https://opencode.ai)를 참고하세요. Magi 이슈와 논의는 이 저장소를 사용하세요.
+npm 게시, 실제 모델 장시간 실행, TUI·데스크톱·웹 수동 QA는 아직 완료했다고 주장하지 않습니다. 수정 내용과 남은 공개 조건은 [공개 준비 점검표](docs/RELEASE-AUDIT.md)에 기록합니다.

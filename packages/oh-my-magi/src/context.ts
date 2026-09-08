@@ -59,7 +59,11 @@ async function git(directory: string, args: string[]): Promise<CommandResult> {
     stdout: "pipe",
     stderr: "pipe",
   })
-  const [stdout, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited])
+  const [stdout, _stderr, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ])
   return { code, stdout }
 }
 

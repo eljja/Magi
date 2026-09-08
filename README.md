@@ -1,390 +1,74 @@
-<h1 align="center">MAGI</h1>
-<p align="center"><strong>Dual-LLM council coding IDE built on OpenCode.</strong></p>
-<p align="center">MELCHIOR, BALTHASAR, and CASPER debate, vote, and guide self-improvement before execution.</p>
+# Magi / oh-my-magi
 
-<p align="center">
-  <img src="assets/magi-execution.svg" alt="Magi execution screen showing council votes and self-improvement status" width="900">
-</p>
+**One persistent goal. Continuous research and development inside OpenCode.**
 
-<p align="center">
-  <a href="https://github.com/eljja/Magi/actions/workflows/magi.yml"><img alt="Magi status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/magi.yml?style=flat-square&branch=dev&label=magi" /></a>
-  <a href="https://github.com/eljja/Magi/actions/workflows/test.yml"><img alt="Test status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/test.yml?style=flat-square&branch=dev&label=test" /></a>
-  <a href="https://github.com/eljja/Magi/actions/workflows/typecheck.yml"><img alt="Typecheck status" src="https://img.shields.io/github/actions/workflow/status/eljja/Magi/typecheck.yml?style=flat-square&branch=dev&label=typecheck" /></a>
-</p>
+[한국어](README.ko.md) · [Plugin guide](packages/oh-my-magi/README.md) · [Compatibility and audit](docs/RELEASE-AUDIT.md) · [Contributing](CONTRIBUTING.md)
 
-<p align="center">
-  <a href="README.md">English</a> |
-  <a href="README.zh.md">简体中文</a> |
-  <a href="README.zht.md">繁體中文</a> |
-  <a href="README.ko.md">한국어</a> |
-  <a href="README.de.md">Deutsch</a> |
-  <a href="README.es.md">Español</a> |
-  <a href="README.fr.md">Français</a> |
-  <a href="README.it.md">Italiano</a> |
-  <a href="README.da.md">Dansk</a> |
-  <a href="README.ja.md">日本語</a> |
-  <a href="README.pl.md">Polski</a> |
-  <a href="README.ru.md">Русский</a> |
-  <a href="README.bs.md">Bosanski</a> |
-  <a href="README.ar.md">العربية</a> |
-  <a href="README.no.md">Norsk</a> |
-  <a href="README.br.md">Português (Brasil)</a> |
-  <a href="README.th.md">ไทย</a> |
-  <a href="README.tr.md">Türkçe</a> |
-  <a href="README.uk.md">Українська</a> |
-  <a href="README.bn.md">বাংলা</a> |
-  <a href="README.gr.md">Ελληνικά</a> |
-  <a href="README.vi.md">Tiếng Việt</a>
-</p>
+oh-my-magi is a server plugin with an optional terminal panel. MELCHIOR proposes a step, the three council roles review it, and Sisyphus executes approved work through OpenCode. Mechanical checks and a separate reviewer evaluate the result before the roadmap advances.
 
-<p align="center">
-  <img src="assets/magi-council.svg" alt="Magi council interface with MELCHIOR, BALTHASAR, and CASPER" width="760">
-</p>
+The default mode has **no cycle limit**. After the initial milestones, Magi keeps proposing research increments for the same goal. Transient failures and withheld council approval cause a delayed reconsideration. `/magi stop` stops continuation.
 
----
+## Install
 
-## Oh-My-Magi (Supreme Council Plugin for OpenCode) 🧙‍♂️
+The npm package was **not yet published** when checked on 2026-09-08. The intended public command, after publication, is:
 
-Inspired by `oh-my-openagent` (OmO), **oh-my-magi** (`packages/oh-my-magi`) crowns OpenCode with a **Supreme Council (MELCHIOR, BALTHASAR, CASPER)** that governs, directs, and audits **Sisyphus** and the OmO specialist workforce (`librarian`, `explore`, `hephaestus`, `atlas`).
+```sh
+opencode plugin oh-my-magi
+```
 
-### 🏛️ Executive-Manager Hierarchy
+For the current source release, install [Bun](https://bun.sh) and OpenCode **1.18.29**, then:
+
+```sh
+git clone https://github.com/eljja/Magi.git
+cd Magi
+bun install --ignore-scripts
+cd packages/oh-my-magi
+bun run build
+bun bin/cli.ts install --local --project /absolute/path/to/your/project
+```
+
+Restart OpenCode in that project, configure an OpenCode model/provider, and enter:
+
+```text
+/magi start Improve the reproducibility and accuracy of my research pipeline
+/magi status
+/magi stop
+/magi resume
+```
+
+A selected `magi` agent can also call `magi_start`, `magi_status`, and `magi_stop`. Selecting an agent alone does not start a loop. Model credentials stay in OpenCode; no Magi-specific API key is required. A local model exposed through an OpenCode provider can be used.
+
+Keep the OpenCode server running for unattended work. See the [headless setup and verification configuration](packages/oh-my-magi/README.md). Missing verification is never accepted as proof of completion.
+
+## How it continues
 
 ```mermaid
-graph TB
-    subgraph "Supreme Council (Magi)"
-        M[MELCHIOR: Theory & Architecture] <--> B[BALTHASAR: Risk, Flaws & Safety Veto]
-        B <--> C[CASPER: Product Value & User Intent]
-        M <--> C
-    end
-
-    subgraph "Lead PM & Orchestrator"
-        S[Sisyphus (OmO)]
-    end
-
-    subgraph "Specialist Workforce (OmO Sub-agents)"
-        E[Explore: Fast Grep & Search]
-        L[Librarian: Papers & Documentation]
-        A[Atlas / Hephaestus: Deep Implementation & Debugging]
-    end
-
-    User[User Goal / Task] -->|Agent: magi or /magi start| M
-    Magi -->|Approved Milestones & Directives| S
-    S -->|Delegates Tasks| E
-    S -->|Delegates Tasks| L
-    S -->|Delegates Tasks| A
-    A -->|Completed Code & Artifacts| S
-    S -->|Status Report (session.idle)| Magi
-    Magi -->|Balthasar Flaw Check / Corrective Orders / STOP| S
+flowchart LR
+  Goal[Saved single goal] --> Council[Proposal and three votes]
+  Council -->|Approved| Executor[OpenCode executor]
+  Executor --> Checks[Commands and independent review]
+  Checks -->|Needs work| Council
+  Checks -->|Verified milestone| Next[Next milestone or research increment]
+  Next --> Council
+  Council -->|Error or no approval| Wait[Wait and reconsider]
+  Wait --> Council
 ```
 
-### ⚡ Why This Solves Sisyphus's Core Flaw
-- **The Sisyphus Bottleneck in OmO**: Sisyphus acts as a solo manager. If Sisyphus makes a hallucinated plan, the sub-agents blindly execute it without prior peer review.
-- **The Magi Solution**: Magi sits above Sisyphus as the **Board of Directors / Supreme Council**. Before any work begins, Melchior (theory), Balthasar (risk), and Casper (value) debate and approve the plan.
-- **Closed-Loop Audit**: When Sisyphus and its sub-agents finish a sprint, Balthasar conducts a flaw audit. If regressions, broken constraints, or safety risks are found, Magi issues a **rejection & corrective order** back to Sisyphus.
-- **Consensus Termination Gate**: Autonomous development continues until all 3 council members unanimously agree that the software is 100% complete (`STOP_SELF_IMPROVEMENT`), or upon `/magi stop`.
+State, the owning session, the roadmap, and review history are stored under `.magi/`. A server restart can recover that goal when the project is loaded again. Magi does not install an operating-system service or keep working while the machine/server is off.
 
-### 🚀 Installation Methods
+## Compatibility and provenance
 
-Choose any of the following methods to install Oh-My-Magi:
+- **OpenCode 1.18.29:** actual Windows installation and server smoke test passed with a deterministic local provider; the server advanced into a third cycle after two verified executor turns and accepted stop.
+- **CLI/TUI:** shared server engine; optional terminal panel uses the current keymap API. Full interactive terminal rendering still needs manual release QA.
+- **Desktop and web:** the backend agents, tools, and commands use the shared OpenCode server. The terminal panel is not a desktop/web widget. Browser project/session navigation, Magi selection, and /magi status were verified. Full desktop and reconnect QA remain release checks.
+- **oh-my-openagent:** this package is an independent, OmO-inspired implementation. It does **not** bundle the upstream OmO execution engine. At audit time, npm `latest` was `oh-my-opencode@4.19.4` and `beta` was `5.0.0-beta.48`. See [provenance and coexistence](docs/RELEASE-AUDIT.md#upstream-and-omo).
 
-#### Option 1: OpenCode Standard Plugin Command (Recommended)
-```bash
-# Standard OpenCode plugin installation (from NPM)
-opencode plugin oh-my-magi
+This monorepo also retains the older OpenCode fork and `packages/magi-opencode-plugin`. They are legacy paths, with separate behavior and compatibility. Do not enable the legacy plugin alongside oh-my-magi. The [migration guide](packages/oh-my-magi/README.md#migrating-from-the-legacy-magi-plugin) explains cleanup.
 
-# Or install directly from local repository path
-opencode plugin ./packages/oh-my-magi
-```
+## Before public release
 
-#### Option 2: Dedicated CLI One-Click Installer
-```bash
-# Global CLI install (from NPM)
-bunx oh-my-magi install
+The [release audit](docs/RELEASE-AUDIT.md) records fixed defects, reproducible checks, and remaining release gates. Publication, real-provider endurance tests, and interactive desktop/web/TUI QA are not represented as completed.
 
-# Or install from local repository into a target project
-bun run packages/oh-my-magi/bin/cli.ts install --project /path/to/your/project
-```
+Magi executes model-selected work with the permissions of the OpenCode process. Run it in an appropriate environment, configure reproducible checks, and review work before publishing. See [Security](SECURITY.md).
 
-#### 🩺 Verification & Health Check
-```bash
-# Check installation health with the built-in doctor
-bun run packages/oh-my-magi/bin/cli.ts doctor --project /path/to/your/project
-# Or via global CLI
-bunx oh-my-magi doctor
-```
-
-### Usage in OpenCode
-
-1. **Agent Selector (`Tab` in OpenCode)**:
-   - Select `magi` for **Supreme Council Mode** (3-member debate, Sisyphus governance, closed-loop completion).
-   - Select `sisyphus` for standard PM mode, or `hephaestus` for solo deep coding.
-2. **Slash Commands**:
-   - `/magi <prompt>`: Convenes Melchior, Balthasar, and Casper to deliberate on your task before execution.
-   - `/magi start [optional goal]`: **Launches the autonomous completion loop**. Magi directs Sisyphus and advances the codebase until full completion.
-   - `/magi stop`: Immediately halts the autonomous loop.
-   - `/magi status`: Displays active cycle number, topic, and live council votes.
-
----
-
-## Magi (Full Fork Mode)
-
-Magi is also available as an experimental OpenCode fork that adds a dual-LLM council layer for autonomous coding workflows.
-
-- **Executor model**: a high-performance external coding model for implementation and complex changes.
-- **Council model**: a lower-cost local or API model used by MELCHIOR, BALTHASAR, and CASPER to draft, critique, vote, and guide self-improvement.
-- **Self Improvement**: an opt-in loop that proposes project-specific improvements, votes on them, executes approved prompts, verifies worktree changes, and records a local `.magi-memory.json` journal.
-
-Self Improvement defaults to **off**. Do not enable it on a repository unless you are comfortable with autonomous agent edits and have a backup, source control, and a clear rollback path.
-
-Magi is based on [OpenCode](https://opencode.ai). It is not affiliated with or endorsed by the OpenCode team. See [MAGI.md](./MAGI.md), [UPSTREAM.md](./UPSTREAM.md), and [NOTICE.md](./NOTICE.md).
-
-### Public Preview Status
-
-This repository is the Magi fork, not the upstream OpenCode distribution. The upstream install commands below still install OpenCode unless this fork publishes separate Magi release artifacts. For now, contributors should build and run Magi from this repository:
-
-```bash
-bun install
-bun run magi
-```
-
-Install a separate `magi` command once. This does not replace your existing `opencode` command.
-
-```bash
-bun run magi:install
-```
-
-Then run Magi from any project directory:
-
-```bash
-magi
-magi /path/to/project
-```
-
-Install the Magi OpenCode plugin into a target project when you want `/magi` inside OpenCode to run the plugin path:
-
-```bash
-magi install-plugin /path/to/project
-```
-
-The plugin installs the `/magi` command plus server and TUI plugin entries. Trivial requests can fast-track to the executor, but architectural, risky, multi-line, or `--council` requests still convene MELCHIOR, BALTHASAR, and CASPER for majority vote. Council prompts include a bounded context pack with git state, changed files, diff stat, and package scripts.
-
-Run the local Magi web UI and API server with one command:
-
-```bash
-magi web /path/to/project
-```
-
-This starts the Magi API on `http://127.0.0.1:4096` and the local web UI on `http://127.0.0.1:3000`. If `3000` is already in use, Magi prints the next available UI URL.
-`magi web` stops existing Magi web/server processes from the same checkout before starting. Pass `--no-clean` if you need to keep them running.
-
-Use Magi from the shell while that server is running:
-
-```bash
-magi status --project /path/to/project
-magi review --project /path/to/project --proposal "Review onboarding clarity" --evidence "Windows user"
-magi self-improve --project /path/to/project --recent-work "Start safe project-specific improvements"
-```
-
-Use environment variables or provider auth for model keys. Do not commit API keys into `opencode.json`, `.opencode/opencode.jsonc`, or `.magi-memory.json`.
-
-### Running Magi Directly
-
-If you do not want to install a command, run the fork directly:
-
-```bash
-bun run magi
-bun run magi -- /path/to/project
-```
-
-On Windows PowerShell:
-
-```powershell
-bun run magi
-bun run magi -- D:\path\to\project
-```
-
-For the web UI on Windows:
-
-```powershell
-magi.cmd web D:\path\to\project
-```
-
-Then open `http://127.0.0.1:3000`, connect to `http://127.0.0.1:4096`, and select the project.
-
-### Installing The `magi` Command
-
-The installer writes a small shim that points at this checkout. Pulling updates in `D:\Code\Magi` or your clone updates the behavior automatically.
-
-#### macOS
-
-```bash
-git clone https://github.com/eljja/Magi.git
-cd Magi
-bun install
-bun run magi:install
-```
-
-If `~/.magi/bin` is not already in PATH, add this to `~/.zshrc`:
-
-```bash
-export PATH="$HOME/.magi/bin:$PATH"
-```
-
-Restart the terminal, then run:
-
-```bash
-magi ~/path/to/project
-```
-
-#### Linux / Ubuntu
-
-```bash
-git clone https://github.com/eljja/Magi.git
-cd Magi
-bun install
-bun run magi:install
-```
-
-If `~/.magi/bin` is not already in PATH, add this to `~/.bashrc` or `~/.profile`:
-
-```bash
-export PATH="$HOME/.magi/bin:$PATH"
-```
-
-Restart the terminal, then run:
-
-```bash
-magi ~/path/to/project
-```
-
-#### Windows PowerShell
-
-```powershell
-git clone https://github.com/eljja/Magi.git D:\Code\Magi
-cd D:\Code\Magi
-bun install
-bun run magi:install
-```
-
-The installer adds `%USERPROFILE%\.magi\bin` to the user PATH. Open a new PowerShell window, then run:
-
-```powershell
-magi
-magi D:\path\to\project
-```
-
-If PowerShell script execution is restricted, the generated `magi.cmd` shim still works from `cmd.exe`, PowerShell, and most IDE terminals.
-
-#### Advanced Installer Options
-
-```bash
-bun run magi:install -- --command magi-dev
-bun run magi:install -- --bin-dir /custom/bin
-bun run magi:install -- --force
-```
-
-Windows-specific PowerShell entrypoints are also available:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\script\install-magi.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\script\magi.ps1 D:\path\to\project
-```
-
----
-
-### Installation
-
-```bash
-# YOLO
-curl -fsSL https://opencode.ai/install | bash
-
-# Package managers
-npm i -g opencode-ai@latest        # or bun/pnpm/yarn
-scoop install opencode             # Windows
-choco install opencode             # Windows
-brew install anomalyco/tap/opencode # macOS and Linux (recommended, always up to date)
-brew install opencode              # macOS and Linux (official brew formula, updated less)
-sudo pacman -S opencode            # Arch Linux (Stable)
-paru -S opencode-bin               # Arch Linux (Latest from AUR)
-mise use -g opencode               # Any OS
-nix run nixpkgs#opencode           # or github:anomalyco/opencode for latest dev branch
-```
-
-> [!TIP]
-> Remove versions older than 0.1.x before installing.
-
-### Desktop App (BETA)
-
-OpenCode is also available as a desktop application. Download directly from the [releases page](https://github.com/anomalyco/opencode/releases) or [opencode.ai/download](https://opencode.ai/download).
-
-| Platform              | Download                           |
-| --------------------- | ---------------------------------- |
-| macOS (Apple Silicon) | `opencode-desktop-mac-arm64.dmg`   |
-| macOS (Intel)         | `opencode-desktop-mac-x64.dmg`     |
-| Windows               | `opencode-desktop-windows-x64.exe` |
-| Linux                 | `.deb`, `.rpm`, or `.AppImage`     |
-
-```bash
-# macOS (Homebrew)
-brew install --cask opencode-desktop
-# Windows (Scoop)
-scoop bucket add extras; scoop install extras/opencode-desktop
-```
-
-#### Installation Directory
-
-The install script respects the following priority order for the installation path:
-
-1. `$OPENCODE_INSTALL_DIR` - Custom installation directory
-2. `$XDG_BIN_DIR` - XDG Base Directory Specification compliant path
-3. `$HOME/bin` - Standard user binary directory (if it exists or can be created)
-4. `$HOME/.opencode/bin` - Default fallback
-
-```bash
-# Examples
-OPENCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://opencode.ai/install | bash
-XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://opencode.ai/install | bash
-```
-
-### Agents
-
-OpenCode includes two built-in agents you can switch between with the `Tab` key.
-
-- **build** - Default, full-access agent for development work
-- **plan** - Read-only agent for analysis and code exploration
-  - Denies file edits by default
-  - Asks permission before running bash commands
-  - Ideal for exploring unfamiliar codebases or planning changes
-
-Also included is a **general** subagent for complex searches and multistep tasks.
-This is used internally and can be invoked using `@general` in messages.
-
-Learn more about [agents](https://opencode.ai/docs/agents).
-
-### Documentation
-
-For more info on how to configure OpenCode, [**head over to our docs**](https://opencode.ai/docs).
-
-### Contributing
-
-If you're interested in contributing to OpenCode, please read our [contributing docs](./CONTRIBUTING.md) before submitting a pull request.
-
-### Building on OpenCode
-
-If you are working on a project that's related to OpenCode and is using "opencode" as part of its name, for example "opencode-dashboard" or "opencode-mobile", please add a note to your README to clarify that it is not built by the OpenCode team and is not affiliated with us in any way.
-
-### FAQ
-
-#### How is this different from Claude Code?
-
-It's very similar to Claude Code in terms of capability. Here are the key differences:
-
-- 100% open source
-- Not coupled to any provider. Although we recommend the models we provide through [OpenCode Zen](https://opencode.ai/zen), OpenCode can be used with Claude, OpenAI, Google, or even local models. As models evolve, the gaps between them will close and pricing will drop, so being provider-agnostic is important.
-- Built-in opt-in LSP support
-- A focus on TUI. OpenCode is built by neovim users and the creators of [terminal.shop](https://terminal.shop); we are going to push the limits of what's possible in the terminal.
-- A client/server architecture. This, for example, can allow OpenCode to run on your computer while you drive it remotely from a mobile app, meaning that the TUI frontend is just one of the possible clients.
-
----
-
-For upstream OpenCode community links, see [opencode.ai](https://opencode.ai). For Magi issues and discussions, use this repository.
+Magi's own code is MIT-licensed. OpenCode and other dependencies retain their own licenses. No claim of upstream OmO affiliation or feature parity is made.

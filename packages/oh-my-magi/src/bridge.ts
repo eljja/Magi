@@ -27,7 +27,7 @@ export async function askCouncilDraft(input: {
 }): Promise<MagiProposalDraft> {
   const memberModel = resolveMemberModel(input.bridge.config, input.proposer)
   const text = await executeResilientPrompt({
-    client: input.bridge.client as unknown as Parameters<typeof executeResilientPrompt>[0]["client"],
+    client: input.bridge.client,
     system: input.systemPrompt,
     prompt: input.userPrompt,
     primaryModel: memberModel,
@@ -37,9 +37,12 @@ export async function askCouncilDraft(input: {
     directory: input.bridge.directory,
   })
   if (!text) {
-    return normalizeProposalDraft(input.proposer, fallbackProposal(input.proposer))
+    throw new Error("Council proposer unavailable; no task was authorized")
   }
-  return normalizeProposalDraft(input.proposer, safeParseJson(text))
+  const parsed = safeParseJson(text)
+  if (typeof parsed.prompt !== "string" || !parsed.prompt.trim() || typeof parsed.title !== "string")
+    throw new Error("Invalid council proposal")
+  return normalizeProposalDraft(input.proposer, parsed)
 }
 
 export async function askCouncilMember(input: {
@@ -50,7 +53,7 @@ export async function askCouncilMember(input: {
 }): Promise<MagiCouncilJudgment> {
   const memberModel = resolveMemberModel(input.bridge.config, input.member)
   const text = await executeResilientPrompt({
-    client: input.bridge.client as unknown as Parameters<typeof executeResilientPrompt>[0]["client"],
+    client: input.bridge.client,
     system: input.systemPrompt,
     prompt: input.userPrompt,
     primaryModel: memberModel,
@@ -60,9 +63,12 @@ export async function askCouncilMember(input: {
     directory: input.bridge.directory,
   })
   if (!text) {
-    return normalizeCouncilJudgment(fallbackJudgment(input.member))
+    throw new Error(`Council member ${input.member} unavailable; no vote was recorded`)
   }
-  return normalizeCouncilJudgment(safeParseJson(text))
+  const parsed = safeParseJson(text)
+  if (!["approve", "revise", "reject"].includes(String(parsed.position)) || typeof parsed.rationale !== "string")
+    throw new Error("Invalid council vote")
+  return normalizeCouncilJudgment(parsed)
 }
 
 export async function deliberateProposal(input: {
@@ -93,32 +99,33 @@ function resolveMemberModel(config: MagiConfig, member: MagiCouncilMember): stri
 
 function safeParseJson(text: string): Record<string, unknown> {
   const cleaned = text.trim()
-  const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
-  const payload = match?.[1] ? match[1] : cleaned
   try {
-    const parsed = JSON.parse(payload)
-    return isRecord(parsed) ? parsed : {}
+    if (cleaned.startsWith("{") && cleaned.endsWith("}")) {
+      const parsed = JSON.parse(cleaned)
+      if (isRecord(parsed)) return parsed
+    }
   } catch {
-    return {}
+    /* continue to fallbacks */
   }
-}
-
-function fallbackProposal(proposer: MagiCouncilMember) {
-  return {
-    proposer,
-    title: `Continuous self-improvement cycle directed by ${proposer}`,
-    summary: `Autonomous proposal drafted under ${proposer} review guidelines.`,
-    target_files: ["src/"],
-    verification_steps: ["bun test"],
+  const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+  if (match?.[1]) {
+    try {
+      const parsed = JSON.parse(match[1])
+      if (isRecord(parsed)) return parsed
+    } catch {
+      /* continue */
+    }
   }
-}
-
-function fallbackJudgment(member: MagiCouncilMember) {
-  return {
-    member,
-    position: "approve",
-    reasoning: `Baseline approval granted by ${member} pending automated verification.`,
+  const braceMatch = cleaned.match(/\{[\s\S]*\}/)
+  if (braceMatch) {
+    try {
+      const parsed = JSON.parse(braceMatch[0])
+      if (isRecord(parsed)) return parsed
+    } catch {
+      /* give up */
+    }
   }
+  return {}
 }
 
 function isRecord(val: unknown): val is Record<string, unknown> {

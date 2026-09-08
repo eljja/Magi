@@ -2,7 +2,14 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { emptyMagiState, readMagiMemory, readMagiState, updateMagiState, writeMagiMemory, writeMagiState } from "../src/state"
+import {
+  emptyMagiState,
+  readMagiMemory,
+  readMagiState,
+  updateMagiState,
+  writeMagiMemory,
+  writeMagiState,
+} from "../src/state"
 
 describe("State Management", () => {
   let tempDir: string

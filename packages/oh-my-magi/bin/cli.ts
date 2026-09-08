@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import path from "node:path"
 import { doctorOhMyMagi, getStatusReport, installOhMyMagi } from "../src/installer"
+import { setAutonomousLoop } from "../src/continuation"
 
 const args = process.argv.slice(2)
 const command = args[0] ?? "status"
@@ -27,15 +28,17 @@ if (args.includes("--help") || args.includes("-h") || command === "help") {
       "  oh-my-magi install [<dir>] [--project <dir>] [--local]",
       "  oh-my-magi doctor  [<dir>] [--project <dir>]",
       "  oh-my-magi status  [<dir>] [--project <dir>]",
+      "  oh-my-magi stop    [<dir>] [--project <dir>]",
       "",
       "Options:",
       "  --project <dir>   Target project directory (default: current directory)",
       "  --local           Use local repository path instead of npm package name",
       "",
       "Commands:",
-      "  install   Installs the oh-my-magi plugin & primary agent into .opencode",
+      "  install   Registers oh-my-magi and migrates recognized legacy Magi files",
       "  doctor    Checks installation health and configuration",
       "  status    Displays current council debate status and active cycle",
+      "  stop      Disables continuation without requiring a running server",
     ].join("\n"),
   )
   process.exit(0)
@@ -51,8 +54,6 @@ if (command === "install") {
     projectDirectory: targetDir,
     pluginSpecifier: specifier,
   })
-  console.log(`✓ Command installed: ${result.commandFile}`)
-  console.log(`✓ Primary agent installed: ${result.agentFile}`)
   console.log(`✓ Server plugin registered: ${result.configFile}`)
   console.log(`✓ TUI plugin registered: ${result.tuiFile}`)
   console.log("\nInstallation complete! You can now select 'magi' as your agent or use /magi in OpenCode.")
@@ -63,7 +64,9 @@ if (command === "doctor") {
   console.log(`Checking oh-my-magi health for: ${targetDir}...`)
   const report = await doctorOhMyMagi(targetDir)
   if (report.ok) {
-    console.log("✓ All checks passed! oh-my-magi is properly installed.")
+    console.log(
+      "✓ Project registration checks passed. Restart OpenCode to load the plugin; this check does not test providers or runtime compatibility.",
+    )
   } else {
     console.log("⚠ Issues found:")
     for (const issue of report.issues) {
@@ -76,6 +79,12 @@ if (command === "doctor") {
 if (command === "status") {
   const report = await getStatusReport(targetDir)
   console.log(report)
+  process.exit(0)
+}
+
+if (command === "stop") {
+  await setAutonomousLoop(targetDir, false)
+  console.log("Magi continuation stopped. Use OpenCode's interrupt control to abort any currently executing tool.")
   process.exit(0)
 }
 

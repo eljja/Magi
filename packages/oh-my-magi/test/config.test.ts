@@ -21,7 +21,8 @@ describe("Config Management", () => {
     expect(config.council.vetoPolicy).toBe("safety-critical")
     expect(config.council.maxDebateRounds).toBe(1)
     expect(config.selfImprovement.enabled).toBe(false)
-    expect(config.selfImprovement.maxCycles).toBe(50)
+    expect(config.selfImprovement.maxCycles).toBe(0)
+    expect(config.selfImprovement.mode).toBe("continuous")
   })
 
   test("parses jsonc with comments", () => {
@@ -35,8 +36,13 @@ describe("Config Management", () => {
         }
       }
     `
-    const parsed = parseJsonc(raw) as any
+    const parsed = parseJsonc(raw) as { council: { votePolicy: string; maxDebateRounds: number } }
     expect(parsed.council.votePolicy).toBe("unanimous")
     expect(parsed.council.maxDebateRounds).toBe(3)
+  })
+
+  test("preserves punctuation inside strings and fails on malformed config", () => {
+    expect(parseJsonc('{ "text": "literal ,} and ,]", }')).toEqual({ text: "literal ,} and ,]" })
+    expect(() => parseJsonc('{ "plugin": [broken }')).toThrow("Invalid JSONC")
   })
 })

@@ -61,10 +61,7 @@ export const MagiPrompts: Record<MagiCouncilMember, string> = {
     "You are CASPER, the visionary human: frankincense, spirit, desire, meaning. Be honest. Judge user value, product feel, identity, and whether the soul of the idea survives implementation. Do not flatter or agree without purpose.",
 }
 
-export function majorityPosition(
-  decisions: MagiDecision[],
-  policy: MagiVotePolicy = "majority",
-): MagiPosition {
+export function majorityPosition(decisions: MagiDecision[], policy: MagiVotePolicy = "majority"): MagiPosition {
   const positions = decisions.map((decision) => decision.position ?? voteToPosition(decision.vote))
   if (positions.length === 0) return "revise"
 
@@ -79,7 +76,11 @@ export function majorityPosition(
   return "revise"
 }
 
-export function finalDebatePosition(rounds: MagiDebateRound[], vetoPolicy: MagiVetoPolicy = "safety-critical", votePolicy: MagiVotePolicy = "majority"): MagiPosition {
+export function finalDebatePosition(
+  rounds: MagiDebateRound[],
+  vetoPolicy: MagiVetoPolicy = "safety-critical",
+  votePolicy: MagiVotePolicy = "majority",
+): MagiPosition {
   const last = rounds.at(-1)
   if (!last) return "revise"
   if (vetoPolicy === "safety-critical" && last.decisions.some((d) => d.safetyCritical && d.vote === "reject")) {
@@ -88,12 +89,20 @@ export function finalDebatePosition(rounds: MagiDebateRound[], vetoPolicy: MagiV
   return majorityPosition(last.decisions, votePolicy)
 }
 
-export function shouldContinueDebate(rounds: MagiDebateRound[], maxRounds = 3, requireNewEvidence = true, stagnationLimit = 1) {
+export function shouldContinueDebate(
+  rounds: MagiDebateRound[],
+  maxRounds = 3,
+  requireNewEvidence = true,
+  stagnationLimit = 1,
+) {
   if (rounds.length === 0) return true
   if (rounds.length >= maxRounds) return false
   if (!requireNewEvidence) return true
 
-  const stagnant = rounds.slice().reverse().findIndex((r) => r.newEvidence)
+  const stagnant = rounds
+    .slice()
+    .reverse()
+    .findIndex((r) => r.newEvidence)
   const count = stagnant === -1 ? rounds.length : stagnant
   return count < stagnationLimit
 }
@@ -108,7 +117,10 @@ export function shouldStopSelfImprovement(rounds: MagiDebateRound[]): boolean {
   )
 }
 
-export function nextCouncilProposer(members: readonly MagiCouncilMember[], current: MagiCouncilMember): MagiCouncilMember {
+export function nextCouncilProposer(
+  members: readonly MagiCouncilMember[],
+  current: MagiCouncilMember,
+): MagiCouncilMember {
   const index = members.indexOf(current)
   return members[(index + 1) % members.length] ?? members[0] ?? "melchior"
 }
@@ -122,8 +134,12 @@ export function selfImprovementExecutorPrompt(input: {
   const choices = last?.decisions.filter((decision) => decision.requiredChange?.trim() !== STOP_SELF_IMPROVEMENT) ?? []
   return (
     choices.find((decision) => decision.member === input.proposer)?.requiredChange?.trim() ??
-    choices.find((decision) => (decision.position ?? voteToPosition(decision.vote)) === "approve")?.requiredChange?.trim() ??
-    choices.find((decision) => (decision.position ?? voteToPosition(decision.vote)) === "revise")?.requiredChange?.trim() ??
+    choices
+      .find((decision) => (decision.position ?? voteToPosition(decision.vote)) === "approve")
+      ?.requiredChange?.trim() ??
+    choices
+      .find((decision) => (decision.position ?? voteToPosition(decision.vote)) === "revise")
+      ?.requiredChange?.trim() ??
     input.draft?.prompt.trim()
   )
 }
@@ -138,15 +154,20 @@ export function buildCouncilPrompt(input: { task: string; proposal: string; evid
     evidence ? "\nEvidence:\n" + evidence : undefined,
     "",
     "Respond with JSON matching this shape:",
-    JSON.stringify({
-      position: "approve | revise | reject",
-      rationale: "concise explanation",
-      confidence: 0.8,
-      evidence: ["factual basis"],
-      requiredChange: "exact prompt amendment if position is revise or reject, or STOP_SELF_IMPROVEMENT if work is totally complete",
-      newEvidence: false,
-      safetyCritical: false,
-    }, null, 2),
+    JSON.stringify(
+      {
+        position: "approve | revise | reject",
+        rationale: "concise explanation",
+        confidence: 0.8,
+        evidence: ["factual basis"],
+        requiredChange:
+          "exact prompt amendment if position is revise or reject, or STOP_SELF_IMPROVEMENT if work is totally complete",
+        newEvidence: false,
+        safetyCritical: false,
+      },
+      null,
+      2,
+    ),
   ]
     .filter((line): line is string => line !== undefined)
     .join("\n")
@@ -165,8 +186,9 @@ export function buildDebateRoundPrompt(input: {
         ...input.previousRounds.map((round) =>
           [
             `Round ${round.round}${round.synthesis ? ` synthesis: ${round.synthesis}` : ""}`,
-            ...round.decisions.map((decision) =>
-              `${decision.member}: ${decision.position ?? voteToPosition(decision.vote)} (${decision.confidence ?? 0}) - ${decision.rationale}${decision.requiredChange ? ` [Required change: ${decision.requiredChange}]` : ""}`,
+            ...round.decisions.map(
+              (decision) =>
+                `${decision.member}: ${decision.position ?? voteToPosition(decision.vote)} (${decision.confidence ?? 0}) - ${decision.rationale}${decision.requiredChange ? ` [Required change: ${decision.requiredChange}]` : ""}`,
             ),
           ].join("\n"),
         ),
@@ -212,12 +234,16 @@ export function buildSelfImprovementDraftPrompt(input: {
     "",
     "Observe the project direction from repository files, git history, and recent sessions.",
     "Return JSON matching this shape:",
-    JSON.stringify({
-      title: "short descriptive title",
-      prompt: "concrete, actionable executor prompt for OpenCode",
-      rationale: "why this improvement matters next",
-      terminal: false,
-    }, null, 2),
+    JSON.stringify(
+      {
+        title: "short descriptive title",
+        prompt: "concrete, actionable executor prompt for OpenCode",
+        rationale: "why this improvement matters next",
+        terminal: false,
+      },
+      null,
+      2,
+    ),
     "",
     `Only set terminal: true and prompt: '${STOP_SELF_IMPROVEMENT}' if the project has achieved complete perfection with no further worthwhile work.`,
     input.memory ? `\nMemory:\n${input.memory}` : undefined,
@@ -234,13 +260,20 @@ export function normalizeProposalDraft(proposer: MagiCouncilMember, input: unkno
   const terminal = item.terminal === true
   return {
     proposer,
-    title: typeof item.title === "string" && item.title.trim()
-      ? item.title.trim()
-      : (terminal ? "Stop self-improvement" : "Autonomous project improvement"),
-    prompt: typeof item.prompt === "string" && item.prompt.trim()
-      ? item.prompt.trim()
-      : (terminal ? STOP_SELF_IMPROVEMENT : "Analyze the repository, fix outstanding issues, and run tests."),
-    rationale: typeof item.rationale === "string" && item.rationale.trim() ? item.rationale.trim() : "Proposed by council.",
+    title:
+      typeof item.title === "string" && item.title.trim()
+        ? item.title.trim()
+        : terminal
+          ? "Stop self-improvement"
+          : "Autonomous project improvement",
+    prompt:
+      typeof item.prompt === "string" && item.prompt.trim()
+        ? item.prompt.trim()
+        : terminal
+          ? STOP_SELF_IMPROVEMENT
+          : "Analyze the repository, fix outstanding issues, and run tests.",
+    rationale:
+      typeof item.rationale === "string" && item.rationale.trim() ? item.rationale.trim() : "Proposed by council.",
     terminal,
   }
 }
@@ -250,12 +283,14 @@ export function normalizeCouncilJudgment(input: unknown): MagiCouncilJudgment {
   const position = parsePosition(item.position)
   return {
     position,
-    rationale: typeof item.rationale === "string" && item.rationale.trim() ? item.rationale.trim() : "No rationale provided.",
+    rationale:
+      typeof item.rationale === "string" && item.rationale.trim() ? item.rationale.trim() : "No rationale provided.",
     confidence: clampNumber(item.confidence, 0, 1, 0.7),
     evidence: Array.isArray(item.evidence)
       ? item.evidence.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
       : [],
-    requiredChange: typeof item.requiredChange === "string" && item.requiredChange.trim() ? item.requiredChange.trim() : undefined,
+    requiredChange:
+      typeof item.requiredChange === "string" && item.requiredChange.trim() ? item.requiredChange.trim() : undefined,
     newEvidence: item.newEvidence === true,
     safetyCritical: typeof item.safetyCritical === "boolean" ? item.safetyCritical : position === "reject",
   }

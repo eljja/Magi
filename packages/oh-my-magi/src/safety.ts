@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises"
+import { ensureDirectory } from "./fs"
 import path from "node:path"
 import type { MagiDebateRound, MagiPosition, MagiProposalDraft } from "./council"
 
@@ -47,7 +47,9 @@ export async function prepareBranchSafety(input: {
 
   const warnings = [
     inside.code === 0 ? undefined : "Git repository was not detected; branch isolation was skipped.",
-    inside.code === 0 && !clean ? "Working tree is not clean; branch isolation was skipped to avoid moving user work." : undefined,
+    enabled && inside.code === 0 && !clean
+      ? "Working tree is not clean; branch isolation was skipped to avoid moving user work."
+      : undefined,
     branch && switched?.code !== 0 ? `Failed to create branch ${branch}: ${switched?.stderr.trim()}` : undefined,
   ].filter((warning): warning is string => warning !== undefined)
 
@@ -80,7 +82,7 @@ export function formatSafetyEnvelope(input: { prompt: string; safety?: MagiSafet
     input.safety.warnings.length ? `Safety warnings: ${input.safety.warnings.join(" ")}` : undefined,
     input.safety.branch
       ? "Keep all self-improvement work on this branch. Do not commit unless explicitly asked; leave a PR-ready summary with verification."
-      : "Do not edit files for self-improvement until branch isolation is available or the user explicitly approves proceeding in the current worktree.",
+      : "Work in the current checkout. Preserve unrelated user edits, keep changes focused on the goal, and verify results. Do not commit or publish unless the user authorizes it.",
     "",
     input.prompt,
   ]
@@ -88,10 +90,7 @@ export function formatSafetyEnvelope(input: { prompt: string; safety?: MagiSafet
     .join("\n")
 }
 
-export async function writeRunDecision(input: {
-  safety?: MagiSafetyPreparation
-  decision: MagiRunDecisionReport
-}) {
+export async function writeRunDecision(input: { safety?: MagiSafetyPreparation; decision: MagiRunDecisionReport }) {
   if (!input.safety?.reportPath) return
   const current = (await Bun.file(input.safety.reportPath).exists())
     ? ((await Bun.file(input.safety.reportPath).json()) as Record<string, unknown>)
@@ -127,16 +126,18 @@ async function git(directory: string, args: string[]): Promise<GitResult> {
 }
 
 function branchName(prefix: string, title: string, runID: string) {
-  return `${prefix}${title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48) || "task"}-${runID}`
+  return `${prefix}${
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "task"
+  }-${runID}`
 }
 
 async function writeRunReportFile(directory: string, report: Record<string, unknown>) {
   const file = path.join(directory, ".magi", "runs", String(report.runID), "plan.json")
-  await mkdir(path.dirname(file), { recursive: true })
+  await ensureDirectory(path.dirname(file))
   await Bun.write(file, `${JSON.stringify(report, null, 2)}\n`)
   return file
 }

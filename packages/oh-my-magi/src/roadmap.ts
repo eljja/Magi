@@ -1,5 +1,6 @@
+import { ensureDirectory } from "./fs"
 import path from "node:path"
-import { mkdir } from "node:fs/promises"
+import { rename } from "node:fs/promises"
 
 export type Milestone = {
   id: number
@@ -26,12 +27,16 @@ export function magiRoadmapJsonPath(directory: string) {
 export async function readRoadmap(directory: string): Promise<ProjectRoadmap | undefined> {
   const file = magiRoadmapJsonPath(directory)
   if (!(await Bun.file(file).exists())) return undefined
-  return (await Bun.file(file).json().catch(() => undefined)) as ProjectRoadmap | undefined
+  return (await Bun.file(file)
+    .json()
+    .catch(() => undefined)) as ProjectRoadmap | undefined
 }
 
 export async function writeRoadmap(directory: string, roadmap: ProjectRoadmap): Promise<void> {
-  await mkdir(path.join(directory, ".magi"), { recursive: true })
-  await Bun.write(magiRoadmapJsonPath(directory), JSON.stringify(roadmap, null, 2))
+  await ensureDirectory(path.join(directory, ".magi"))
+  const temporary = `${magiRoadmapJsonPath(directory)}.${crypto.randomUUID()}.tmp`
+  await Bun.write(temporary, JSON.stringify(roadmap, null, 2))
+  await rename(temporary, magiRoadmapJsonPath(directory))
   await Bun.write(magiRoadmapPath(directory), formatRoadmapMarkdown(roadmap))
 }
 
@@ -43,23 +48,23 @@ export async function initializeRoadmap(input: {
   const defaultMilestones: { title: string; description: string }[] = input.milestones ?? [
     {
       title: "Environment, Tooling & Baseline Setup",
-      description: "Set up required dependencies, research/fetch tools, and automated verification scripts.",
+      description: `Establish baseline evidence, required tools, and reproducible verification commands for: ${input.goal}`,
     },
     {
       title: "Core Domain Research & Architecture Design",
-      description: "Perform literature review, screen material candidates, and design component architecture.",
+      description: `Review primary sources and existing work, identify gaps, and design an approach for: ${input.goal}`,
     },
     {
-      title: "Detailed Implementation & Device Modeling",
-      description: "Implement core modules, layer stacking specifications, or code components.",
+      title: "Implementation or Reproducible Experiment",
+      description: `Produce concrete code, artifacts, or experiments advancing: ${input.goal}`,
     },
     {
       title: "Mechanical Verification & Flaw Audit",
-      description: "Execute test scripts, verify constraints, and eliminate regression risks or physical flaws.",
+      description: `Evaluate results against the goal, reproduce experiments or tests, and document limitations: ${input.goal}`,
     },
     {
       title: "Final Integration & Documentation",
-      description: "Complete final synthesis, verify all deliverables, and produce executive summary report.",
+      description: `Synthesize evidence, document reproducible results and remaining questions for: ${input.goal}`,
     },
   ]
 

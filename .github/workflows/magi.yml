@@ -15,6 +15,35 @@ permissions:
   contents: read
 
 jobs:
+  plugin:
+    name: oh-my-magi (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Plugin behavioral tests
+        run: bun test
+        working-directory: packages/oh-my-magi
+      - name: Current SDK typecheck
+        run: bun typecheck
+        working-directory: packages/oh-my-magi
+      - name: Build publishable plugin
+        run: bun run build
+        working-directory: packages/oh-my-magi
+      - name: Pack public artifact
+        run: bun pm pack
+        working-directory: packages/oh-my-magi
+      - name: Current OpenCode server smoke
+        run: bun run smoke
+        working-directory: packages/oh-my-magi
+
   core:
     name: core checks
     runs-on: ubuntu-latest

@@ -82,7 +82,7 @@ export function routeMagiRequest(input: MagiRouteInput): MagiRouteDecision {
   if (
     normalized.includes("--council") ||
     request.includes("\n") ||
-    CouncilHints.some((hint) => normalized.includes(hint))
+    CouncilHints.some((hint) => new RegExp(`(?<![\\p{L}\\p{N}_])${hint}(?![\\p{L}\\p{N}_])`, "u").test(normalized))
   ) {
     return {
       route: "council",
@@ -91,7 +91,10 @@ export function routeMagiRequest(input: MagiRouteInput): MagiRouteDecision {
     }
   }
 
-  if (request.length <= maxFastTrackChars && FastTrackHints.some((hint) => normalized.includes(hint))) {
+  if (
+    request.length <= maxFastTrackChars &&
+    FastTrackHints.some((hint) => new RegExp(`(?<![\\p{L}\\p{N}_])${hint}(?![\\p{L}\\p{N}_])`, "u").test(normalized))
+  ) {
     return fastTrack(
       request,
       "The request appears small and low-risk, so the executor can handle it without convening the council.",

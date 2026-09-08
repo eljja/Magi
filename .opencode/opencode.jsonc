@@ -30,7 +30,7 @@
       },
     },
   },
-  "plugin": ["../packages/magi-opencode-plugin", "../packages/oh-my-magi"],
+  "plugin": ["./../packages/oh-my-magi/dist/server.js"],
   "permission": {
     "edit": {
       "packages/opencode/migration/*": "deny",

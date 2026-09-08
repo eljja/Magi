@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "description": "Autonomous multi-agent council plugin for OpenCode, featuring Melchior, Balthasar, and Casper.",
   "type": "module",
+  "main": "./dist/server.js",
+  "engines": {
+    "bun": ">=1.3.13",
+    "opencode": ">=1.18.29 <2"
+  },
   "license": "MIT",
   "author": "eljja",
   "repository": {
@@ -15,12 +20,15 @@
     "omm": "./bin/cli.ts"
   },
   "scripts": {
+    "build": "bun script/build.ts",
+    "smoke": "bun script/smoke.ts",
+    "prepack": "bun run build",
     "typecheck": "tsgo --noEmit",
     "test": "bun test --timeout 30000"
   },
   "exports": {
     ".": "./src/index.ts",
-    "./server": "./src/server.ts",
+    "./server": "./dist/server.js",
     "./council": "./src/council.ts",
     "./agents": "./src/agents/index.ts",
     "./resilience": "./src/resilience.ts",
@@ -33,9 +41,10 @@
     "./router": "./src/router.ts",
     "./verification": "./src/verification.ts",
     "./installer": "./src/installer.ts",
-    "./tui": "./src/tui.tsx"
+    "./tui": "./dist/tui.js"
   },
   "files": [
+    "dist",
     "src",
     "bin",
     "agent",
@@ -45,12 +54,30 @@
     "LICENSE"
   ],
   "dependencies": {
-    "@opencode-ai/plugin": "workspace:*",
-    "@opencode-ai/sdk": "workspace:*",
-    "solid-js": "catalog:"
+    "@opencode-ai/plugin": "1.18.29",
+    "@opencode-ai/sdk": "1.18.29",
+    "jsonc-parser": "3.3.1"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.4.5",
+    "@opentui/solid": ">=0.4.5",
+    "solid-js": ">=1.9.12 <2"
+  },
+  "peerDependenciesMeta": {
+    "@opentui/core": {
+      "optional": true
+    },
+    "@opentui/solid": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "@opentui/solid": "catalog:",
+    "@opentui/core": "0.4.5",
+    "@opentui/solid": "0.4.5",
+    "solid-js": "1.9.12",
     "@types/bun": "catalog:",
     "@typescript/native-preview": "catalog:",
     "typescript": "catalog:"

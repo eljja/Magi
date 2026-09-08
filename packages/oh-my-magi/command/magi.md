@@ -1,9 +1,8 @@
 ---
-description: Run the Magi council to deliberate on tasks or manage autonomous self-improvement
+description: Control the persistent Magi goal
+agent: sisyphus
 ---
 
-Magi council is deliberating.
-
-The Magi plugin intercepts this command to convene Melchior, Balthasar, and Casper before injecting the approved task back into this session.
+Magi control request. The server plugin implements start, resume, stop, status, and steering.
 
 $ARGUMENTS

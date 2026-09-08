@@ -1,15 +1,15 @@
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { createMemo, createSignal, For, Show } from "solid-js"
 import { emptyMagiState, magiStatePath, type MagiRuntimeState } from "./state"
-import { setAutonomousLoop } from "./continuation"
 
 const id = "oh-my-magi-tui"
 
 function dotColor(api: TuiPluginApi, position: string | undefined) {
-  if (position === "approve") return api.theme.current.success
-  if (position === "reject") return api.theme.current.error
-  if (position === "revise") return api.theme.current.warning
-  return api.theme.current.textMuted
+  const theme = api.theme.current
+  if (position === "approve") return theme.success
+  if (position === "reject") return theme.error
+  if (position === "revise") return theme.warning
+  return theme.textMuted
 }
 
 function memberLabel(member: string) {
@@ -70,70 +70,84 @@ function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
 }
 
 async function read(directory: string): Promise<MagiRuntimeState> {
-  const file = Bun.file(magiStatePath(directory))
-  if (!(await file.exists())) return emptyMagiState()
-  return (await file.json().catch(() => emptyMagiState())) as MagiRuntimeState
+  try {
+    const file = Bun.file(magiStatePath(directory))
+    if (!(await file.exists())) return emptyMagiState()
+    return (await file.json().catch(() => emptyMagiState())) as MagiRuntimeState
+  } catch {
+    // Bun.file() may not be available in all runtimes
+    return emptyMagiState()
+  }
 }
 
 export const MagiTuiPlugin: TuiPlugin = async (api) => {
   const [state, setState] = createSignal<MagiRuntimeState>(emptyMagiState())
 
   const refresh = () => {
-    void read(api.state.path.directory || process.cwd()).then(setState)
+    void read(api.state.path.directory || process.cwd())
+      .then(setState)
+      .catch(() => {
+        /* ignore read errors */
+      })
   }
   refresh()
   const timer = setInterval(refresh, 2000)
   api.lifecycle.onDispose(() => clearInterval(timer))
 
-  api.command.register(() => {
-    return [
+  // Also refresh on session status events for faster updates
+  const unsubscribe = api.event.on("session.status", refresh)
+  api.lifecycle.onDispose(unsubscribe)
+
+  const control = async (command: "resume" | "stop") => {
+    const sessionID = api.route.current.name === "session" ? api.route.current.params?.sessionID : state().sessionID
+    if (typeof sessionID !== "string" || !sessionID) {
+      api.ui.toast({ variant: "info", title: "Magi", message: "Use /magi start <goal> in a session first." })
+      return
+    }
+    if (command === "stop") await api.client.session.abort({ sessionID, directory: api.state.path.directory })
+    const result = await api.client.session.command({
+      sessionID,
+      directory: api.state.path.directory,
+      command: "magi",
+      arguments: command,
+    })
+    api.ui.toast({
+      variant: result.error ? "error" : "info",
+      title: "Magi",
+      message: result.error ? "Control request failed. Inspect the session." : "Magi " + command + " request handled.",
+    })
+    refresh()
+  }
+  api.keymap.registerLayer({
+    commands: [
       {
+        name: "magi.status",
+        namespace: "palette",
         title: "Show Magi Status",
-        value: "magi.status",
-        description: "Display current council debate status and active cycle",
         category: "Magi",
-        onSelect: () => {
-          api.ui.toast({
-            variant: state().status === "error" ? "error" : "info",
-            title: "Oh-My-Magi",
-            message: `[Cycle #${state().currentCycle}] ${state().topic}`,
-            duration: 4000,
-          })
-        },
-      },
-      {
-        title: "Start Magi Autonomous Loop",
-        value: "magi.start",
-        description: "Turn on continuous autonomous completion loop",
-        category: "Magi",
-        onSelect: () => {
-          void setAutonomousLoop(api.state.path.directory || process.cwd(), true)
-          api.ui.toast({
-            variant: "success",
-            title: "Oh-My-Magi",
-            message: "Autonomous loop started.",
-            duration: 3000,
-          })
-          refresh()
-        },
-      },
-      {
-        title: "Stop Magi Autonomous Loop",
-        value: "magi.stop",
-        description: "Immediately halt continuous autonomous loop",
-        category: "Magi",
-        onSelect: () => {
-          void setAutonomousLoop(api.state.path.directory || process.cwd(), false)
+        run() {
           api.ui.toast({
             variant: "info",
-            title: "Oh-My-Magi",
-            message: "Autonomous loop stopped.",
-            duration: 3000,
+            title: "Magi",
+            message: "Cycle #" + state().currentCycle + ": " + state().topic,
           })
-          refresh()
         },
       },
-    ]
+      {
+        name: "magi.resume",
+        namespace: "palette",
+        title: "Resume Magi Goal",
+        category: "Magi",
+        run: () => control("resume"),
+      },
+      {
+        name: "magi.stop",
+        namespace: "palette",
+        title: "Stop Magi Goal",
+        category: "Magi",
+        run: () => control("stop"),
+      },
+    ],
   })
 
   api.slots.register({

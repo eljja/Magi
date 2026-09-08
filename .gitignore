@@ -24,6 +24,7 @@ target
 .direnv/
 
 # Local dev files
+.tmp/
 opencode-dev
 .magi-app*.log
 .magi-server*.log
@@ -36,4 +37,5 @@ tsconfig.tsbuildinfo
 # Magi runtime & local state
 .magi/runtime/
 .magi/runs/
+.opencode/magi-migration/
 .opencode/opencode.json

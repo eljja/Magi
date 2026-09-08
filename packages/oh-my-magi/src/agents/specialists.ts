@@ -14,7 +14,7 @@ export function createExploreAgent(model?: string): AgentConfig {
   const restrictions = createToolRestrictions(["write", "edit", "apply_patch"])
   return {
     description:
-      'Contextual grep for codebases. Answers "Where is X?", "Which file has Y?", "Find the code that does Z". (Explore - OhMyOpenCode)',
+      'Contextual grep for codebases. Answers "Where is X?", "Which file has Y?", "Find the code that does Z". (Explore - Magi built-in)',
     mode: "subagent",
     model,
     temperature: 0.1,
@@ -44,7 +44,7 @@ export function createLibrarianAgent(model?: string): AgentConfig {
   const restrictions = createToolRestrictions(["write", "edit", "apply_patch"])
   return {
     description:
-      "Specialized open-source and library understanding agent. Retrieves documentation, finds open-source examples, and explains framework internals. (Librarian - OhMyOpenCode)",
+      "Specialized open-source and library understanding agent. Retrieves documentation, finds open-source examples, and explains framework internals. (Librarian - Magi built-in)",
     mode: "subagent",
     model,
     temperature: 0.1,
@@ -74,7 +74,7 @@ export function createOracleAgent(model?: string): AgentConfig {
   const thinkingConfig = buildThinkingConfig(model)
   return {
     description:
-      "Strategic technical advisor with elevated reasoning capabilities for architecture tradeoffs and intractable debugging. (Oracle - OhMyOpenCode)",
+      "Strategic technical advisor with elevated reasoning capabilities for architecture tradeoffs and intractable debugging. (Oracle - Magi built-in)",
     mode: "subagent",
     model,
     temperature: 0.2,
@@ -96,8 +96,8 @@ export function createHephaestusAgent(model?: string): AgentConfig {
   const thinkingConfig = buildThinkingConfig(model)
   return {
     description:
-      "Autonomous refactoring and code evolution artisan. Specializes in comprehensive file reorganization, eliminating technical debt, and modernizing legacy codebases. (Hephaestus - OhMyOpenCode)",
-    mode: "primary",
+      "Autonomous refactoring and code evolution artisan. Specializes in comprehensive file reorganization, eliminating technical debt, and modernizing legacy codebases. (Hephaestus - Magi built-in)",
+    mode: "subagent",
     model,
     temperature: 0.1,
     ...thinkingConfig,
@@ -118,8 +118,8 @@ export function createAtlasAgent(model?: string): AgentConfig {
   const thinkingConfig = buildThinkingConfig(model)
   return {
     description:
-      "Master orchestrator for large-scale multi-phase system architecture and comprehensive roadmap tracking. (Atlas - OhMyOpenCode)",
-    mode: "primary",
+      "Master orchestrator for large-scale multi-phase system architecture and comprehensive roadmap tracking. (Atlas - Magi built-in)",
+    mode: "subagent",
     model,
     temperature: 0.2,
     ...thinkingConfig,
@@ -139,7 +139,7 @@ export function createMetisAgent(model?: string): AgentConfig {
   const restrictions = createToolRestrictions(["write", "edit", "apply_patch"])
   return {
     description:
-      "Pre-planning consultant. Analyzes user intent, identifies ambiguities, and flags risks before coding begins. (Metis - OhMyOpenCode)",
+      "Pre-planning consultant. Analyzes user intent, identifies ambiguities, and flags risks before coding begins. (Metis - Magi built-in)",
     mode: "subagent",
     model,
     temperature: 0.2,
@@ -160,7 +160,7 @@ export function createMomusAgent(model?: string): AgentConfig {
   const restrictions = createToolRestrictions(["write", "edit", "apply_patch"])
   return {
     description:
-      "Plan reviewer agent. Critiques plans with a practical, critical eye to ensure feasibility before execution. (Momus - OhMyOpenCode)",
+      "Plan reviewer agent. Critiques plans with a practical, critical eye to ensure feasibility before execution. (Momus - Magi built-in)",
     mode: "subagent",
     model,
     temperature: 0.1,
@@ -181,7 +181,7 @@ export function createMultimodalLookerAgent(model?: string): AgentConfig {
   const restrictions = createToolRestrictions(["write", "edit", "apply_patch"])
   return {
     description:
-      "Multimodal visual QA specialist for inspecting UI screenshots, diagrams, and rendered visual artifacts. (Multimodal Looker - OhMyOpenCode)",
+      "Multimodal visual QA specialist for inspecting UI screenshots, diagrams, and rendered visual artifacts. (Multimodal Looker - Magi built-in)",
     mode: "subagent",
     model,
     temperature: 0.1,

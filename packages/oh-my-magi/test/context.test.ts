@@ -16,7 +16,8 @@ describe("Context Collector", () => {
   })
 
   test("redacts secret tokens and api keys", () => {
-    const raw = "Here is my key: AIzaSyD3xP45Z9_exampleKey123 and sk-1234567890abcdef12345678 and secret: my_super_secret_token_value"
+    const raw =
+      "Here is my key: AIzaSyD3xP45Z9_exampleKey123 and sk-1234567890abcdef12345678 and secret: my_super_secret_token_value"
     const redacted = redact(raw)
     expect(redacted).not.toContain("AIzaSyD3xP45Z9_exampleKey123")
     expect(redacted).not.toContain("sk-1234567890abcdef12345678")

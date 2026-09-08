@@ -46,15 +46,24 @@ export function isKimiModel(model?: string): boolean {
 }
 
 export function buildThinkingConfig(model?: string) {
-  if (!model || !isClaudeModel(model)) return {}
-  if (/opus-4\.[7-9]|opus-5|fable|mythos/i.test(model)) return {}
-  return { thinking: { type: "enabled", budgetTokens: 32000 } }
+  // Provider reasoning settings belong to OpenCode configuration; model names do not define capabilities.
+  return {}
 }
 
 export function createToolRestrictions(denyTools: string[] = [], allowTools: string[] = []) {
   const result: Record<string, unknown> = {}
   if (denyTools.length > 0) {
     result.tools = Object.fromEntries(denyTools.map((tool) => [tool, false]))
+    result.permission = {
+      "*": "deny",
+      edit: "deny",
+      bash: "deny",
+      read: "allow",
+      glob: "allow",
+      grep: "allow",
+      webfetch: "allow",
+      websearch: "allow",
+    }
   }
   if (allowTools.length > 0) {
     result.tools = {

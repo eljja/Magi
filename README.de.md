@@ -1,3 +1,5 @@
+> **Legacy fork documentation:** This translation describes the retained OpenCode fork. For the current oh-my-magi plugin, installation, and verified support, read [English](README.md), [한국어](README.ko.md), and the [release audit](docs/RELEASE-AUDIT.md).
+
 <p align="center">
   <a href="https://opencode.ai">
     <picture>

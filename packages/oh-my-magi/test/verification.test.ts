@@ -32,7 +32,7 @@ describe("Verification Harness", () => {
     expect(report.summary).toContain("passed cleanly")
   })
 
-  test("independent judge defaults to approval when mechanical verification passes", async () => {
+  test("independent judge cannot approve without a client and execution evidence", async () => {
     const verdict = await runIndependentJudge({
       config: MagiConfigDefault,
       directory: tempDir,
@@ -45,7 +45,31 @@ describe("Verification Harness", () => {
       },
     })
 
-    expect(verdict.approved).toBe(true)
-    expect(verdict.confidence).toBeGreaterThan(0.5)
+    expect(verdict.approved).toBe(false)
+    expect(verdict.confidence).toBe(0)
+  })
+
+  test("missing tests are unverified, including monorepos with root test guards", async () => {
+    expect((await runMechanicalVerification(tempDir)).passed).toBe(false)
+    await Bun.write(
+      path.join(tempDir, "package.json"),
+      JSON.stringify({ workspaces: ["packages/*"], scripts: { test: "exit 42" } }),
+    )
+    expect((await runMechanicalVerification(tempDir)).checks).toEqual([])
+  })
+
+  test("verification timeout terminates a hung direct process", async () => {
+    await Bun.write(
+      path.join(tempDir, ".magi", "config.jsonc"),
+      JSON.stringify({
+        verification: {
+          timeoutMs: 50,
+          commands: [{ name: "hang", command: [process.execPath, "-e", "setInterval(() => {}, 1000)"] }],
+        },
+      }),
+    )
+    const report = await runMechanicalVerification(tempDir)
+    expect(report.passed).toBe(false)
+    expect(report.checks[0]?.durationMs).toBeLessThan(2000)
   })
 })

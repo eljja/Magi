@@ -11,7 +11,6 @@ export * from "./router"
 export * from "./verification"
 export * from "./roadmap"
 export * from "./installer"
-export * from "./tui"
 export * from "./agents"
 export * from "./resilience"
 export { MagiServerPlugin }

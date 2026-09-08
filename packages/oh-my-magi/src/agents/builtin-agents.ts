@@ -18,13 +18,10 @@ export type AgentRoleModels = {
   specialistModel?: string
 }
 
-export function createBuiltinAgents(
-  defaultModel?: string,
-  roles?: AgentRoleModels,
-): Record<string, AgentConfig> {
-  const councilModel = roles?.councilModel ?? defaultModel ?? "zai/glm-5.2:max"
-  const sisyphusModel = roles?.sisyphusModel ?? defaultModel ?? "zai/glm-5.2:pro"
-  const specialistModel = roles?.specialistModel ?? defaultModel
+export function createBuiltinAgents(defaultModel?: string, roles?: AgentRoleModels): Record<string, AgentConfig> {
+  const councilModel = roles?.councilModel || defaultModel
+  const sisyphusModel = roles?.sisyphusModel || defaultModel
+  const specialistModel = roles?.specialistModel || defaultModel
 
   return {
     magi: createMagiAgent(councilModel),

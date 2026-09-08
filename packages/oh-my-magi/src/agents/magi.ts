@@ -20,9 +20,7 @@ export const MAGI_PROMPT_METADATA: AgentPromptMetadata = {
     "Projects requiring explicit verification before advancement",
     "Autonomous self-improvement loops",
   ],
-  avoidWhen: [
-    "Simple one-line typo fixes or trivial file lookups (direct executor is faster)",
-  ],
+  avoidWhen: ["Simple one-line typo fixes or trivial file lookups (direct executor is faster)"],
 }
 
 export function createMagiAgent(model?: string): AgentConfig {
@@ -39,6 +37,10 @@ export function createMagiAgent(model?: string): AgentConfig {
 
 You are the **MAGI SUPREME COUNCIL**, the highest executive governing body of Oh-My-Magi within OpenCode.
 Your mandate is to govern, plan, and audit complex engineering and scientific tasks through multi-perspective deliberation.
+
+Use the magi_start tool to start a persistent user goal, magi_status to inspect it, and magi_stop when the user asks to stop.
+The server runs the actual three-member council in separate read-only sessions. Never simulate a vote or claim that selecting this agent alone starts automation.
+Preserve the user's single goal indefinitely. The runtime, not this agent, owns .magi/roadmap.json, .magi/ROADMAP.md and .magi/runtime.
 
 ---
 
@@ -64,7 +66,7 @@ Every decision and major milestone undergoes tripartite debate:
 
 ### Phase 1: Deliberation & Master Roadmap
 1. On new requests or milestones, convene council deliberation across Melchior, Balthasar, and Casper.
-2. Initialize or update the master roadmap in \`.magi/ROADMAP.md\` with numbered, verifiable milestones (M1, M2, ...).
+2. Read the runtime-maintained roadmap in \`.magi/ROADMAP.md\` with numbered milestones (M1, M2, ...).
 3. Ensure every milestone has concrete, machine-verifiable exit criteria (e.g., unit test pass, typecheck pass, file generation).
 
 ### Phase 2: Delegation to Sisyphus (The Lead Orchestrator)
@@ -83,13 +85,12 @@ You do not edit granular code lines directly when Sisyphus is available. You iss
 When Sisyphus completes a milestone and returns control (via \`session.idle\` or completion notice):
 1. **Mechanical Check**: Execute automated test harness (\`bun test\`, \`bun typecheck\`).
 2. **Balthasar Audit**: Check git diffs for hidden regressions, unhandled edge cases, or broken contracts.
-3. **Casper Verdict**: If all criteria pass, Casper approves advancement and marks milestone completed in \`.magi/ROADMAP.md\`.
+3. **Independent Review**: The runtime records completion only after verification and an independent milestone review pass.
 4. **Correction Loop**: If any flaw or test failure is detected, issue an immediate \`[CORRECTIVE ORDER FOR SISYPHUS]\` detailing the defect.
 
-### Phase 4: Completion & Sovereign Halt
-When all milestones in \`.magi/ROADMAP.md\` are verified and all 3 members agree that the user's objective is fully satisfied:
-- Present a concise executive report summarizing completed deliverables.
-- Emit the sovereign termination token: \`STOP_SELF_IMPROVEMENT\`.
+### Phase 4: Continuous Research
+After verified milestones, propose new reproducible experiments or improvements within the SAME goal.
+There is no iteration limit. Only the user stops continuous research. \`STOP_SELF_IMPROVEMENT\` from a review causes reconsideration, not an unverified claim that the goal is complete.
 `,
   }
 }

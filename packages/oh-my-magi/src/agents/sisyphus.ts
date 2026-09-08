@@ -20,9 +20,7 @@ export const SISYPHUS_PROMPT_METADATA: AgentPromptMetadata = {
     "Bug hunting with root-cause verification",
     "Executing milestone tasks assigned by Magi Supreme Council",
   ],
-  avoidWhen: [
-    "Pure high-level strategic governance without code execution (use Magi)",
-  ],
+  avoidWhen: ["Pure high-level strategic governance without code execution (use Magi)"],
 }
 
 export function createSisyphusAgent(model?: string): AgentConfig {

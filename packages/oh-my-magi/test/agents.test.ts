@@ -23,11 +23,11 @@ describe("Magi & OmO Agent System", () => {
     expect(agents.momus).toBeDefined()
     expect(agents["multimodal-looker"]).toBeDefined()
 
-    // 4 Primary Agents
+    // Execution specialists must be callable through task delegation.
     expect(agents.magi?.mode).toBe("primary")
     expect(agents.sisyphus?.mode).toBe("primary")
-    expect(agents.hephaestus?.mode).toBe("primary")
-    expect(agents.atlas?.mode).toBe("primary")
+    expect(agents.hephaestus?.mode).toBe("subagent")
+    expect(agents.atlas?.mode).toBe("subagent")
 
     // Specialist Subagents
     expect(agents.explore?.mode).toBe("subagent")
@@ -71,7 +71,7 @@ describe("Magi & OmO Agent System", () => {
     expect(libTools.edit).toBe(false)
   })
 
-  it("config hook registers all builtin agents and sets default agent to magi", async () => {
+  it("config hook registers agents without replacing the user's default", async () => {
     const pluginInstance = await MagiServerPlugin({
       directory: process.cwd(),
     } as unknown as Parameters<typeof MagiServerPlugin>[0])
@@ -81,7 +81,7 @@ describe("Magi & OmO Agent System", () => {
       await pluginInstance.config(configRecord)
     }
 
-    expect(configRecord.default_agent).toBe("magi")
+    expect(configRecord.default_agent).toBeUndefined()
     const registeredAgents = configRecord.agent as Record<string, unknown>
     expect(registeredAgents).toBeDefined()
     expect(registeredAgents.magi).toBeDefined()

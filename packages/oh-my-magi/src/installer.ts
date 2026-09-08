@@ -1,198 +1,186 @@
-import { mkdir } from "node:fs/promises"
+import { ensureDirectory } from "./fs"
+import { stat, rename } from "node:fs/promises"
 import path from "node:path"
+import { pathToFileURL } from "node:url"
+import { applyEdits, modify } from "jsonc-parser"
 import { parseJsonc } from "./config"
 import { readMagiState } from "./state"
 
-export type InstallOptions = {
-  projectDirectory: string
-  pluginSpecifier?: string
-}
-
+export type InstallOptions = { projectDirectory: string; pluginSpecifier?: string }
 export type DoctorReport = {
   ok: boolean
   projectDirectory: string
-  opencodeDirExists: boolean
-  commandInstalled: boolean
-  agentInstalled: boolean
   pluginRegistered: boolean
   tuiRegistered: boolean
+  opencodeDirExists: boolean
   configExists: boolean
   issues: string[]
 }
 
-export async function installOhMyMagi(options: InstallOptions): Promise<{
-  opencodeDir: string
-  commandFile: string
-  agentFile: string
-  configFile: string
-  tuiFile: string
-}> {
+export async function installOhMyMagi(options: InstallOptions) {
   const project = path.resolve(options.projectDirectory)
   const opencodeDir = path.join(project, ".opencode")
-  const commandDir = path.join(opencodeDir, "command")
-  const commandFile = path.join(commandDir, "magi.md")
-
-  try {
-    await mkdir(commandDir, { recursive: true })
-  } catch (err: unknown) {
-    if (isRecord(err) && err.code !== "EEXIST") throw err
-  }
-
-  // 1. Write the /magi command template
-  const commandTemplate = [
-    "---",
-    "description: Run the Magi council to deliberate on tasks or manage autonomous self-improvement",
-    "---",
-    "",
-    "Magi council is deliberating.",
-    "",
-    "The Magi plugin intercepts this command to convene Melchior, Balthasar, and Casper before injecting the approved task back into this session.",
-    "",
-    "$ARGUMENTS",
-    "",
-  ].join("\n")
-
-  await Bun.write(commandFile, commandTemplate)
-
-  // 2. Write the Primary Agent definition: .opencode/agent/magi.md
-  const agentDir = path.join(opencodeDir, "agent")
-  const agentFile = path.join(agentDir, "magi.md")
-  try {
-    await mkdir(agentDir, { recursive: true })
-  } catch (err: unknown) {
-    if (isRecord(err) && err.code !== "EEXIST") throw err
-  }
-
-  const agentTemplate = [
-    "---",
-    "description: Supreme 3-Member Council (Melchior, Balthasar, Casper) orchestrating Sisyphus and OmO specialist subagents",
-    "mode: primary",
-    "color: \"#7C3AED\"",
-    "---",
-    "",
-    "You are the MAGI SUPREME COUNCIL: a triumvirate consisting of MELCHIOR (Architecture & Theory), BALTHASAR (Risk & Safety Veto), and CASPER (Product Value & User Intent).",
-    "",
-    "Your purpose:",
-    "1. Deliberate on the user's high-level goal and maintain the master project roadmap (`.magi/ROADMAP.md`).",
-    "2. Command and govern Sisyphus (OmO's Lead PM) by issuing structured, milestone-driven task directives.",
-    "3. Rigorously audit the code, artifacts, and test results produced by Sisyphus and the subagent workforce.",
-    "4. Issue corrective repair orders whenever Balthasar or Melchior identifies flaws, risks, or regressions.",
-    "5. Only conclude when all milestones in the roadmap are verified and all three council members unanimously approve with STOP_SELF_IMPROVEMENT.",
-    "",
-  ].join("\n")
-
-  await Bun.write(agentFile, agentTemplate)
-
-  // 3. Register the server plugin in .opencode/opencode.json (or .opencode/opencode.jsonc)
-  const jsoncFile = path.join(opencodeDir, "opencode.jsonc")
-  const jsonFile = path.join(opencodeDir, "opencode.json")
-  const configFile = (await Bun.file(jsoncFile).exists()) && !(await Bun.file(jsonFile).exists()) ? jsoncFile : jsonFile
   const specifier = options.pluginSpecifier ?? "oh-my-magi"
-  await upsertPlugin(configFile, specifier)
+  const local = path.isAbsolute(specifier)
+  const relative = local ? path.relative(project, specifier) : undefined
+  const inside = relative !== undefined && !relative.startsWith("..") && !path.isAbsolute(relative)
+  const entry = (target: string) =>
+    !local
+      ? specifier
+      : inside
+        ? "./" + path.relative(opencodeDir, path.join(specifier, "dist", target + ".js")).replaceAll("\\", "/")
+        : pathToFileURL(path.join(specifier, "dist", target + ".js")).href
+  const server = entry("server")
+  const tui = entry("tui")
+  if (local && !(await Bun.file(path.join(specifier, "dist", "server.js")).exists()))
+    throw new Error("Build the local package first: bun run build")
+  const configFile = await configPath(opencodeDir, "opencode")
+  const tuiFile = await configPath(opencodeDir, "tui")
+  // Parse both first: malformed user configuration must never be replaced with an empty object.
+  const serverText = await patchedConfig(configFile, server)
+  const tuiText = await patchedConfig(tuiFile, tui)
+  await ensureDirectory(opencodeDir)
+  const backup = path.join(opencodeDir, "magi-migration", String(Date.now()))
+  for (const file of [configFile, tuiFile]) {
+    if (!(await Bun.file(file).exists())) continue
+    await ensureDirectory(backup)
+    await Bun.write(path.join(backup, path.basename(file)), await Bun.file(file).text())
+  }
+  const ignoreFile = path.join(opencodeDir, ".gitignore")
+  const ignore = (await Bun.file(ignoreFile).exists()) ? await Bun.file(ignoreFile).text() : ""
+  if (!ignore.split(/\r?\n/).includes("/magi-migration/"))
+    await Bun.write(ignoreFile, ignore.trimEnd() + "\n/magi-migration/\n")
+  await Bun.write(configFile, serverText)
+  await Bun.write(tuiFile, tuiText)
+  await migrateLegacyFiles(opencodeDir)
+  return { opencodeDir, configFile, tuiFile }
+}
 
-  // 4. Register the TUI plugin in .opencode/tui.json
-  const tuiFile = path.join(opencodeDir, "tui.json")
-  await upsertPlugin(tuiFile, specifier)
+async function configPath(directory: string, name: string) {
+  const jsonc = path.join(directory, name + ".jsonc")
+  return (await Bun.file(jsonc).exists()) ? jsonc : path.join(directory, name + ".json")
+}
 
-  return {
-    opencodeDir,
-    commandFile,
-    agentFile,
-    configFile,
-    tuiFile,
+async function patchedConfig(file: string, spec: string) {
+  const text = (await Bun.file(file).exists()) ? await Bun.file(file).text() : "{}\n"
+  const config = parseJsonc(text) as Record<string, unknown>
+  if (config.plugin !== undefined && !Array.isArray(config.plugin)) throw new Error("plugin must be an array: " + file)
+  const list: unknown[] = Array.isArray(config.plugin) ? config.plugin : []
+  const index = list.findIndex((entry) => containsMagiSpec(entry) || containsLegacyMagiSpec(entry))
+  const entry = index >= 0 ? list[index] : undefined
+  const replacement = Array.isArray(entry) ? [spec, ...entry.slice(1)] : spec
+  const plugins =
+    index < 0
+      ? [...list, spec]
+      : list.flatMap((item, i) =>
+          i === index ? [replacement] : containsMagiSpec(item) || containsLegacyMagiSpec(item) ? [] : [item],
+        )
+  return applyEdits(text, modify(text, ["plugin"], plugins, { formattingOptions: { insertSpaces: true, tabSize: 2 } }))
+}
+
+export function containsMagiSpec(entry: unknown): boolean {
+  const spec = Array.isArray(entry) ? entry[0] : entry
+  if (typeof spec !== "string") return false
+  return (
+    /^oh-my-magi(?:@[^/]+)?(?:\/(?:server|tui))?$/.test(spec) ||
+    /(?:^|[/\\])oh-my-magi(?:[/\\](?:dist[/\\](?:server|tui)\.js|src[/\\](?:server\.ts|tui\.tsx)))?$/.test(spec)
+  )
+}
+
+function containsLegacyMagiSpec(entry: unknown): boolean {
+  const spec = Array.isArray(entry) ? entry[0] : entry
+  return (
+    typeof spec === "string" &&
+    (/^@magi\/opencode-plugin(?:@[^/]+)?$/.test(spec) ||
+      /(?:^|[/\\])magi-opencode-plugin(?:@[^/]+|[/\\](?:server|tui))?$/.test(spec))
+  )
+}
+
+async function migrateLegacyFiles(directory: string) {
+  const backup = path.join(directory, "magi-migration", String(Date.now()))
+  const templates: Record<string, string> = {
+    "agent/magi.md": "6f82524274df1cb29512709612916112203e9a2d4743afd665b9023d1f6db2a5",
+    "command/magi.md": "bb5887bdaf31fc80ef8245d93199ce3083b6288c45c69b20a9ab215d1f45fcb6",
+  }
+  for (const name of ["plugins/magi-server.ts", "plugins/magi-tui.tsx", ...Object.keys(templates)]) {
+    const file = path.join(directory, name)
+    if (!(await Bun.file(file).exists())) continue
+    const text = (await Bun.file(file).text()).replaceAll("\r\n", "\n").trim()
+    const template = templates[name] && new Bun.CryptoHasher("sha256").update(text).digest("hex") === templates[name]
+    if (
+      !template &&
+      !/^export \{ default(?:, MagiServerPlugin)? \} from ["']\.\.\/\.\.\/packages\/magi-opencode-plugin\/src\/(?:server|tui)["'];?$/.test(
+        text,
+      )
+    )
+      continue
+    const destination = path.join(backup, name)
+    await ensureDirectory(path.dirname(destination))
+    await rename(file, destination)
   }
 }
 
 export async function doctorOhMyMagi(projectDirectory: string): Promise<DoctorReport> {
   const project = path.resolve(projectDirectory)
   const opencodeDir = path.join(project, ".opencode")
-  const commandFile = path.join(opencodeDir, "command", "magi.md")
-  const agentFile = path.join(opencodeDir, "agent", "magi.md")
-  const jsoncFile = path.join(opencodeDir, "opencode.jsonc")
-  const jsonFile = path.join(opencodeDir, "opencode.json")
-  const tuiFile = path.join(opencodeDir, "tui.json")
-  const magiConfig = path.join(project, ".magi", "config.jsonc")
-
   const issues: string[] = []
-
-  const opencodeDirExists = await Bun.file(opencodeDir).exists()
-  const commandInstalled = await Bun.file(commandFile).exists()
-  if (!commandInstalled) {
-    issues.push("Slash command /magi is not installed at .opencode/command/magi.md")
+  for (const name of ["plugins/magi-server.ts", "plugins/magi-tui.tsx"]) {
+    if (await Bun.file(path.join(opencodeDir, name)).exists())
+      issues.push(
+        "Inspect legacy auto-loaded wrapper .opencode/" + name + "; it can duplicate or conflict with the package",
+      )
   }
-
-  const agentInstalled = await Bun.file(agentFile).exists()
-  if (!agentInstalled) {
-    issues.push("Primary agent is not installed at .opencode/agent/magi.md")
-  }
-
-  let pluginRegistered = false
-  for (const candidate of [jsoncFile, jsonFile]) {
-    if (await Bun.file(candidate).exists()) {
-      const content = parseJsonc(await Bun.file(candidate).text())
-      if (isRecord(content) && Array.isArray(content.plugin)) {
-        if (content.plugin.some((p) => p === "oh-my-magi" || (typeof p === "string" && p.includes("magi")))) {
-          pluginRegistered = true
-          break
+  const registered = async (name: string) => {
+    const files = [project, opencodeDir].flatMap((dir) =>
+      ["json", "jsonc"].map((ext) => path.join(dir, name + "." + ext)),
+    )
+    const found = await Promise.all(
+      files.map(async (file) => {
+        if (!(await Bun.file(file).exists())) return false
+        try {
+          const config = parseJsonc(await Bun.file(file).text()) as Record<string, unknown>
+          if (Array.isArray(config.plugin) && config.plugin.some(containsLegacyMagiSpec))
+            issues.push("Conflicting legacy Magi plugin in " + file + "; rerun oh-my-magi install to migrate")
+          return Array.isArray(config.plugin) && config.plugin.some(containsMagiSpec)
+        } catch (error) {
+          issues.push(file + ": " + (error instanceof Error ? error.message : String(error)))
+          return false
         }
-      }
-    }
+      }),
+    )
+    return found.some(Boolean)
   }
-  if (!pluginRegistered) {
-    issues.push("Server plugin is not registered in .opencode/opencode.json or .opencode/opencode.jsonc")
-  }
-
-  let tuiRegistered = false
-  if (await Bun.file(tuiFile).exists()) {
-    const content = parseJsonc(await Bun.file(tuiFile).text())
-    if (isRecord(content) && Array.isArray(content.plugin)) {
-      tuiRegistered = content.plugin.some((p) => p === "oh-my-magi" || (typeof p === "string" && p.includes("magi")))
-    }
-  }
-  if (!tuiRegistered) {
-    issues.push("TUI plugin is not registered in .opencode/tui.json")
-  }
-
-  const configExists = await Bun.file(magiConfig).exists()
-
+  const [pluginRegistered, tuiRegistered] = await Promise.all([registered("opencode"), registered("tui")])
+  if (!pluginRegistered) issues.push("Server plugin not registered in project configuration")
+  if (!tuiRegistered) issues.push("Optional TUI panel not registered in project configuration")
   return {
     ok: issues.length === 0,
     projectDirectory: project,
-    opencodeDirExists,
-    commandInstalled,
-    agentInstalled,
     pluginRegistered,
     tuiRegistered,
-    configExists,
+    opencodeDirExists: await stat(opencodeDir)
+      .then((item) => item.isDirectory())
+      .catch(() => false),
+    configExists: await Bun.file(path.join(project, ".magi", "config.jsonc")).exists(),
     issues,
   }
 }
 
-export async function getStatusReport(projectDirectory: string): Promise<string> {
+export async function getStatusReport(projectDirectory: string) {
   const state = await readMagiState(projectDirectory)
   return [
     "=== Oh-My-Magi Status ===",
-    `Directory: ${projectDirectory}`,
-    `Status: ${state.status}`,
-    `Loop Active: ${state.loopActive}`,
-    `Cycle: #${state.currentCycle} (max: ${state.maxCycles})`,
-    `Topic: ${state.topic}`,
-    state.votes.melchior ? `Melchior: ${state.votes.melchior}` : undefined,
-    state.votes.balthasar ? `Balthasar: ${state.votes.balthasar}` : undefined,
-    state.votes.casper ? `Casper: ${state.votes.casper}` : undefined,
-  ]
-    .filter((line): line is string => line !== undefined)
-    .join("\n")
-}
-
-async function upsertPlugin(file: string, spec: string): Promise<void> {
-  const current = (await Bun.file(file).exists()) ? parseJsonc(await Bun.file(file).text()) : {}
-  const parsed = isRecord(current) ? current : {}
-  const list = Array.isArray(parsed.plugin) ? parsed.plugin : []
-  const filtered = list.filter((item) => item !== spec)
-  await Bun.write(file, `${JSON.stringify({ ...parsed, plugin: [...filtered, spec] }, null, 2)}\n`)
-}
-
-function isRecord(val: unknown): val is Record<string, unknown> {
-  return typeof val === "object" && val !== null && !Array.isArray(val)
+    "Directory: " + projectDirectory,
+    "Status: " + state.status,
+    "Loop Active: " + state.loopActive,
+    "Cycle: #" + state.currentCycle + " (unlimited)",
+    "Goal: " + (state.goal ?? "(not set)"),
+    "Session: " + (state.sessionID ?? "(not set)"),
+    "Topic: " + state.topic,
+    "Votes: " +
+      Object.entries(state.votes)
+        .map(([member, vote]) => member + "=" + vote)
+        .join(", "),
+    state.error ? "Last error: " + state.error : "",
+  ].join("\n")
 }

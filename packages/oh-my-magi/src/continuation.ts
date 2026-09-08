@@ -9,9 +9,7 @@ import {
   finalDebatePosition,
   MagiCouncilMembers,
   nextCouncilProposer,
-  selfImprovementExecutorPrompt,
   shouldStopSelfImprovement,
-  type MagiCouncilMember,
   type MagiDebateRound,
   type MagiPosition,
 } from "./council"
@@ -21,492 +19,380 @@ import {
   isRoadmapCompleted,
   markMilestoneComplete,
   readRoadmap,
-  type Milestone,
+  writeRoadmap,
 } from "./roadmap"
-import { routeMagiRequest } from "./router"
 import { formatSafetyEnvelope, prepareBranchSafety, writeRunDecision } from "./safety"
-import { readMagiMemory, readMagiState, updateMagiState, writeMagiMemory, writeMagiState } from "./state"
+import { mutateMagiState, readMagiMemory, readMagiState, updateMagiState, writeMagiMemory } from "./state"
 import { runIndependentJudge, runMechanicalVerification } from "./verification"
 
 export type CycleResult = {
   injected: boolean
   stopped: boolean
-  stopReason?: "user" | "unanimous_council" | "max_cycles"
   title: string
   prompt: string
   finalPosition: MagiPosition
   cycle: number
-  route?: "council" | "fast-track"
-  branch?: string
-  milestone?: Milestone
+}
+type CycleInput = { directory: string; sessionID: string; client?: OpencodeClientInstance; userPrompt?: string }
+const running = new Set<string>()
+const stopped: CycleResult = {
+  injected: false,
+  stopped: true,
+  title: "Magi paused",
+  prompt: "Magi is paused. No task is authorized.",
+  finalPosition: "reject",
+  cycle: 0,
 }
 
-// In-memory guard to prevent multiple cycles firing concurrently for the same directory
-const runningDirectories = new Set<string>()
+export async function setAutonomousLoop(
+  directory: string,
+  active: boolean,
+  options?: { sessionID: string; goal?: string },
+) {
+  if (!active) {
+    return mutateMagiState(directory, (state) => ({
+      ...state,
+      loopActive: false,
+      awaitingExecution: false,
+      runID: crypto.randomUUID(),
+      status: "idle",
+      stopReason: "user",
+      topic: "Magi paused by user",
+    }))
+  }
+  const config = await loadMagiConfig(directory)
+  const roadmap = await readRoadmap(directory)
+  const goal = options?.goal?.trim() || roadmap?.goal || (await readMagiState(directory)).goal
+  if (!goal) throw new Error("Provide one goal: /magi start <goal>")
+  if (!options?.sessionID) throw new Error("A session is required to start Magi")
+  if (roadmap && roadmap.goal !== goal)
+    throw new Error(
+      "A different goal already exists. Archive .magi/roadmap.json and ROADMAP.md before starting a new goal.",
+    )
+  if (!roadmap) await initializeRoadmap({ directory, goal })
+  return mutateMagiState(directory, (state) => {
+    if (state.loopActive && state.sessionID !== options.sessionID)
+      throw new Error("Another session owns this project goal. Stop it before transferring ownership.")
+    return {
+      ...state,
+      goal,
+      sessionID: options.sessionID,
+      runID: crypto.randomUUID(),
+      loopActive: true,
+      awaitingExecution: false,
+      maxCycles: config.selfImprovement.maxCycles,
+      status: "running",
+      stopReason: undefined,
+      error: undefined,
+      topic: goal,
+    }
+  })
+}
 
-export async function runMagiCycle(input: {
-  directory: string
-  sessionID: string
-  client?: OpencodeClientInstance
-  userPrompt?: string
-}): Promise<CycleResult> {
+async function active(input: CycleInput, runID: string) {
+  const state = await readMagiState(input.directory)
+  return state.loopActive && state.runID === runID && state.sessionID === input.sessionID
+}
+
+export async function pauseMagi(directory: string, reason: string, runID?: string) {
+  await updateMagiState(
+    directory,
+    { time: Date.now(), type: "error", title: "Magi paused", text: reason },
+    { awaitingExecution: false, status: "error", error: reason },
+    24,
+    runID,
+  )
+}
+
+export async function runMagiCycle(input: CycleInput): Promise<CycleResult> {
+  if (running.has(input.directory)) throw new Error("A Magi cycle is already running")
+  running.add(input.directory)
+  const state = await readMagiState(input.directory)
+  try {
+    if (!state.runID || !(await active(input, state.runID))) return stopped
+    return await propose(input, state.runID)
+  } catch (error) {
+    await pauseMagi(input.directory, error instanceof Error ? error.message : String(error), state.runID)
+    throw error
+  } finally {
+    running.delete(input.directory)
+  }
+}
+
+async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
   const config = await loadMagiConfig(input.directory)
-
-  // 1. Fast-track routing check for explicit user directives
-  if (input.userPrompt?.trim()) {
-    const routeDecision = routeMagiRequest({
-      arguments: input.userPrompt,
-      fastTrack: true,
-    })
-    if (routeDecision.route === "fast-track") {
+  const state = await readMagiState(input.directory)
+  const roadmap = await readRoadmap(input.directory)
+  if (!roadmap) throw new Error("Goal roadmap is missing; refusing unrelated work")
+  if (isRoadmapCompleted(roadmap)) {
+    if (config.selfImprovement.mode === "complete") {
       await updateMagiState(
         input.directory,
         {
           time: Date.now(),
           type: "decision",
-          title: routeDecision.title,
-          text: routeDecision.reason,
+          title: "Goal completed",
+          text: "All milestones passed independent review.",
         },
-        {
-          status: "decided",
-          topic: routeDecision.title,
-          selectedPrompt: routeDecision.prompt,
-        },
-        config.display.transcriptLimit,
+        { loopActive: false, awaitingExecution: false, status: "decided", stopReason: "completed" },
+        24,
+        runID,
       )
-      return {
-        injected: true,
-        stopped: false,
-        title: routeDecision.title,
-        prompt: routeDecision.prompt ?? input.userPrompt,
-        finalPosition: "approve",
-        cycle: 0,
-        route: "fast-track",
-      }
+      return stopped
     }
-  }
-
-  // 2. Project Roadmap & Milestone management
-  let roadmap = await readRoadmap(input.directory)
-  if (!roadmap && input.userPrompt?.trim()) {
-    roadmap = await initializeRoadmap({
-      directory: input.directory,
-      goal: input.userPrompt.trim(),
+    await writeRoadmap(input.directory, {
+      ...roadmap,
+      updatedAt: Date.now(),
+      milestones: [
+        ...roadmap.milestones,
+        {
+          id: Math.max(...roadmap.milestones.map((item) => item.id)) + 1,
+          title: "Next research increment for the original goal",
+          description:
+            "Advance only this goal: " +
+            roadmap.goal +
+            ". Produce a new reproducible experiment, result, or documented limitation with evidence.",
+          completed: false,
+        },
+      ],
     })
   }
-
-  if (roadmap && isRoadmapCompleted(roadmap) && !input.userPrompt?.trim()) {
-    const currentState = await readMagiState(input.directory)
-    await updateMagiState(
-      input.directory,
-      {
-        time: Date.now(),
-        type: "decision",
-        title: "All Roadmap Milestones Completed",
-        text: "Every milestone in .magi/ROADMAP.md has been completed and verified. Autonomous loop stopped.",
-        position: "approve",
-      },
-      {
-        status: "decided",
-        loopActive: false,
-        topic: "Project completed",
-      },
-      config.display.transcriptLimit,
-    )
-    return {
-      injected: false,
-      stopped: true,
-      stopReason: "unanimous_council",
-      title: "All Milestones Completed",
-      prompt: "All milestones in .magi/ROADMAP.md are completed and verified.",
-      finalPosition: "approve",
-      cycle: currentState.currentCycle,
-      route: "council",
-    }
-  }
-
-  const activeMilestone = roadmap ? getCurrentMilestone(roadmap) : undefined
-
+  const milestone = getCurrentMilestone((await readRoadmap(input.directory))!)
   const memory = await readMagiMemory(input.directory)
-  const state = await readMagiState(input.directory)
-  const cycle = state.currentCycle + 1
   const proposer = memory.lastProposer ? nextCouncilProposer(MagiCouncilMembers, memory.lastProposer) : "melchior"
-
+  const cycle = state.currentCycle + 1
+  const context = await collectMagiContext({ directory: input.directory })
+  const requirements = [
+    "Immutable master goal: " + roadmap.goal,
+    "Current milestone: " + milestone?.title + "\n" + milestone?.description,
+    input.userPrompt ? "User steering / corrective evidence: " + input.userPrompt : "",
+    state.error ? "Previous runtime failure to resolve: " + state.error : "",
+    "Recent council feedback: " +
+      state.events
+        .filter((event) => event.type === "vote" || event.type === "continuation")
+        .slice(-6)
+        .map((event) => event.text)
+        .join("\n"),
+    context.text,
+  ].join("\n\n")
   await updateMagiState(
     input.directory,
-    {
-      time: Date.now(),
-      type: "status",
-      member: proposer,
-      title: `Cycle #${cycle} started`,
-      text: `${proposer.toUpperCase()} owns cycle #${cycle}. ${activeMilestone ? `Advancing Milestone #${activeMilestone.id}: ${activeMilestone.title}.` : "Deliberating project roadmap."}`,
-    },
-    {
-      status: "running",
-      currentCycle: cycle,
-      topic: activeMilestone ? `[Milestone #${activeMilestone.id}] ${activeMilestone.title}` : `${proposer.toUpperCase()} drafting cycle #${cycle}`,
-    },
+    { time: Date.now(), type: "status", title: "Cycle #" + cycle, text: requirements },
+    { currentCycle: cycle, status: "running", votes: {}, awaitingExecution: false },
     config.display.transcriptLimit,
+    runID,
   )
-
-  // 3. Collect rich repository context (git status, branch, diff, scripts, with secret redaction)
-  const contextPack = await collectMagiContext({
-    directory: input.directory,
-    enabled: true,
-  })
-
-  const recentContext = [
-    `Project directory: ${input.directory}`,
-    `Cycle: #${cycle}`,
-    roadmap ? `Master Goal: ${roadmap.goal}` : undefined,
-    activeMilestone ? `Target Milestone #${activeMilestone.id}: ${activeMilestone.title} (${activeMilestone.description})` : undefined,
-    input.userPrompt?.trim() ? `Directive: ${input.userPrompt.trim()}` : undefined,
-    contextPack.text,
-    contextPack.truncated ? "[Context was truncated to preserve tokens]" : undefined,
-  ]
-    .filter((line): line is string => Boolean(line))
-    .join("\n")
-
-  // 4. Proposer drafts the proposal for Sisyphus and workforce
   const draft = await askCouncilDraft({
     bridge: { client: input.client, config, directory: input.directory },
     proposer,
     systemPrompt: buildSelfImprovementDraftPrompt({
       proposer,
-      recentWork: recentContext,
+      recentWork: requirements,
       cycle,
-      previousCompleted: memory.previousCompleted ?? true,
+      previousCompleted: memory.previousCompleted,
     }),
-    userPrompt: activeMilestone
-      ? `Advance Milestone #${activeMilestone.id}: ${activeMilestone.title}. Details: ${activeMilestone.description}`
-      : input.userPrompt?.trim() || "Propose the next concrete step to advance and complete the software.",
+    userPrompt: "Propose one concrete step toward this milestone. Preserve the original goal.\n" + requirements,
   })
-
-  await updateMagiState(
-    input.directory,
-    {
-      time: Date.now(),
-      type: "proposal",
-      member: proposer,
-      title: draft.title,
-      text: `${draft.rationale}\n\n${draft.prompt}`,
-    },
-    {
-      topic: draft.title,
-    },
-    config.display.transcriptLimit,
-  )
-
-  // 5. Council debate rounds (Melchior, Balthasar, Casper)
+  if (!(await active(input, runID))) return stopped
   const rounds: MagiDebateRound[] = []
   for (let round = 1; round <= config.council.maxDebateRounds; round++) {
-    const results = await deliberateProposal({
+    const votes = await deliberateProposal({
       bridge: { client: input.client, config, directory: input.directory },
       proposer,
       draft,
-      roundPromptBuilder: (member: MagiCouncilMember) =>
+      roundPromptBuilder: (member) =>
         buildDebateRoundPrompt({
           member,
           round,
           proposal: draft.prompt,
-          evidence: draft.rationale,
+          evidence: requirements + "\n" + draft.rationale,
           previousRounds: rounds,
         }),
     })
-
-    const decisions = results.map((r) => decisionFromJudgment(r.member, r.judgment))
-
-    for (const decision of decisions) {
+    if (!(await active(input, runID))) return stopped
+    const decisions = votes.map((item) => decisionFromJudgment(item.member, item.judgment))
+    rounds.push({ round, decisions, newEvidence: decisions.some((item) => item.newEvidence) })
+    for (const decision of decisions)
       await updateMagiState(
         input.directory,
         {
           time: Date.now(),
           type: "vote",
           member: decision.member,
-          title: `${decision.member.toUpperCase()} voted ${decision.position}`,
+          title: decision.member + ": " + decision.position,
           text: decision.rationale,
           position: decision.position,
         },
-        {
-          votes: Object.fromEntries(decisions.map((d) => [d.member, d.position])),
-        },
+        { votes: Object.fromEntries(decisions.map((item) => [item.member, item.position])) },
         config.display.transcriptLimit,
+        runID,
       )
-    }
-
-    rounds.push({
-      round,
-      decisions,
-      newEvidence: decisions.some((d) => d.newEvidence),
-    })
   }
-
-  // 6. Check unanimous stop criteria
-  if (shouldStopSelfImprovement(rounds)) {
+  const position = finalDebatePosition(rounds, config.council.vetoPolicy, config.council.votePolicy)
+  if (shouldStopSelfImprovement(rounds) || position !== "approve" || draft.terminal) {
     await updateMagiState(
       input.directory,
       {
         time: Date.now(),
         type: "decision",
-        title: "Magi council unanimously concluded the project is complete",
-        text: "Melchior, Balthasar, and Casper have all agreed that no further automated changes are required.",
-        position: "reject",
+        title: "Council withheld authorization",
+        text: "Council stop/revision is a pause, not proof of goal completion.",
       },
-      {
-        status: "decided",
-        loopActive: false,
-        topic: "Project completed (council consensus)",
-      },
-      config.display.transcriptLimit,
+      { awaitingExecution: false, status: "idle", stopReason: "council" },
+      24,
+      runID,
     )
-
-    await writeMagiMemory(input.directory, {
-      ...memory,
-      stoppedBy: "unanimous_council",
-      previousCompleted: true,
-      cyclesCompleted: cycle,
-    })
-
-    return {
-      injected: false,
-      stopped: true,
-      stopReason: "unanimous_council",
-      title: "Magi council concluded project is complete",
-      prompt: "Magi council unanimously agreed that the project is complete. Autonomous loop stopped.",
-      finalPosition: "reject",
-      cycle,
-      route: "council",
-      milestone: activeMilestone,
-    }
+    return stopped
   }
-
-  // 7. Select executor prompt, format for Sisyphus, and prepare safety envelope
-  const finalPosition = finalDebatePosition(rounds, config.council.vetoPolicy, config.council.votePolicy)
-  const approvedPrompt = finalPosition === "reject" ? "" : (selfImprovementExecutorPrompt({ rounds, proposer, draft }) ?? draft.prompt)
-  const injected = Boolean(approvedPrompt.trim())
-
-  let safetyInfo
-  if (injected) {
-    safetyInfo = await prepareBranchSafety({
-      directory: input.directory,
-      title: draft.title,
-      prompt: approvedPrompt,
-      enabled: true,
-    })
-  }
-
-  const basePrompt = injected ? formatInjectedPrompt(approvedPrompt, draft.title, cycle, activeMilestone) : ""
-  const finalInjectedPrompt = injected ? formatSafetyEnvelope({ prompt: basePrompt, safety: safetyInfo }) : ""
-
-  if (injected) {
-    await writeRunDecision({
-      safety: safetyInfo,
-      decision: {
-        draft,
-        finalPosition,
-        injected,
-        rounds,
-        selectedPrompt: finalInjectedPrompt,
-      },
-    })
-  }
-
+  // A branch name is not a sandbox. Record the decision without silently switching the user's checkout.
+  const safety = await prepareBranchSafety({
+    directory: input.directory,
+    title: draft.title,
+    prompt: draft.prompt,
+    enabled: false,
+  })
+  if (!(await active(input, runID))) return stopped
+  const prompt = formatSafetyEnvelope({
+    safety,
+    prompt: [
+      "[OH-MY-MAGI COUNCIL TASK — CYCLE #" + cycle + "]",
+      "Master goal: " + roadmap.goal,
+      "Milestone: " + milestone?.title + "\n" + milestone?.description,
+      draft.prompt,
+      ...rounds
+        .at(-1)!
+        .decisions.flatMap((item) => (item.requiredChange ? ["Required council change: " + item.requiredChange] : [])),
+      "Execute this step, use specialist task delegation when helpful, and report actual artifacts, commands, outputs, and remaining milestone gaps.",
+      "Never edit .magi runtime state or mark roadmap milestones complete; the runtime records independently verified completion.",
+    ].join("\n\n"),
+  })
+  await writeRunDecision({
+    safety,
+    decision: { draft, finalPosition: position, injected: true, rounds, selectedPrompt: prompt },
+  })
   await updateMagiState(
     input.directory,
+    { time: Date.now(), type: "decision", title: draft.title, text: prompt, position },
     {
-      time: Date.now(),
-      type: injected ? "decision" : "error",
-      title: injected ? `Cycle #${cycle} approved: ${draft.title}` : `Cycle #${cycle} rejected by council`,
-      text: injected ? finalInjectedPrompt : "Council rejected the proposal.",
-      position: finalPosition,
-    },
-    {
-      status: injected ? "decided" : "error",
-      topic: draft.title,
-      selectedPrompt: injected ? finalInjectedPrompt : undefined,
+      status: "decided",
+      topic: milestone?.title ?? draft.title,
+      selectedPrompt: prompt,
+      awaitingExecution: true,
+      executionAfter: Date.now(),
+      error: undefined,
+      stopReason: undefined,
     },
     config.display.transcriptLimit,
+    runID,
   )
-
   await writeMagiMemory(input.directory, {
+    ...memory,
     lastProposer: proposer,
-    previousCompleted: injected,
+    previousCompleted: false,
     cyclesCompleted: cycle,
   })
-
-  return {
-    injected,
-    stopped: false,
-    title: draft.title,
-    prompt: finalInjectedPrompt,
-    finalPosition,
-    cycle,
-    route: "council",
-    branch: safetyInfo?.branch,
-    milestone: activeMilestone,
-  }
+  return (await active(input, runID))
+    ? { injected: true, stopped: false, title: draft.title, prompt, finalPosition: position, cycle }
+    : stopped
 }
 
-export async function handleSessionIdleEvent(input: {
-  directory: string
-  sessionID: string
-  client?: OpencodeClientInstance
-}): Promise<void> {
-  if (runningDirectories.has(input.directory)) return
-
+export async function handleSessionIdleEvent(input: CycleInput): Promise<void> {
+  if (running.has(input.directory)) return
+  running.add(input.directory)
   const state = await readMagiState(input.directory)
-  if (!state.loopActive) return
-
-  const config = await loadMagiConfig(input.directory)
-  const maxCycles = state.maxCycles || config.selfImprovement.maxCycles || 50
-
-  if (state.currentCycle >= maxCycles) {
+  try {
+    if (!state.runID || !state.awaitingExecution || !input.client || !(await active(input, state.runID))) return
+    const messages = await input.client.session.messages({
+      path: { id: input.sessionID },
+      query: { directory: input.directory },
+    })
+    if (messages.error) throw new Error("Failed to read executor evidence")
+    const message = messages.data?.filter((item) => item.info.role === "assistant").at(-1)
+    if (
+      !message ||
+      message.info.role !== "assistant" ||
+      !message.info.time.completed ||
+      message.info.time.created < (state.executionAfter ?? 0) ||
+      message.info.id === state.lastMessageID
+    )
+      return
+    if (message.info.error?.name === "MessageAbortedError") {
+      await setAutonomousLoop(input.directory, false)
+      return
+    }
+    if (message.info.error) throw new Error("Executor failed: " + JSON.stringify(message.info.error))
     await updateMagiState(
       input.directory,
-      {
-        time: Date.now(),
-        type: "status",
-        title: "Autonomous loop stopped",
-        text: `Reached maximum configured cycles (${maxCycles}).`,
-      },
-      {
-        loopActive: false,
-        status: "decided",
-        topic: `Completed max cycles (${maxCycles})`,
-      },
+      { time: Date.now(), type: "continuation", title: "Verifying executor result", text: message.info.id },
+      { awaitingExecution: false, lastMessageID: message.info.id },
+      24,
+      state.runID,
     )
-    const memory = await readMagiMemory(input.directory)
-    await writeMagiMemory(input.directory, { ...memory, stoppedBy: "max_cycles" })
-    return
-  }
-
-  runningDirectories.add(input.directory)
-
-  try {
-    // 1. Run post-execution mechanical verification (test/lint gates)
-    const verificationReport = await runMechanicalVerification(input.directory)
+    const report = await runMechanicalVerification(input.directory)
+    if (!(await active(input, state.runID))) return
+    // Missing verification is a configuration blocker; retrying it would spend tokens without new evidence.
+    if (!report.checks.length) throw new Error(report.summary)
+    const config = await loadMagiConfig(input.directory)
+    const roadmap = await readRoadmap(input.directory)
+    const milestone = roadmap && getCurrentMilestone(roadmap)
+    const verdict = await runIndependentJudge({
+      directory: input.directory,
+      client: input.client,
+      config,
+      taskTitle: milestone?.title ?? state.topic,
+      taskPrompt:
+        "Master goal: " +
+        state.goal +
+        "\nMilestone requirements: " +
+        milestone?.description +
+        "\n" +
+        state.selectedPrompt,
+      executionReport: message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n"),
+      verificationReport: report,
+    })
+    if (!(await active(input, state.runID))) return
     await updateMagiState(
       input.directory,
       {
         time: Date.now(),
         type: "continuation",
-        title: verificationReport.passed ? "Verification passed" : "Verification failed",
-        text: verificationReport.summary,
+        title: verdict.approved ? "Milestone verified" : "Repair required",
+        text: report.summary + "\n" + verdict.critique,
       },
+      undefined,
+      24,
+      state.runID,
     )
-
-    // 2. Independent judge evaluation
-    const judgeVerdict = await runIndependentJudge({
-      client: input.client,
-      config,
-      directory: input.directory,
-      taskTitle: state.topic,
-      taskPrompt: state.selectedPrompt ?? "",
-      verificationReport,
+    if (report.passed && verdict.approved && milestone)
+      await markMilestoneComplete(input.directory, milestone.id, report.summary + "\n" + verdict.critique)
+    await writeMagiMemory(input.directory, {
+      ...(await readMagiMemory(input.directory)),
+      previousCompleted: report.passed && verdict.approved,
     })
-
-    // 3. Milestone Completion Check
-    const roadmap = await readRoadmap(input.directory)
-    const activeMilestone = roadmap ? getCurrentMilestone(roadmap) : undefined
-
-    if (verificationReport.passed && judgeVerdict.approved && activeMilestone) {
-      await markMilestoneComplete(input.directory, activeMilestone.id, verificationReport.summary)
-      await updateMagiState(input.directory, {
-        time: Date.now(),
-        type: "decision",
-        title: `Milestone #${activeMilestone.id} Verified & Completed`,
-        text: `Council verified completion of '${activeMilestone.title}'. Progress recorded in .magi/ROADMAP.md.`,
-        position: "approve",
-      })
-
-      const updatedRoadmap = await readRoadmap(input.directory)
-      if (updatedRoadmap && isRoadmapCompleted(updatedRoadmap)) {
-        await setAutonomousLoop(input.directory, false)
-        await updateMagiState(
-          input.directory,
-          {
-            time: Date.now(),
-            type: "decision",
-            title: "All Roadmap Milestones Completed & Verified",
-            text: "All milestones in .magi/ROADMAP.md have passed verification. Autonomous loop concluded successfully with STOP_SELF_IMPROVEMENT.",
-            position: "approve",
-          },
-          {
-            status: "decided",
-            loopActive: false,
-            topic: "Project completed (all milestones verified)",
-          },
-        )
-        return
-      }
-    }
-
-    // If verification or judge failed, prompt Sisyphus for a targeted repair task
-    const nextUserPrompt = !verificationReport.passed
-      ? `[CORRECTIVE ORDER FOR SISYPHUS] Verification check failed: ${verificationReport.summary}. Repair broken tests or errors immediately before moving to next milestone.`
-      : !judgeVerdict.approved
-        ? `[CORRECTIVE ORDER FOR SISYPHUS] Independent judge noted concerns: ${judgeVerdict.critique}. Address these issues.`
-        : undefined
-
-    const result = await runMagiCycle({
-      directory: input.directory,
-      sessionID: input.sessionID,
-      client: input.client,
-      userPrompt: nextUserPrompt,
+    if (!(await active(input, state.runID))) return
+    const result = await propose(
+      {
+        ...input,
+        userPrompt:
+          report.passed && verdict.approved
+            ? undefined
+            : "Repair or complete the current milestone before advancing.\n" +
+              JSON.stringify(report) +
+              "\n" +
+              verdict.critique,
+      },
+      state.runID,
+    )
+    if (!result.injected || !(await active(input, state.runID))) return
+    const response = await input.client.session.promptAsync({
+      path: { id: input.sessionID },
+      query: { directory: input.directory },
+      body: { agent: "sisyphus", parts: [{ type: "text", text: result.prompt }] },
     })
-
-    if (!result.stopped && result.injected && result.prompt && input.client) {
-      await input.client.session
-        .promptAsync({
-          path: { id: input.sessionID },
-          query: { directory: input.directory },
-          body: {
-            agent: "sisyphus", // routes directly to Sisyphus in OmO environments
-            parts: [
-              {
-                type: "text",
-                text: result.prompt,
-              },
-            ],
-          },
-        })
-        .catch(() => undefined)
-    }
+    if (response.error) throw new Error("Executor dispatch failed: " + JSON.stringify(response.error))
+  } catch (error) {
+    await pauseMagi(input.directory, error instanceof Error ? error.message : String(error), state.runID)
   } finally {
-    runningDirectories.delete(input.directory)
+    running.delete(input.directory)
   }
-}
-
-export async function setAutonomousLoop(directory: string, active: boolean): Promise<void> {
-  const current = await readMagiState(directory)
-  await writeMagiState(directory, {
-    ...current,
-    loopActive: active,
-    status: active ? "running" : "idle",
-    topic: active ? "Magi autonomous loop active" : "Magi autonomous loop paused/stopped",
-  })
-  if (!active) {
-    const memory = await readMagiMemory(directory)
-    await writeMagiMemory(directory, { ...memory, stoppedBy: "user" })
-  }
-}
-
-function formatInjectedPrompt(prompt: string, title: string, cycle: number, activeMilestone?: Milestone) {
-  return [
-    `[OH-MY-MAGI COUNCIL TASK — CYCLE #${cycle}]`,
-    `Title: ${title}`,
-    activeMilestone ? `Active Milestone #${activeMilestone.id}: ${activeMilestone.title}` : undefined,
-    activeMilestone ? `Milestone Goal: ${activeMilestone.description}` : undefined,
-    "",
-    "### DIRECTIVE FOR SISYPHUS (OmO Lead PM) & SPECIALIST WORKFORCE:",
-    prompt.trim(),
-    "",
-    "Instructions for Sisyphus & Workforce:",
-    "1. Sisyphus: Deconstruct this milestone into subtasks and delegate to Librarian (research), Explore (grep), or Atlas/Hephaestus (implementation).",
-    "2. Execute the required changes, generate scripts, or implement files cleanly.",
-    "3. Run test/verification commands to ensure no regressions before concluding.",
-    "4. Sisyphus: Output a concise execution report when the milestone sprint is complete.",
-  ]
-    .filter(Boolean)
-    .join("\n")
 }

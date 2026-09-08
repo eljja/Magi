@@ -2,48 +2,112 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { runMagiCycle, setAutonomousLoop } from "../src/continuation"
-import { readMagiState } from "../src/state"
+import { handleSessionIdleEvent, runMagiCycle, setAutonomousLoop } from "../src/continuation"
+import { mutateMagiState, readMagiState } from "../src/state"
+import { readRoadmap } from "../src/roadmap"
+import { openCodeFixture } from "./fixture"
 
-describe("Continuation Loop Engine", () => {
-  let tempDir: string
-
+describe("Persistent goal controller", () => {
+  let directory: string
+  let fixture: ReturnType<typeof openCodeFixture>
   beforeEach(async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), "magi-continuation-test-"))
+    directory = await mkdtemp(path.join(os.tmpdir(), "magi-cycle-"))
+    fixture = openCodeFixture()
+    await Bun.write(
+      path.join(directory, ".magi", "config.jsonc"),
+      JSON.stringify({
+        selfImprovement: { maxCycles: 1 },
+        resilience: { maxRetries: 0 },
+        verification: {
+          commands: [{ name: "artifact", command: [process.execPath, "-e", "console.log('artifact verified')"] }],
+        },
+      }),
+    )
   })
-
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    fixture.stop()
+    await rm(directory, { recursive: true, force: true })
   })
+  const input = () => ({ directory, sessionID: "owner", client: fixture.client })
 
-  test("runs a single cycle producing injected prompt and state update", async () => {
-    const result = await runMagiCycle({
-      directory: tempDir,
-      sessionID: "test-session-123",
-      userPrompt: "Build unit tests for the auth module",
-    })
-
-    expect(result.cycle).toBe(1)
-    expect(result.injected).toBe(true)
-    expect(result.stopped).toBe(false)
-    expect(result.prompt.length).toBeGreaterThan(0)
-    expect(result.prompt).toContain("OH-MY-MAGI COUNCIL TASK — CYCLE #1")
-
-    const state = await readMagiState(tempDir)
-    expect(state.currentCycle).toBe(1)
-    expect(state.status).toBe("decided")
-    expect(state.selectedPrompt).toBeDefined()
-  })
-
-  test("toggles autonomous loop state", async () => {
-    await setAutonomousLoop(tempDir, true)
-    let state = await readMagiState(tempDir)
+  test("cannot fabricate council approval without a client", async () => {
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    await expect(runMagiCycle({ directory, sessionID: "owner" })).rejects.toThrow("unavailable")
+    const state = await readMagiState(directory)
+    expect(state.awaitingExecution).toBe(false)
     expect(state.loopActive).toBe(true)
-    expect(state.status).toBe("running")
+    expect(state.status).toBe("error")
+  })
 
-    await setAutonomousLoop(tempDir, false)
-    state = await readMagiState(tempDir)
-    expect(state.loopActive).toBe(false)
-    expect(state.status).toBe("idle")
+  test("continues beyond previous cycle limits and completed roadmap without changing goal", async () => {
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    expect((await runMagiCycle(input())).injected).toBe(true)
+    for (let index = 0; index < 7; index++) {
+      fixture.complete()
+      await handleSessionIdleEvent(input())
+    }
+    const state = await readMagiState(directory)
+    expect(state.currentCycle).toBe(8)
+    expect(state.loopActive).toBe(true)
+    expect(state.goal).toBe("Research one goal")
+    expect(state.maxCycles).toBe(0)
+    expect((await readRoadmap(directory))?.milestones.length).toBeGreaterThan(5)
+    expect(fixture.requests.filter((item) => item.path.endsWith("/prompt_async")).length).toBe(7)
+  })
+
+  test("ignores other sessions and duplicate idle events", async () => {
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    await runMagiCycle(input())
+    fixture.complete()
+    await handleSessionIdleEvent({ ...input(), sessionID: "stranger" })
+    expect((await readMagiState(directory)).currentCycle).toBe(1)
+    await handleSessionIdleEvent(input())
+    await Promise.all([handleSessionIdleEvent(input()), handleSessionIdleEvent(input())])
+    expect((await readMagiState(directory)).currentCycle).toBe(2)
+  })
+
+  test("stop during council deliberation prevents injection and preserves the saved goal", async () => {
+    fixture.stop()
+    let entered = () => {}
+    let release = () => {}
+    const enteredPromise = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    const releasePromise = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    fixture = openCodeFixture({
+      reply: async () => {
+        entered()
+        await releasePromise
+        return JSON.stringify({ title: "Late proposal", prompt: "Must never run" })
+      },
+    })
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    const pending = runMagiCycle(input())
+    await enteredPromise
+    await setAutonomousLoop(directory, false)
+    release()
+    expect((await pending).injected).toBe(false)
+    expect((await readMagiState(directory)).loopActive).toBe(false)
+    expect((await readMagiState(directory)).goal).toBe("Research one goal")
+  })
+
+  test("refuses silent goal replacement or ownership transfer", async () => {
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Original goal" })
+    await expect(setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Different goal" })).rejects.toThrow(
+      "different goal",
+    )
+    await expect(setAutonomousLoop(directory, true, { sessionID: "stranger" })).rejects.toThrow("Another session")
+    expect((await readRoadmap(directory))?.goal).toBe("Original goal")
+  })
+
+  test("persisted state is sufficient to resume without an in-memory session registry", async () => {
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    await runMagiCycle(input())
+    fixture.complete()
+    await mutateMagiState(directory, (state) => ({ ...state, currentCycle: 1000 }))
+    await handleSessionIdleEvent(input())
+    expect((await readMagiState(directory)).currentCycle).toBe(1001)
   })
 })

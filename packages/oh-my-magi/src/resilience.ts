@@ -9,141 +9,81 @@ export type ResilientExecutionOptions = {
   fallbackChain?: string[]
   timeoutMs?: number
   maxRetries?: number
+  signal?: AbortSignal
   onFallback?: (event: { fromModel?: string; toModel?: string; reason: string }) => void
 }
 
 export async function executeResilientPrompt(options: ResilientExecutionOptions): Promise<string | undefined> {
-  const client = options.client
-  if (!client) return undefined
-
-  const timeoutMs = options.timeoutMs && options.timeoutMs > 0 ? options.timeoutMs : 60000
-  const maxRetries = options.maxRetries && options.maxRetries > 0 ? options.maxRetries : 2
-  const fallbackList = options.fallbackChain ?? ["zai/glm-5.2:max", "zai/glm-5.2:pro", "zai/glm-5.2"]
-
-  const candidates: Array<string | undefined> = []
-  if (options.primaryModel) candidates.push(options.primaryModel)
-  for (const model of fallbackList) {
-    if (!candidates.includes(model)) {
-      candidates.push(model)
+  if (!options.client) return undefined
+  const candidates = [...new Set([options.primaryModel || undefined, ...(options.fallbackChain ?? [])])]
+  const retries = options.maxRetries ?? 2
+  for (const [index, model] of candidates.entries()) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      if (options.signal?.aborted) return undefined
+      const response = await attemptSinglePrompt({ ...options, client: options.client, primaryModel: model })
+      if (response?.trim()) return response
+      if (attempt < retries) await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * 2 ** attempt, 4000)))
     }
-  }
-  if (candidates.length === 0) candidates.push(undefined)
-
-  for (let cIdx = 0; cIdx < candidates.length; cIdx++) {
-    const currentModel = candidates[cIdx]
-    const nextModel = candidates[cIdx + 1]
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      const response = await attemptSinglePrompt({
-        client,
-        system: options.system,
-        prompt: options.prompt,
-        directory: options.directory,
-        model: currentModel,
-        timeoutMs,
+    if (candidates[index + 1])
+      options.onFallback?.({
+        fromModel: model,
+        toModel: candidates[index + 1],
+        reason: "Request failed or timed out after " + (retries + 1) + " attempts",
       })
-
-      if (response && response.trim().length > 0) {
-        return response
-      }
-
-      if (attempt < maxRetries) {
-        await sleep(Math.min(1000 * Math.pow(2, attempt - 1), 4000))
-      }
-    }
-
-    if (nextModel && options.onFallback) {
-      options.onFallback({
-        fromModel: currentModel,
-        toModel: nextModel,
-        reason: `Model ${currentModel ?? "default"} failed or timed out after ${maxRetries} attempts`,
-      })
-    }
   }
-
   return undefined
 }
 
-async function attemptSinglePrompt(input: {
-  client: OpencodeClientInstance
-  system: string
-  prompt: string
-  directory: string
-  model?: string
-  timeoutMs: number
-}): Promise<string | undefined> {
-  const sessionRes = await input.client.session
+async function attemptSinglePrompt(options: ResilientExecutionOptions & { client: OpencodeClientInstance }) {
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(options.timeoutMs ?? 60000),
+    ...(options.signal ? [options.signal] : []),
+  ])
+  const created = await options.client.session
     .create({
-      body: { title: "Magi Resilient Deliberation" },
-      query: { directory: input.directory },
+      query: { directory: options.directory },
+      body: { title: "Magi Council (internal)" },
+      signal,
     })
     .catch(() => undefined)
-
-  const sessionID = sessionRes?.data?.id
-  if (!sessionID) return undefined
-
-  const modelPayload = parseModel(input.model)
-
-  const promptPromise = input.client.session.prompt({
-    path: { id: sessionID },
-    query: { directory: input.directory },
-    body: {
-      system: input.system,
-      tools: {},
-      model: modelPayload,
-      parts: [{ type: "text", text: input.prompt }],
-    },
-  })
-
-  const timeoutPromise = new Promise<{ data?: undefined }>((resolve) =>
-    setTimeout(() => resolve({ data: undefined }), input.timeoutMs),
-  )
-
-  const promptRes = await Promise.race([promptPromise, timeoutPromise]).catch(() => undefined)
-
-  void input.client.session.delete({ path: { id: sessionID } }).catch(() => undefined)
-
-  if (!promptRes?.data?.parts) return undefined
-
-  const textOutput = promptRes.data.parts
-    .flatMap((part) => (part.type === "text" && part.text ? [part.text] : []))
-    .join("\n")
-
-  return textOutput.trim().length > 0 ? textOutput : undefined
+  if (!created?.data?.id) return undefined
+  const path = { id: created.data.id }
+  const query = { directory: options.directory }
+  try {
+    const response = await options.client.session
+      .prompt({
+        path,
+        query,
+        signal,
+        body: {
+          agent: "magi-reviewer",
+          system: options.system,
+          model: parseModel(options.primaryModel),
+          parts: [{ type: "text", text: options.prompt }],
+        },
+      })
+      .catch(() => undefined)
+    if (response?.data?.info.error) return undefined
+    return response?.data?.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n")
+  } finally {
+    // Abort server-side work as well as the HTTP request before deleting the isolated review session.
+    await options.client.session.abort({ path, query, signal: AbortSignal.timeout(5000) }).catch(() => undefined)
+    await options.client.session.delete({ path, query, signal: AbortSignal.timeout(5000) }).catch(() => undefined)
+  }
 }
 
 export async function discoverAvailableModels(client?: OpencodeClientInstance): Promise<string[]> {
-  const providerClient = client as unknown as {
-    provider?: {
-      list?: () => Promise<{
-        data?: Array<{
-          id: string
-          connected?: boolean
-          models?: Array<{ id: string; name?: string }>
-        }>
-      }>
-    }
-  }
-  if (!providerClient?.provider?.list) return []
-  const listRes = await providerClient.provider.list().catch(() => undefined)
-  if (!listRes?.data) return []
-
-  return listRes.data
-    .filter((p) => p.connected !== false)
-    .flatMap((provider) =>
-      (provider.models ?? []).map((m) => `${provider.id}/${m.id}`),
-    )
+  if (!client) return []
+  const result = await client.provider.list().catch(() => undefined)
+  if (!result?.data) return []
+  return result.data.all
+    .filter((provider) => result.data!.connected.includes(provider.id))
+    .flatMap((provider) => Object.values(provider.models).map((model) => provider.id + "/" + model.id))
 }
 
-function parseModel(model?: string): { providerID: string; modelID: string } | undefined {
-  if (!model || !model.includes("/")) return undefined
-  const parts = model.split("/")
-  return {
-    providerID: parts[0] ?? "",
-    modelID: parts.slice(1).join("/"),
-  }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function parseModel(model?: string) {
+  if (!model) return undefined
+  const slash = model.indexOf("/")
+  if (slash <= 0 || slash === model.length - 1) throw new Error("Model must be provider/model: " + model)
+  return { providerID: model.slice(0, slash), modelID: model.slice(slash + 1) }
 }

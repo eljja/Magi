@@ -1,4 +1,5 @@
 import path from "node:path"
+import { parse, printParseErrorCode, type ParseError } from "jsonc-parser"
 import type { MagiVotePolicy, MagiVetoPolicy } from "./council"
 
 export type ResilienceConfig = {
@@ -28,6 +29,11 @@ export type MagiConfig = {
   selfImprovement: {
     enabled: boolean
     maxCycles: number
+    mode: "complete" | "continuous"
+  }
+  verification: {
+    commands: { name: string; command: string[]; cwd?: string }[]
+    timeoutMs: number
   }
   display: {
     transcriptLimit: number
@@ -41,18 +47,20 @@ export const MagiConfigDefault: MagiConfig = {
     maxDebateRounds: 1,
   },
   roles: {
-    council: "zai/glm-5.2:max",
-    sisyphus: "zai/glm-5.2:pro",
+    council: "",
+    sisyphus: "",
   },
   resilience: {
     timeoutMs: 60000,
     maxRetries: 2,
-    fallbackChain: ["zai/glm-5.2:max", "zai/glm-5.2:pro", "zai/glm-5.2"],
+    fallbackChain: [],
   },
   selfImprovement: {
     enabled: false,
-    maxCycles: 50,
+    maxCycles: 0,
+    mode: "continuous",
   },
+  verification: { commands: [], timeoutMs: 120000 },
   display: {
     transcriptLimit: 24,
   },
@@ -81,14 +89,19 @@ export async function loadMagiConfig(directory: string): Promise<MagiConfig> {
     },
     resilience: {
       timeoutMs: positiveInt(local.resilience?.timeoutMs, MagiConfigDefault.resilience.timeoutMs),
-      maxRetries: positiveInt(local.resilience?.maxRetries, MagiConfigDefault.resilience.maxRetries),
+      maxRetries: nonNegativeInt(local.resilience?.maxRetries, MagiConfigDefault.resilience.maxRetries),
       fallbackChain: Array.isArray(local.resilience?.fallbackChain)
         ? (local.resilience.fallbackChain.filter((item): item is string => typeof item === "string") as string[])
         : MagiConfigDefault.resilience.fallbackChain,
     },
     selfImprovement: {
-      enabled: local.selfImprovement?.enabled ?? MagiConfigDefault.selfImprovement.enabled,
-      maxCycles: positiveInt(local.selfImprovement?.maxCycles, MagiConfigDefault.selfImprovement.maxCycles),
+      enabled: local.selfImprovement?.enabled === true,
+      maxCycles: 0,
+      mode: local.selfImprovement?.mode === "complete" ? "complete" : "continuous",
+    },
+    verification: {
+      commands: local.verification?.commands ?? [],
+      timeoutMs: positiveInt(local.verification?.timeoutMs, MagiConfigDefault.verification.timeoutMs),
     },
     display: {
       transcriptLimit: positiveInt(local.display?.transcriptLimit, MagiConfigDefault.display.transcriptLimit),
@@ -111,53 +124,20 @@ async function readConfigFile(file: string): Promise<Partial<MagiConfig>> {
 }
 
 export function parseJsonc(text: string): unknown {
-  let insideString = false
-  let escaped = false
-  let result = ""
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i]!
-    const next = text[i + 1]
-    if (insideString) {
-      result += char
-      if (escaped) {
-        escaped = false
-      } else if (char === "\\") {
-        escaped = true
-      } else if (char === '"') {
-        insideString = false
-      }
-      continue
-    }
-    if (char === '"') {
-      insideString = true
-      result += char
-      continue
-    }
-    if (char === "/" && next === "/") {
-      while (i < text.length && text[i] !== "\n" && text[i] !== "\r") {
-        i++
-      }
-      result += text[i] ?? ""
-      continue
-    }
-    if (char === "/" && next === "*") {
-      i += 2
-      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) {
-        i++
-      }
-      i++
-      continue
-    }
-    result += char
-  }
-  const clean = result.replace(/,(\s*[}\]])/g, "$1")
-  try {
-    return JSON.parse(clean)
-  } catch {
-    return {}
-  }
+  const errors: ParseError[] = []
+  const result: unknown = parse(text, errors, { allowTrailingComma: true })
+  if (errors.length)
+    throw new Error(
+      "Invalid JSONC: " + errors.map((error) => printParseErrorCode(error.error) + " at " + error.offset).join(", "),
+    )
+  if (!result || typeof result !== "object" || Array.isArray(result)) throw new Error("Configuration must be an object")
+  return result
 }
 
 function positiveInt(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback
+}
+
+function nonNegativeInt(value: unknown, fallback: number): number {
+  return value === 0 ? 0 : positiveInt(value, fallback)
 }

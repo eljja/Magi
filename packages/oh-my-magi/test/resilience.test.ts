@@ -1,135 +1,79 @@
-import { describe, expect, it } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import { executeResilientPrompt, discoverAvailableModels } from "../src/resilience"
-import type { OpencodeClientInstance } from "../src/bridge"
-import { loadMagiConfig } from "../src/config"
+import { openCodeFixture } from "./fixture"
 
-describe("Resilience & Model Fallback Engine", () => {
-  it("executes prompt successfully on first attempt", async () => {
-    const mockClient = {
-      session: {
-        create: async () => ({ data: { id: "sess-1" } }),
-        prompt: async () => ({
-          data: {
-            parts: [{ type: "text", text: "Council consensus reached." }],
-          },
+describe("Resilience using the real OpenCode SDK over HTTP", () => {
+  test("scopes create, prompt, abort, and deletion to the project", async () => {
+    const fixture = openCodeFixture({ reply: async () => "Council response" })
+    try {
+      expect(
+        await executeResilientPrompt({
+          client: fixture.client,
+          system: "Review",
+          prompt: "Evidence",
+          directory: "/project",
+          maxRetries: 0,
         }),
-        delete: async () => ({}),
-      },
-    } as unknown as OpencodeClientInstance
-
-    const result = await executeResilientPrompt({
-      client: mockClient,
-      system: "system",
-      prompt: "prompt",
-      directory: process.cwd(),
-      primaryModel: "zai/glm-5.2:max",
-      timeoutMs: 1000,
-      maxRetries: 2,
-    })
-
-    expect(result).toBe("Council consensus reached.")
+      ).toBe("Council response")
+      expect(fixture.requests.every((item) => item.directory === "/project")).toBe(true)
+      expect(fixture.requests.some((item) => item.path.endsWith("/abort"))).toBe(true)
+      expect(fixture.requests.some((item) => item.method === "DELETE")).toBe(true)
+      expect(fixture.requests.find((item) => item.path.endsWith("/message"))?.body.agent).toBe("magi-reviewer")
+    } finally {
+      fixture.stop()
+    }
   })
-
-  it("retries and recovers when first attempt returns empty", async () => {
-    let callCount = 0
-    const mockClient = {
-      session: {
-        create: async () => ({ data: { id: "sess-1" } }),
-        prompt: async () => {
-          callCount++
-          if (callCount === 1) {
-            return { data: { parts: [] } } // empty/hang
-          }
-          return { data: { parts: [{ type: "text", text: "Recovered on attempt 2" }] } }
-        },
-        delete: async () => ({}),
-      },
-    } as unknown as OpencodeClientInstance
-
-    const result = await executeResilientPrompt({
-      client: mockClient,
-      system: "system",
-      prompt: "prompt",
-      directory: process.cwd(),
-      primaryModel: "zai/glm-5.2:max",
-      timeoutMs: 1000,
-      maxRetries: 2,
+  test("zero retries still makes one attempt, then falls back to an explicitly configured model", async () => {
+    const fixture = openCodeFixture({
+      reply: async (body) =>
+        (body.model as { modelID: string }).modelID === "first" ? undefined : "Fallback response",
     })
-
-    expect(result).toBe("Recovered on attempt 2")
-    expect(callCount).toBe(2)
-  })
-
-  it("smoothly falls back from max to pro when max fails all retries", async () => {
-    const fallbackEvents: { fromModel?: string; toModel?: string; reason: string }[] = []
-    const modelsUsed: string[] = []
-
-    const mockClient = {
-      session: {
-        create: async () => ({ data: { id: "sess-1" } }),
-        prompt: async (params: { body: { model?: { providerID: string; modelID: string } } }) => {
-          const modelStr = params.body.model ? `${params.body.model.providerID}/${params.body.model.modelID}` : undefined
-          if (modelStr) modelsUsed.push(modelStr)
-
-          if (modelStr === "zai/glm-5.2:max") {
-            // max times out or fails
-            return { data: undefined }
-          }
-          // pro succeeds
-          return { data: { parts: [{ type: "text", text: "Success via GLM Pro!" }] } }
-        },
-        delete: async () => ({}),
-      },
-    } as unknown as OpencodeClientInstance
-
-    const result = await executeResilientPrompt({
-      client: mockClient,
-      system: "system",
-      prompt: "prompt",
-      directory: process.cwd(),
-      primaryModel: "zai/glm-5.2:max",
-      fallbackChain: ["zai/glm-5.2:max", "zai/glm-5.2:pro", "zai/glm-5.2"],
-      timeoutMs: 500,
-      maxRetries: 2,
-      onFallback: (ev) => fallbackEvents.push(ev),
-    })
-
-    expect(result).toBe("Success via GLM Pro!")
-    expect(fallbackEvents.length).toBeGreaterThan(0)
-    expect(fallbackEvents[0]?.fromModel).toBe("zai/glm-5.2:max")
-    expect(fallbackEvents[0]?.toModel).toBe("zai/glm-5.2:pro")
-  })
-
-  it("discovers available models from OpenCode client", async () => {
-    const mockClient = {
-      session: {
-        create: async () => ({ data: { id: "1" } }),
-        prompt: async () => ({ data: {} }),
-        delete: async () => ({}),
-      },
-      provider: {
-        list: async () => ({
-          data: [
-            {
-              id: "zai",
-              connected: true,
-              models: [{ id: "glm-5.2:max" }, { id: "glm-5.2:pro" }],
-            },
-          ],
+    try {
+      expect(
+        await executeResilientPrompt({
+          client: fixture.client,
+          system: "",
+          prompt: "",
+          directory: "/project",
+          primaryModel: "local/first",
+          fallbackChain: ["local/second"],
+          maxRetries: 0,
         }),
-      },
-    } as unknown as OpencodeClientInstance
-
-    const models = await discoverAvailableModels(mockClient)
-    expect(models).toEqual(["zai/glm-5.2:max", "zai/glm-5.2:pro"])
+      ).toBe("Fallback response")
+      expect(fixture.requests.filter((item) => item.path.endsWith("/message")).length).toBe(2)
+    } finally {
+      fixture.stop()
+    }
   })
-
-  it("loads default resilience and role configurations", async () => {
-    const config = await loadMagiConfig(process.cwd())
-    expect(config.roles.council).toBe("zai/glm-5.2:max")
-    expect(config.roles.sisyphus).toBe("zai/glm-5.2:pro")
-    expect(config.resilience.timeoutMs).toBe(60000)
-    expect(config.resilience.maxRetries).toBe(2)
-    expect(config.resilience.fallbackChain).toContain("zai/glm-5.2:pro")
+  test("times out and cleans up server work", async () => {
+    const fixture = openCodeFixture({
+      reply: async () => {
+        await Bun.sleep(100)
+        return "Too late"
+      },
+    })
+    try {
+      expect(
+        await executeResilientPrompt({
+          client: fixture.client,
+          system: "",
+          prompt: "",
+          directory: "/project",
+          timeoutMs: 25,
+          maxRetries: 0,
+        }),
+      ).toBeUndefined()
+      expect(fixture.requests.some((item) => item.path.endsWith("/abort"))).toBe(true)
+    } finally {
+      fixture.stop()
+    }
+  })
+  test("reads the actual provider list shape and excludes disconnected providers", async () => {
+    const fixture = openCodeFixture()
+    try {
+      expect(await discoverAvailableModels(fixture.client)).toEqual(["local/model"])
+    } finally {
+      fixture.stop()
+    }
   })
 })
