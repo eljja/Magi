@@ -197,6 +197,8 @@ export async function getStatusReport(projectDirectory: string) {
       Object.entries(state.votes)
         .map(([member, vote]) => member + "=" + vote)
         .join(", "),
+    state.pendingUserSteering ? "Pending User Steering: " + state.pendingUserSteering : "",
+    "Minutes & Ledger: .magi/COUNCIL.md",
     state.error ? "Last error: " + state.error : "",
   ]
 
@@ -205,5 +207,6 @@ export async function getStatusReport(projectDirectory: string) {
     lines.push("", ...bulletin)
   }
 
+  lines.push("", "User Intervention: use '/magi steer <directive>' to guide next deliberation.")
   return lines.filter(Boolean).join("\n")
 }

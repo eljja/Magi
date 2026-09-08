@@ -43,6 +43,7 @@
     "./installer": "./src/installer.ts",
     "./observer": "./src/observer.ts",
     "./omo-bridge": "./src/omo-bridge.ts",
+    "./ledger": "./src/ledger.ts",
     "./tui": "./dist/tui.js"
   },
   "files": [

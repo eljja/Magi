@@ -2,7 +2,7 @@ import { tool, type Plugin } from "@opencode-ai/plugin"
 import { createBuiltinAgents } from "./agents"
 import { loadMagiConfig } from "./config"
 import { handleSessionIdleEvent, pauseMagi, runMagiCycle, setAutonomousLoop } from "./continuation"
-import { readMagiState, updateMagiState } from "./state"
+import { mutateMagiState, readMagiMemory, readMagiState, updateMagiState, writeMagiMemory } from "./state"
 import { createControllerLease } from "./controller"
 import { getStatusReport } from "./installer"
 import { recordToolExecution } from "./observer"
@@ -158,6 +158,22 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
           return "Magi continuation stopped by user request. End this turn without further work."
         },
       }),
+      magi_steer: tool({
+        description: "Inject user guidance, feedback, or corrective steering into the next Magi Council deliberation.",
+        args: { directive: tool.schema.string().describe("User steering directive or priority guidance for the council") },
+        execute: async (args) => {
+          await mutateMagiState(directory, (current) => ({
+            ...current,
+            pendingUserSteering: args.directive,
+          }))
+          const memory = await readMagiMemory(directory)
+          await writeMagiMemory(directory, {
+            ...memory,
+            pendingUserSteering: args.directive,
+          })
+          return `Magi Council recorded steering directive: "${args.directive}". It will be prioritized in the next deliberation cycle.`
+        },
+      }),
       magi_status: tool({ description: "Read the goal, votes, cycle, and latest error", args: {}, execute: status }),
     },
     "command.execute.before": async (input, output) => {
@@ -179,6 +195,22 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       }
       if (args === "status") {
         respond("Report this saved Magi status without starting work:\n" + (await status()))
+        return
+      }
+      if (args.startsWith("steer ") || args.startsWith("feedback ")) {
+        const directive = args.slice(args.indexOf(" ") + 1).trim()
+        await mutateMagiState(directory, (current) => ({
+          ...current,
+          pendingUserSteering: directive,
+        }))
+        const memory = await readMagiMemory(directory)
+        await writeMagiMemory(directory, {
+          ...memory,
+          pendingUserSteering: directive,
+        })
+        respond(
+          `Magi Supreme Council noted your directive:\n> "${directive}"\nMelchior, Balthasar, and Casper will prioritize this steering in the next deliberation round. Check .magi/COUNCIL.md for minutes.`
+        )
         return
       }
       try {

@@ -15,6 +15,7 @@ export * from "./agents"
 export * from "./resilience"
 export * from "./observer"
 export * from "./omo-bridge"
+export * from "./ledger"
 export { MagiServerPlugin }
 
 export default plugin

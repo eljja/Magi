@@ -51,6 +51,7 @@ export type MagiRuntimeState = {
   stopReason?: "user" | "completed" | "max_cycles" | "error" | "council"
   telemetry?: MagiTelemetry
   observations?: MagiCouncilObservation[]
+  pendingUserSteering?: string
 }
 
 export type MagiRuntimeMemory = {
@@ -58,6 +59,7 @@ export type MagiRuntimeMemory = {
   previousCompleted?: boolean
   cyclesCompleted?: number
   stoppedBy?: "user" | "unanimous_council" | "max_cycles"
+  pendingUserSteering?: string
 }
 
 export function magiRuntimeDir(directory: string) {
