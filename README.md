@@ -95,17 +95,17 @@ Keep an OpenCode server running for unattended work. The saved goal recovers whe
 
 ## Compatibility and release status
 
-**Publication pending:** the reviewed 0.1.0 artifact passed integration tests, but npm rejected publishing with E403 because the credential lacks the required 2FA authorization. The public-name command below becomes available after successful npm publication. Use the documented local-source installation until then. See the [publication record](docs/RELEASE-AUDIT.md#publication-attempt).
+**Published:** [oh-my-magi 0.1.0](https://www.npmjs.com/package/oh-my-magi) is available on npm. Its registry artifact matches the reviewed release tarball. See the [publication record (Korean)](docs/RELEASE-AUDIT.md#publication-attempt).
 
 - **Compatibility:** minimum OpenCode `1.18.29`, current SDK/target `1.18.30`, official OmO npm stable `4.19.4`. CI checks the minimum and moving latest versions. See the [upgrade procedure](packages/oh-my-magi/README.md#updating-compatibility).
 - **Actual Windows integration (OpenCode 1.18.30):** existing OmO migration and restart, native plugin installation, real upstream agent registration, first execution through Sisyphus, `task → explore → read`, repeated goal cycles, steering, stop/resume and report generation were exercised with a deterministic local provider.
+- **Cross-platform CI:** minimum/latest OpenCode jobs passed on Linux, macOS and Windows. [CI results](https://github.com/eljja/Magi/actions/runs/34361639844).
 - **Package validation:** 81 automated tests (327 assertions) and typechecking passed; the built tarball also passed the integration smoke after installation into a separate consumer project.
 - **CLI, desktop and web:** share the server-side agents, tools and commands. The optional TUI panel is specific to the terminal; the file-based monitor works separately in a browser.
-- **Remaining qualification checks:** real-provider endurance runs, cross-platform CI results, full interactive desktop/TUI and reconnect QA. Short automated tests do not prove infinite uptime or every upstream feature/provider combination.
+- **Remaining qualification checks:** real-provider endurance runs, full interactive desktop/TUI and reconnect QA. Short automated tests do not prove infinite uptime or every upstream feature/provider combination.
 
 See the [audit and reproduction commands](docs/RELEASE-AUDIT.md). The repository retains an older OpenCode fork and legacy Magi packages; the maintained plugin is `packages/oh-my-magi`.
 
 ## License
 
 OMM's own code is MIT. **The OmO dependency is SUL-1.0, not MIT**, and retains its original notices and restrictions. See [third-party notices](packages/oh-my-magi/THIRD-PARTY-NOTICES.md) and [security](SECURITY.md). OMM is not an official upstream OmO product.
-

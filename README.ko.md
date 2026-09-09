@@ -87,9 +87,8 @@ Windows에서 OpenCode 자체가 기존 런타임 폴더의 읽기 전용 속성
 
 Windows의 실제 OpenCode 1.18.30과 공식 OmO 4.19.4에서 기존 OmO 설정 전환·재시작, 플러그인 설치, 주요 에이전트 등록, 최초 Sisyphus 실행, `task → explore → read` 위임, 반복 실행, 사용자 지시, 중지·재개, 보고 생성을 결정적인 로컬 테스트 제공자로 검증했습니다.
 
-CLI·데스크톱·웹은 같은 서버 기능을 사용합니다. 터미널 패널은 TUI 전용이며, 모니터 페이지는 별도로 여는 로컬 문서입니다. **npm 공개, 실제 모델 장기 실행, 다른 운영체제 CI 결과, 데스크톱·TUI 전체 조작 및 재접속 검증은 별도 공개 전 확인 항목입니다.** 이를 완료했다고 주장하지 않습니다.
+CLI·데스크톱·웹은 같은 서버 기능을 사용합니다. 터미널 패널은 TUI 전용이며, 모니터 페이지는 별도로 여는 로컬 문서입니다. **실제 모델 장기 실행과 데스크톱·TUI 전체 조작 및 재접속 검증은 아직 남아 있습니다.** Linux·macOS·Windows의 최소/최신 OpenCode CI는 [모두 통과했습니다](https://github.com/eljja/Magi/actions/runs/34361639844).
 
 OMM 자체 코드는 MIT이며, **OmO 의존성은 SUL-1.0**입니다. [라이선스 고지](packages/oh-my-magi/THIRD-PARTY-NOTICES.md)를 확인하세요. 이 저장소는 OmO 공식 제품이 아닙니다.
 
-**npm 게시 대기:** 검증한 0.1.0 패키지의 실제 게시가 npm 2FA 정책(E403)으로 거부됐습니다. 인증을 완료해 게시하기 전까지 공개 이름 설치는 사용할 수 없으며, 위 로컬 소스 설치 경로를 사용할 수 있습니다. [게시 기록](docs/RELEASE-AUDIT.md#publication-attempt)을 확인하세요.
-
+**npm 게시 완료:** [oh-my-magi 0.1.0](https://www.npmjs.com/package/oh-my-magi)이 공개됐으며, 게시된 파일의 해시가 검토한 배포 파일과 일치합니다. [게시 기록](docs/RELEASE-AUDIT.md#publication-attempt)을 확인하세요.

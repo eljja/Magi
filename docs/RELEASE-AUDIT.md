@@ -1,71 +1,75 @@
-# OMM integration and release audit
+# OMM 통합 및 출시 감사
 
-Audit date: **2026-09-09**. Scope: `omm` branch, `packages/oh-my-magi`. This supersedes the earlier audit of the independent OmO-inspired implementation.
+점검일: **2026-09-09**. 대상: `omm` 브랜치의 `packages/oh-my-magi`. 이 문서는 과거 OmO를 참고해 독립적으로 구현했던 버전의 감사 문서를 대체합니다.
 
-## Intended architecture and result
+**검증 범위부터 명확히 합니다. OpenCode와 OmO는 실제 프로그램을 실행했지만, LLM 응답은 정해진 답변과 도구 호출을 반환하는 테스트용 가짜 모델 서버로 대체했습니다. 사용자 PC의 실제 LLM 연결이나 실제 모델의 연구·개발 능력, 장기 자율 운전은 아직 검증하지 않았습니다.** 아래의 “통합 검증 통과”는 프로그램 연결과 상태 전이가 작동했다는 뜻입니다.
 
-The requested system is Magi governance **above the real OmO execution system**: one persistent goal, unlimited research/development iterations, specialist delegation, verifiable progress, visible meetings/reports and user intervention.
+## 의도한 구조와 구현 결과
 
-The plugin now declares an exact `oh-my-opencode@4.19.4` dependency and initializes its actual default server plugin. `omo-runtime.ts` composes upstream hooks/tools/lifecycle with Magi. It does not recreate Sisyphus or specialist prompts. Built-in Magi agents are limited to governance and review; OmO supplies the execution agents and full upstream tool implementation.
+목표한 시스템은 **실제 OmO 실행 시스템 위에 Magi의 의사결정·감독 계층을 올리는 구조**입니다. 하나의 목표를 유지하면서 연구·개발을 횟수 제한 없이 반복하고, 전문 에이전트에 위임하며, 검증된 진전과 회의·보고 내용을 사용자가 확인하고 개입할 수 있어야 합니다.
 
-## The five previously identified gaps
+현재 플러그인은 `oh-my-opencode@4.19.4`를 정확한 버전의 의존성으로 선언하고, 그 패키지의 실제 기본 서버 플러그인을 초기화합니다. `omo-runtime.ts`가 원본 OmO의 훅·도구·초기화 및 종료 처리를 Magi와 결합합니다. Sisyphus나 전문 에이전트의 프롬프트를 다시 구현한 방식이 아닙니다. Magi 자체 에이전트는 의사결정과 검토를 담당하고, 실행 에이전트와 원본 도구 구현은 OmO가 제공합니다.
 
-| Gap                                        | Resolution                                                                                                                                                                                                       | Evidence                                                                      |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| OMM installation did not supply OmO        | Real pinned production dependency; one registered OMM server loads upstream. Native package installation detects server/TUI targets.                                                                             | Package metadata/lockfile and actual OpenCode smoke                           |
-| Detection only checked config strings      | Startup initializes the upstream module and requires its primary agent and `task` tool; dispatch checks the live agent API. Missing executor fails explicitly.                                                   | `omo-runtime.ts`, `omo-bridge.ts`, resolver regression and real agent listing |
-| First task ran through Magi instead of OmO | The command config uses the upstream executor's exact display name before OpenCode selects its agent. Subsequent dispatch/recovery uses live agent resolution.                                                   | Smoke asserts first assistant agent and a completed upstream `task`           |
-| Continuation harmonization was unused      | Both installer and runtime invoke harmonization on canonical `.omo/omo.jsonc`; disabled hooks cover todo, goal and Atlas macro scheduling. Existing settings/profiles are preserved and changed files backed up. | Configuration preservation/idempotence tests and actual startup               |
-| No actual OmO integration test             | Smoke loads the real official dependency and real OpenCode binary; deterministic provider drives Sisyphus → native OmO task → explore child → read.                                                              | Parent and child message evidence, repeated cycles, stop/resume               |
+## 이전에 발견한 다섯 가지 문제
 
-**Distribution:** the initial npm 404 was caused by an unpublished package, independently of the public GitHub repository. The final publication and public installation record is appended below.
+| 문제                                                 | 해결 내용                                                                                                                                                                                     | 확인 근거                                                                |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| OMM을 설치해도 OmO가 함께 제공되지 않음              | 공식 OmO를 실제 실행 의존성으로 고정했습니다. 등록된 OMM 서버 하나가 OmO를 로드하며, OpenCode의 플러그인 설치 명령이 서버/TUI 대상을 감지합니다.                                              | 패키지 정보·잠금 파일, 실제 OpenCode 통합 테스트                         |
+| 설정 문자열만 보고 OmO 존재 여부를 판단함            | 시작 시 원본 모듈을 초기화하고 주 실행 에이전트와 `task` 도구가 있는지 확인합니다. 작업 전달 시에도 실행 중인 에이전트 API를 확인하며, 없으면 명시적으로 실패합니다.                          | `omo-runtime.ts`, `omo-bridge.ts`, 에이전트 탐색 회귀 테스트와 실제 목록 |
+| 첫 작업이 OmO 대신 Magi를 통해 실행됨                | OpenCode가 에이전트를 선택하기 전에 명령 설정에 실제 OmO 실행 에이전트의 정확한 표시 이름을 지정합니다. 후속 작업과 복구 시에도 실행 중인 에이전트를 확인합니다.                              | 첫 응답 에이전트와 실제 OmO `task` 완료를 통합 테스트에서 확인           |
+| 두 시스템의 반복 실행 충돌 방지 설정이 사용되지 않음 | 설치기와 런타임 모두 정식 설정 경로인 `.omo/omo.jsonc`에 충돌 방지 설정을 적용합니다. todo·goal·Atlas의 상위 반복 제어 훅을 비활성화하고, 기존 설정·프로필을 보존하며 변경 파일을 백업합니다. | 설정 보존·반복 적용 안전성 테스트, 실제 시작 검증                        |
+| 실제 OmO 통합 테스트가 없음                          | 공식 OmO 의존성과 실제 OpenCode 실행 파일을 로드합니다. 가짜 모델 서버가 Sisyphus → OmO의 실제 task → explore 하위 에이전트 → 파일 읽기를 유도합니다.                                         | 상위·하위 세션 메시지, 반복 실행과 중지·재개 증거                        |
 
-## Upstream and OmO
+**배포 상태:** 최초 npm 404의 원인은 패키지가 게시되지 않았기 때문이며, GitHub 저장소가 공개되어 있는 것과는 별개입니다. 실제 게시 시도 결과는 문서 마지막에 기록했습니다.
 
-| Component                   | Observed version | Integration choice                                               |
-| --------------------------- | ---------------- | ---------------------------------------------------------------- |
-| `opencode-ai` npm latest    | `1.18.30`        | Tested official Windows binary and exact SDK/plugin dependencies |
-| `oh-my-opencode` npm latest | `4.19.4`         | Exact production dependency, actual server runtime               |
-| `oh-my-opencode` npm beta   | `5.0.0-beta.49`  | Not selected or claimed compatible                               |
-| `oh-my-magi` npm            | Not published    | Source/tarball release preparation                               |
+## OpenCode 및 OmO 버전
 
-Sources: [OpenCode registry](https://registry.npmjs.org/opencode-ai/latest), [OmO registry](https://registry.npmjs.org/oh-my-opencode), [OpenCode plugin documentation](https://opencode.ai/docs/plugins/), [upstream repository](https://github.com/code-yeongyu/oh-my-openagent). Configuration loading, agent naming, stop/resume hooks and package exports were additionally inspected in the actual `oh-my-opencode@4.19.4` npm tarball.
+아래 버전은 점검 당시 확인한 값입니다.
 
-This stable OmO release reads canonical `.omo/omo.jsonc`/`.omo/omo.json`, including user/parent/harness/profile layers. Writing only a root `oh-my-openagent.jsonc` was insufficient. Runtime compatibility is pinned rather than inferred from a moving GitHub default branch.
+| 구성 요소                           | 확인한 버전·상태  | 적용 방식                                                       |
+| ----------------------------------- | ----------------- | --------------------------------------------------------------- |
+| `opencode-ai` npm 최신 버전         | `1.18.30`         | 공식 Windows 실행 파일을 검증하고 SDK/plugin 의존성 버전을 맞춤 |
+| `oh-my-opencode` npm 최신 정식 버전 | `4.19.4`          | 정확한 버전의 실행 의존성으로 고정하고 실제 서버 런타임 사용    |
+| `oh-my-opencode` npm 베타           | `5.0.0-beta.49`   | 채택하지 않았으며 호환된다고 주장하지 않음                      |
+| `oh-my-magi` npm                    | `0.1.0` 공개 완료 | 레지스트리의 배포 파일 해시가 검토한 파일과 일치                |
 
-Upstream retains SUL-1.0 and its bundled third-party notices. OMM retains MIT for its own source. The build leaves upstream external; its implementation source is not vendored or relicensed. The full upstream license is included in the plugin's `licenses/` directory.
+근거: [OpenCode 레지스트리](https://registry.npmjs.org/opencode-ai/latest), [OmO 레지스트리](https://registry.npmjs.org/oh-my-opencode), [OpenCode 플러그인 문서](https://opencode.ai/docs/plugins/), [OmO 원본 저장소](https://github.com/code-yeongyu/oh-my-openagent). 설정 로딩, 에이전트 이름, 중지·재개 훅과 패키지 내보내기 구조는 실제 `oh-my-opencode@4.19.4` npm 압축 파일에서도 확인했습니다.
 
-## Additional defects corrected
+이 OmO 정식 버전은 `.omo/omo.jsonc` 또는 `.omo/omo.json`을 읽으며, 사용자·상위 디렉터리·실행 환경·프로필별 설정 계층을 반영합니다. 루트의 `oh-my-openagent.jsonc`만 작성하는 것으로는 충분하지 않았습니다. 호환성은 계속 바뀌는 GitHub 기본 브랜치를 보고 추정하지 않고, 실제 사용하는 의존성 버전에 맞춰 검증합니다.
 
-- **Missing rejected decisions:** withheld approvals and terminal/revision decisions are now archived; their user guidance stays pending.
-- **Wrong meeting outcome association:** outcomes append with cycle/run identifiers instead of replacing the first generic waiting marker. Actual milestone IDs are recorded.
-- **Unbounded ledger rewrite cost:** appends no longer read/rewrite the entire historical ledger for every cycle. File writes are serialized.
-- **Swallowed record failures:** council/outcome persistence failures surface as runtime failures rather than silently losing the audit trail.
-- **Lost steering during LLM calls:** guidance uses an atomic ID-based queue; only the items incorporated into an approved step are consumed. Repair instructions do not displace user guidance.
-- **Misleading live judgments:** tool activity is labeled as automatic telemetry. A returned tool is not described as a completed safety review or proven success.
-- **Missing child activity:** tool observations include descendant sessions. Final verification/recovery waits while descendant sessions are busy/retrying.
-- **False file modifications:** read paths are no longer counted as modified files. Native `filePath` arguments are recognized.
-- **Broken repeated-tool detection:** full argument fingerprints replace comparison against truncated arguments; raw argument bodies are not kept in telemetry.
-- **Reporting blocked by council work:** a separate report timer keeps snapshots current during long requests. HTML refreshes every 15 seconds and active snapshots archive every minute.
-- **Lost intermediate decisions:** daily JSONL event history retains proposals/status, votes and errors beyond bounded UI state.
-- **Control responses mistaken for execution:** status/steering message IDs are excluded from executor evidence.
-- **Repeated start resetting active work:** start/resume preserves an already active goal's generation and pending execution.
-- **Offline stop overwritten by stale state:** separate durable stop markers keep scheduling disabled even if another process writes an old active state. Explicit resume only acknowledges markers that existed before it started, preserving a concurrent later stop.
-- **Hook/lifecycle loss during composition:** upstream hooks and tools are retained; both disposers run even if one fails. Controller/report timers are cleaned up.
-- **Duplicate engine registration:** installer removes recognized separate OmO entries with a backup; runtime rejects recognizable duplicates in effective config. Recognized global/project registrations migrate before composition; startup migration requires one restart. Custom wrappers require manual inspection.
-- **Resume after upstream stop:** OMM coordinates the pinned upstream cancellation and continuation guard reset without launching an independent plan workflow.
-- **Accidental report publication:** startup adds generated records/backups to `.magi/.gitignore`; maintainers can explicitly version reviewed documents.
-- **Conflicting public docs:** root English/Korean and package README now describe the real dependency integration, canonical config, one-package installation, ownership and release limits consistently.
+원본 OmO는 SUL-1.0 라이선스와 포함된 제3자 고지를 유지합니다. OMM 자체 소스는 MIT입니다. 빌드는 OmO를 외부 의존성으로 유지하며, 원본 소스를 복사해 포함하거나 라이선스를 바꾸지 않습니다. OmO 라이선스 전문은 플러그인의 `licenses/` 디렉터리에 포함했습니다.
 
-## What OMM preserves and replaces
+## 추가로 수정한 결함
 
-All upstream agent factories, tool definitions, specialists, category/skill behavior, MCP integration and background task manager are loaded from the official plugin. User configuration can still disable capabilities, and provider/model/platform constraints still apply. This is not proof that every feature works with every model.
+- **거절된 결정 누락:** 승인되지 않은 결정과 종료·수정 요구도 기록하며, 관련 사용자 지시는 대기 상태로 유지합니다.
+- **회의와 실행 결과의 잘못된 연결:** 첫 번째 대기 문구를 치환하는 대신 사이클·실행 식별자와 함께 결과를 추가합니다. 실제 마일스톤 ID도 기록합니다.
+- **회의록 전체 재작성 비용:** 매 사이클마다 과거 회의록 전체를 읽고 다시 쓰지 않고 내용을 추가합니다. 파일 쓰기는 순서대로 처리합니다.
+- **기록 실패 은폐:** 회의·결과 저장 실패를 조용히 무시하지 않고 런타임 오류로 드러냅니다.
+- **모델 요청 도중 사용자 지시 유실:** ID 기반 큐를 원자적으로 갱신하고, 승인된 작업에 반영된 항목만 소비합니다. 복구 지시가 사용자 지시를 덮어쓰지 않습니다.
+- **진행 상황을 실제 판단처럼 표시:** 도구 활동은 자동 관측 정보로 표시합니다. 도구 반환만으로 안전 검토나 성공이 입증됐다고 표현하지 않습니다.
+- **하위 에이전트 활동 누락:** 관측 범위에 하위 세션을 포함합니다. 하위 세션이 작업·재시도 중이면 최종 검증과 복구를 기다립니다.
+- **파일 수정 여부 오판:** 읽은 경로를 수정 파일로 세지 않으며, 실제 `filePath` 인자를 인식합니다.
+- **반복 도구 호출 탐지 오류:** 잘린 인자가 아니라 전체 인자의 지문으로 비교합니다. 관측 기록에는 원시 인자 본문을 보관하지 않습니다.
+- **회의 작업으로 보고가 멈춤:** 별도 보고 타이머가 긴 요청 중에도 상태를 갱신합니다. HTML은 15초마다 새로고침하고, 활성 상태 보고는 매분 보관합니다.
+- **중간 결정 유실:** 일별 JSONL 이벤트 기록에 제안·상태·투표·오류를 보존합니다. 화면에 표시할 상태 개수 제한과 별개입니다.
+- **제어 응답을 작업 완료 증거로 오인:** 상태 조회·사용자 지시 메시지 ID는 실행 증거에서 제외합니다.
+- **반복 시작으로 진행 중인 작업 초기화:** 이미 활성화된 목표의 실행 식별자와 대기 중인 실행 상태를 유지합니다.
+- **오래된 상태가 오프라인 중지를 덮어씀:** 별도의 영속 중지 표식으로 반복 실행을 차단합니다. 재개는 자신이 시작되기 전에 존재한 중지 표식만 해제하므로, 그 이후 동시에 발생한 중지 요청은 유지됩니다.
+- **통합 과정에서 훅·종료 처리 유실:** 원본 훅과 도구를 유지합니다. 한쪽 종료 처리가 실패해도 양쪽 종료 처리를 실행하며 컨트롤러·보고 타이머를 정리합니다.
+- **실행 시스템 중복 등록:** 인식 가능한 별도 OmO 등록은 백업 후 전환합니다. 전역·프로젝트 설정은 통합 초기화 전에 전환하며, 시작 중 전환했다면 한 번 재시작해야 합니다. 유효 설정에 남은 인식 가능한 중복은 거부합니다. 사용자 정의 래퍼는 수동 점검이 필요합니다.
+- **OmO 중지 이후 재개 실패:** 별도 계획 워크플로를 시작하지 않고, 고정한 원본 버전의 취소 상태와 반복 실행 방지 상태를 조정합니다.
+- **보고서의 우발적 공개:** 생성 기록과 백업은 시작 시 `.magi/.gitignore`에 추가합니다. 사용자가 검토한 문서를 명시적으로 버전 관리하는 것은 가능합니다.
+- **공개 문서 간 설명 불일치:** 루트 영문·한글 README와 패키지 README에 실제 의존성 통합, 정식 설정 경로, 단일 패키지 설치, 반복 제어 주체와 검증 한계를 일관되게 설명했습니다.
 
-OMM owns project-level autonomous continuation and disables `todo-continuation-enforcer`, `goal`, and `atlas` hooks. Atlas remains an upstream agent; its separate plan loop is replaced. Upstream TUI self-registration is disabled because OMM supplies a dedicated panel. Upstream security/permission hooks are retained. Do not run another autonomous workflow in the same owned session.
+## OMM이 유지하는 기능과 대체하는 기능
 
-## Verification
+원본 OmO의 에이전트 생성 구현, 도구 정의, 전문 에이전트, 카테고리·스킬 동작, MCP 통합과 백그라운드 작업 관리자를 공식 플러그인에서 로드합니다. 사용자 설정으로 기능을 끌 수 있으며 모델 제공자·모델·운영체제의 제약도 그대로 적용됩니다. 이것이 모든 기능을 모든 모델에서 검증했다는 뜻은 아닙니다.
 
-Run from `packages/oh-my-magi`:
+OMM은 프로젝트 단위 자율 반복 실행을 담당하며 `todo-continuation-enforcer`, `goal`, `atlas` 훅을 비활성화합니다. Atlas 에이전트 자체는 유지하지만 별도의 계획 반복 실행은 대체합니다. OMM이 전용 패널을 제공하므로 원본 TUI의 자동 등록도 비활성화합니다. 원본 보안·권한 훅은 유지합니다. OMM이 제어하는 동일 세션에서 다른 자율 실행 워크플로를 동시에 가동하지 않아야 합니다.
+
+## 검증 방법과 이전 결과
+
+`packages/oh-my-magi` 디렉터리에서 실행합니다.
 
 ```sh
 bun test
@@ -75,55 +79,74 @@ bun pm pack
 bun run smoke
 ```
 
-Observed integration runs used OpenCode **1.18.29** on Windows and actual upstream **4.19.4**, isolated project/home/config directories and a deterministic local OpenAI-compatible provider. No real provider credentials were used.
+초기 통합 실행은 Windows의 OpenCode **1.18.29**, 실제 OmO **4.19.4**, 격리된 프로젝트·홈·설정 디렉터리와 OpenAI API 형식을 따르는 **테스트용 가짜 모델 서버**를 사용했습니다. 실제 모델 제공자의 인증 정보는 사용하지 않았습니다.
 
-Before conversational steering, local checks passed **69 tests, 246 assertions across 18 files**, type checking, frozen-lockfile installation, build and tarball creation. That **86 KB** tarball (39 entries) was installed into a separate consumer with production dependencies only and install scripts disabled. Its published server entry imported successfully, and the real OpenCode/OmO integration smoke passed using that consumer's installed package. The monitor was visually inspected in a browser with real smoke state.
+일반 대화 스티어링 추가 전에는 **18개 파일의 테스트 69개, 검증 조건(assertion) 246개**와 타입 검사, 잠금 파일 고정 설치, 빌드·압축 파일 생성이 통과했습니다. **86 KB**, 39개 항목의 배포 압축 파일을 별도 사용자 환경에 실행 의존성만 포함하고 설치 스크립트를 끈 상태로 설치했습니다. 배포용 서버 진입점을 불러올 수 있었고, 설치된 패키지로 실제 OpenCode/OmO 통합 테스트가 통과했습니다. 모니터 화면은 테스트 실행 상태를 사용해 브라우저에서 육안으로 확인했습니다. 여기서 배포용 진입점 확인은 npm 공개 게시를 뜻하지 않습니다.
 
-The conversational steering update passed **73 tests, 0 failures, 268 assertions across 19 files**, type checking and a rebuilt-package smoke against the same OpenCode/OmO versions. The smoke sends an ordinary `/session/{id}/message` request, verifies its conversation receipt and queued guidance, excludes internal council prompts from that queue, and then checks stop/resume. Unit coverage also checks Korean guidance reaching the council, replay deduplication before and after consumption, upstream prompt augmentation, concurrent command/message ordering, inactive/other/child sessions, and exclusion of conversational replies from execution evidence. Natural-language interpretation is instructed through the model; these deterministic tests do not certify every model's response quality.
+일반 대화 스티어링 추가 후에는 같은 OpenCode/OmO 버전에서 **19개 파일의 테스트 73개, 실패 0개, 검증 조건 268개**, 타입 검사와 재빌드한 패키지의 통합 테스트가 통과했습니다. 테스트는 일반 `/session/{id}/message` 요청을 보내 대화 접수 기록과 지시 큐를 확인하고, 내부 회의 프롬프트가 큐에 들어가지 않는지 확인한 다음 중지·재개를 검증합니다.
 
-The stronger smoke run checked:
+단위 테스트는 한국어 지시의 회의 전달, 소비 전후 메시지 재전송 중복 제거, 원본 OmO의 프롬프트 추가 처리, 동시 명령·메시지 순서, 비활성·다른·하위 세션의 제외, 대화 응답이 실행 증거에 섞이지 않는지도 확인합니다. 자연어 의미 해석은 모델에 지시하는 방식이므로, 정해진 응답을 이용한 테스트가 모든 모델의 응답 품질을 보장하지는 않습니다.
 
-1. Native `opencode plugin <built package directory>` installation and server/TUI detection.
-2. Real upstream primary/specialist registration plus Magi council agents.
-3. The first assistant uses Sisyphus; an actual upstream task returns child evidence.
-4. The explore child invokes a real read tool against a fixture file.
-5. At least two verified executor turns enter a third cycle on the same goal.
-6. Natural conversational steering, explicit stop and resume preserving/advancing that goal.
-7. Meeting history, latest status and monitor artifacts exist.
+통합 테스트에서 확인한 항목은 다음과 같습니다.
 
-The deterministic provider controls model outputs to make integration reproducible. It tests runtime plumbing and controller behavior, not the intelligence or long-term research quality of a real model.
+1. `opencode plugin <빌드한 패키지 디렉터리>`로 설치하고 서버/TUI 대상을 감지합니다.
+2. 실제 OmO의 주 실행·전문 에이전트와 Magi 회의 에이전트를 등록합니다.
+3. 첫 응답은 Sisyphus가 수행하며, 실제 원본 `task` 도구가 하위 작업의 증거를 반환합니다.
+4. explore 하위 에이전트가 실제 읽기 도구로 테스트 파일을 읽습니다.
+5. 적어도 두 번의 실행과 검증을 마친 뒤 같은 목표의 세 번째 사이클에 진입합니다.
+6. 일반 대화 스티어링과 명시적 중지·재개가 목표를 유지하고 진행을 이어갑니다.
+7. 회의록·최신 상태·모니터 산출물이 생성됩니다.
 
-## Remaining release gates and operational limits
+**모델의 제안·승인·검토 응답은 테스트 서버가 정해진 값으로 반환합니다.** 따라서 위 결과는 실행 연결과 반복 제어를 확인한 것이며, 실제 모델의 지능이나 장기 연구 품질을 검증한 결과가 아닙니다.
 
-- Public installation status is recorded below; publication is verified separately from source availability.
-- Execute the Linux/macOS/Windows CI matrix remotely and retain its results. Windows local tests alone do not certify the other platforms.
-- Run a sustained real local/hosted model trial, including interrupted networking, provider timeouts, context compaction and server/process restart. A finite smoke run cannot prove infinite uptime.
-- Complete interactive desktop, terminal rendering and remote reconnect QA against the versions shipped. Backend compatibility does not prove every UI integration.
-- The terminal panel reads local report state; remote file synchronization is not provided. The standalone monitor is a read-only local document, not an authenticated remote management server.
-- OpenCode must remain alive and load the project. OMM does not install an OS daemon or restart a powered-off host. Permissions and unavailable models may require user intervention.
-- Daily reports/events and meeting history accumulate intentionally. Establish external archival/storage monitoring for long-lived deployments. Reports can contain confidential project material despite common-pattern redaction.
-- Custom duplicate plugin wrappers and inline environment configuration cannot all be inferred from their names. Remove independent OmO/legacy Magi loading paths when using the composed plugin.
+## 남은 출시 확인 사항과 운영 한계
 
-These are explicit release/operating conditions, not claims that the implementation is already perfect or all interfaces/providers have been certified.
+- 공개 이름 설치 상태는 마지막 게시 기록을 따릅니다. 소스 공개와 npm 게시는 별도로 확인해야 합니다.
+- Linux·macOS·Windows의 최소/최신 OpenCode CI와 core 검사가 [모두 통과했습니다](https://github.com/eljja/Magi/actions/runs/34361639844). 이 역시 실제 모델의 장기 운전이나 모든 UI 조작을 검증한 것은 아닙니다.
+- 실제 내부 또는 외부 모델을 연결한 장시간 시험이 필요합니다. 네트워크 단절, 제공자 시간 초과, 문맥 압축과 서버·프로세스 재시작을 포함해야 합니다. 유한한 통합 테스트로 무한 가동을 입증할 수는 없습니다.
+- 배포 대상 버전에서 데스크톱 조작, 터미널 렌더링과 원격 재접속을 확인해야 합니다. 서버 기능 호환성만으로 모든 화면 연동이 입증되는 것은 아닙니다.
+- 터미널 패널은 로컬 보고 상태를 읽습니다. 원격 파일 동기화는 제공하지 않습니다. 별도 모니터는 읽기 전용 로컬 문서이며, 인증 기능을 갖춘 원격 관리 서버가 아닙니다.
+- OpenCode가 살아 있고 프로젝트를 로드해야 실행됩니다. OMM은 OS 상주 서비스를 설치하거나 전원이 꺼진 호스트를 재시작하지 않습니다. 권한 승인이나 모델 이용 불가 상황에는 사용자 개입이 필요할 수 있습니다.
+- 일별 보고·이벤트·회의록은 의도적으로 누적됩니다. 장기 운영 시 외부 보관 정책과 저장 공간 감시가 필요합니다. 흔한 비밀 정보 패턴을 가리더라도 보고서에 프로젝트 기밀이 포함될 수 있습니다.
+- 사용자 정의 중복 플러그인 래퍼와 인라인 환경 설정은 이름만으로 모두 파악할 수 없습니다. 통합 플러그인을 사용할 때 별도로 OmO나 이전 Magi를 로드하는 경로를 정리해야 합니다.
 
-## Prelaunch hardening verification — 2026-09-09
+이 항목들은 실제 출시·운영 조건입니다. 구현이 완벽하다거나 모든 화면·모델 제공자를 검증했다는 주장이 아닙니다.
 
-The final source check passed **81 tests, 327 assertions, 20 files, zero failures**, plus package type checking and build. A fresh actual **OpenCode 1.18.30 / OmO 4.19.4** Windows run passed the complete integration scenario, including existing global OmO registration migration, backup creation, actual process restart, upstream agents, Sisyphus → task → explore → read, three continuous cycles, ordinary conversational steering, durable stop/resume and report generation. Local evidence: `.tmp/omm-integration/magi-smoke-O6dqNP/` (ignored; not distributed).
+## 출시 전 보강 검증 — 2026-09-09
 
-Additional regression coverage includes nine rounds of one meeting despite a legacy limit of one, archived guidance after queue consumption, malformed multi-file migration preserving originals, damaged lease metadata with a live owner, stalled workforce recovery, actionable authentication failures without same-provider request storms, and verification process-tree termination.
+최종 소스 검증은 **20개 파일의 테스트 81개, 검증 조건 327개, 실패 0개**였으며, 패키지 타입 검사와 빌드도 통과했습니다. Windows에서 실제 **OpenCode 1.18.30 / OmO 4.19.4**를 새로 실행해 다음 통합 절차를 확인했습니다. 이 실행 역시 **가짜 모델 서버**를 사용했습니다.
 
-- Meetings persist their cycle/round and revise proposals after objections, with no round ceiling. Recent-round context is bounded; the full archive is retained.
-- `MEMORY.md`, `USER-GUIDANCE.md` and `COUNCIL.md` are consumed by future meetings and compaction. Model-generated summaries are subordinate to original chronological guidance.
-- The watchdog detects unchanged messages/tools; retry backoff does not impose a whole-goal retry limit. Missing verification commands are diagnosed before deliberation.
-- A loopback OS socket owns the controller lease; process death releases ownership independently of JSON diagnostics and PID reuse.
-- OpenCode 1.18.30 exposed the Windows ReadOnly-directory Bun regression described in [Bun #34413](https://github.com/oven-sh/bun/issues/34413). Known runtime directory attributes are repaired at plugin startup and continuation control. `doctor --repair-windows` handles failures occurring before plugin loading. The migration smoke explicitly runs this repair before rebooting its isolated host.
-- Durable stop is saved before the upstream stop hook; an upstream hook failure cannot erase the stop request.
-- Exact dependency pins, `compatibility.json`, the registry comparison script, minimum/latest OpenCode CI across three OSes and a trusted-publishing workflow make upgrades reviewable. Remote CI results and trusted-publisher account configuration are separate from local validation. Weekly schedules run only after the workflow reaches GitHub's default branch.
+- 기존 전역 OmO 등록 전환과 백업 생성
+- 실제 프로세스 재시작과 원본 에이전트 로딩
+- Sisyphus → task → explore → read 실행
+- 연속 3회 사이클, 일반 대화 스티어링, 영속 중지·재개와 보고 생성
 
-These results establish a finite, reproducible integration baseline. They do not certify indefinite real-model uptime, every native desktop/TUI screen, or future releases before testing.
+로컬 증거 경로는 `.tmp/omm-integration/magi-smoke-O6dqNP/`입니다. Git에서 제외되며 배포 패키지에 포함하지 않습니다.
 
-## Publication attempt
+추가 회귀 테스트는 과거 한도 1이 설정되어 있어도 같은 회의가 9라운드까지 이어지는지, 큐 소비 후에도 과거 지시를 읽는지, 여러 설정 파일 중 잘못된 입력이 있으면 원본을 유지하는지 확인합니다. 실행 중인 소유자가 있는 상태의 손상된 잠금 정보, 정체 작업 복구, 같은 제공자에 요청을 반복하지 않는 인증 오류 처리, 검증 자식 프로세스 종료도 포함했습니다.
 
-The reviewed `oh-my-magi@0.1.0` artifact is 101,586 bytes with SHA-1 `63ba3561174fe36be0389db51eeafa1b9abf834a`. Its runtime matches the production-dependencies-only consumer that passed actual OpenCode 1.18.30 integration (`magi-smoke-I1Ut07`); the final tarball additionally updates README qualification wording. `npm publish --dry-run` passed.
+- 회의는 사이클·라운드를 저장하고 반론 이후 제안을 수정하며 라운드 상한을 두지 않습니다. 모델에 전달하는 최근 라운드 문맥은 제한하지만 전체 기록은 보관합니다.
+- 후속 회의와 문맥 압축은 `MEMORY.md`, `USER-GUIDANCE.md`, `COUNCIL.md`를 읽습니다. 모델이 만든 요약보다 시간순 원문 사용자 지시가 우선합니다.
+- 정체 감시 장치는 메시지·도구 진전이 없는 상태를 감지합니다. 재시도 대기 간격이 늘어나도 목표 전체의 재시도 횟수를 제한하지 않습니다. 검증 명령 누락은 회의 전에 진단합니다.
+- 루프백 OS 소켓이 컨트롤러 소유권을 관리합니다. 프로세스가 종료되면 JSON 진단 정보나 PID 재사용 여부와 무관하게 소유권이 해제됩니다.
+- OpenCode 1.18.30에서 [Bun #34413](https://github.com/oven-sh/bun/issues/34413)의 Windows ReadOnly 디렉터리 오류를 재현했습니다. 플러그인 시작과 반복 제어 시 알려진 런타임 디렉터리 속성을 복구합니다. 플러그인 로드 전에 실패하면 `doctor --repair-windows`를 사용합니다. 설정 전환 테스트도 격리된 호스트를 재시작하기 전에 이 복구를 명시적으로 실행합니다.
+- 원본 OmO의 중지 훅보다 영속 중지 상태를 먼저 저장합니다. 원본 훅이 실패해도 중지 요청을 지우지 못합니다.
+- 정확한 의존성 버전 고정, `compatibility.json`, 레지스트리 비교 스크립트, 3개 OS의 최소·최신 OpenCode CI, npm 신뢰 기반 게시 워크플로를 추가해 버전 갱신을 검토할 수 있게 했습니다. 원격 CI 결과와 npm의 신뢰 게시자 계정 설정은 로컬 검증과 별개입니다. 주간 예약은 워크플로가 GitHub 기본 브랜치에 반영된 이후에만 작동합니다.
 
-Actual publication on 2026-09-09 returned **E403**: npm requires two-factor authentication or a granular token with bypass-2FA permission. Account authentication succeeded, but the supplied credential cannot publish under this policy. No public npm release is claimed until registry verification succeeds. The reviewed tarball remains available locally at `.tmp/omm-integration/release-final/oh-my-magi-0.1.0.tgz` for authenticated publication.
+이 결과는 유한하고 재현 가능한 통합 검증 기준입니다. 실제 모델의 무기한 가동, 모든 데스크톱·TUI 화면, 검증하지 않은 미래 버전까지 보증하지 않습니다.
+
+<a id="publication-attempt"></a>
+
+## npm 게시 시도
+
+검토한 `oh-my-magi@0.1.0` 배포 파일은 **101,586바이트**이며 SHA-1은 `63ba3561174fe36be0389db51eeafa1b9abf834a`입니다. 런타임은 실행 의존성만 설치한 별도 사용자 환경에서 OpenCode 1.18.30 통합 검증을 통과한 패키지와 같습니다. 해당 증거 디렉터리는 `magi-smoke-I1Ut07`이며, 최종 압축 파일에는 README의 검증 범위 설명을 추가로 갱신했습니다. `npm publish --dry-run`도 통과했습니다.
+
+2026-09-09의 최초 게시 시도는 **E403**으로 실패했습니다. npm은 2단계 인증 또는 2FA 우회 권한이 있는 세분화된 접근 토큰을 요구했습니다. 계정 인증에는 성공했지만, 전달받은 인증 정보로는 이 정책에 따라 게시할 수 없었습니다. 이후 사용자가 직접 인증해 게시를 완료했습니다.
+
+공개 레지스트리에서 `oh-my-magi@0.1.0`을 직접 조회했고, SHA-1이 `63ba3561174fe36be0389db51eeafa1b9abf834a`로 검토한 배포 파일과 일치함을 확인했습니다. 로컬 원본은 `.tmp/omm-integration/release-final/oh-my-magi-0.1.0.tgz`입니다. [npm 패키지](https://www.npmjs.com/package/oh-my-magi)에서 확인할 수 있습니다.
+
+### 공개 패키지 이름으로 설치·실행 확인
+
+게시 후 새로운 격리 환경에서 실제 `opencode plugin oh-my-magi` 명령으로 npm 패키지를 설치했습니다. 서버 설정에도 로컬 파일 대신 공개 이름 `oh-my-magi`를 지정해 로드했습니다. OpenCode 1.18.30에서 기존 OmO 등록 전환·백업·프로세스 재시작, 실제 Sisyphus → task → explore → read, 연속 3회 사이클, 일반 대화 반영, 중지·재개와 회의록·모니터 생성을 모두 통과했습니다.
+
+로컬 실행 증거는 `.tmp/omm-integration/magi-smoke-wwhDbj/`, 요약 로그는 `.tmp/omm-integration/public-smoke-result.log`에 있습니다. 이 검증에서도 모델 응답은 테스트용 가짜 서버가 제공했습니다. 공개 이름 설치와 프로그램 동작은 확인했으며, 실제 LLM의 장기 자율 연구·개발 검증은 별도로 남아 있습니다.
