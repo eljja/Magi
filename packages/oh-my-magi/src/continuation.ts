@@ -22,10 +22,21 @@ import {
   writeRoadmap,
 } from "./roadmap"
 import { formatSafetyEnvelope, prepareBranchSafety, writeRunDecision } from "./safety"
-import { mutateMagiState, readMagiMemory, readMagiState, updateMagiState, writeMagiMemory } from "./state"
+import {
+  mutateMagiState,
+  readMagiMemory,
+  readMagiState,
+  updateMagiState,
+  writeMagiMemory,
+  persistStop,
+  stopMarkers,
+  acknowledgeStops,
+} from "./state"
 import { runIndependentJudge, runMechanicalVerification } from "./verification"
 import { resolveExecutorAgent } from "./omo-bridge"
 import { recordCouncilDeliberation, recordCycleOutcome } from "./ledger"
+import { workforceBusy } from "./workforce"
+import { readCouncilMemory, saveCouncilMemory } from "./memory"
 
 export type CycleResult = {
   injected: boolean
@@ -52,6 +63,7 @@ export async function setAutonomousLoop(
   options?: { sessionID: string; goal?: string },
 ) {
   if (!active) {
+    await persistStop(directory)
     return mutateMagiState(directory, (state) => ({
       ...state,
       loopActive: false,
@@ -62,6 +74,7 @@ export async function setAutonomousLoop(
       topic: "Magi paused by user",
     }))
   }
+  const markers = await stopMarkers(directory)
   const config = await loadMagiConfig(directory)
   const roadmap = await readRoadmap(directory)
   const goal = options?.goal?.trim() || roadmap?.goal || (await readMagiState(directory)).goal
@@ -72,9 +85,11 @@ export async function setAutonomousLoop(
       "A different goal already exists. Archive .magi/roadmap.json and ROADMAP.md before starting a new goal.",
     )
   if (!roadmap) await initializeRoadmap({ directory, goal })
-  return mutateMagiState(directory, (state) => {
+  await mutateMagiState(directory, (state) => {
     if (state.loopActive && state.sessionID !== options.sessionID)
       throw new Error("Another session owns this project goal. Stop it before transferring ownership.")
+    if (state.loopActive && state.sessionID === options.sessionID)
+      return state.error && !state.awaitingExecution ? { ...state, retryAt: undefined, failureCount: 0 } : state
     return {
       ...state,
       goal,
@@ -89,6 +104,8 @@ export async function setAutonomousLoop(
       topic: goal,
     }
   })
+  await acknowledgeStops(markers)
+  return readMagiState(directory)
 }
 
 async function active(input: CycleInput, runID: string) {
@@ -97,10 +114,18 @@ async function active(input: CycleInput, runID: string) {
 }
 
 export async function pauseMagi(directory: string, reason: string, runID?: string) {
+  const state = await readMagiState(directory)
+  const failures = (state.failureCount ?? 0) + 1
   await updateMagiState(
     directory,
     { time: Date.now(), type: "error", title: "Magi paused", text: reason },
-    { awaitingExecution: false, status: "error", error: reason },
+    {
+      awaitingExecution: false,
+      status: "error",
+      error: reason,
+      failureCount: failures,
+      retryAt: Date.now() + Math.min(1800000, 60000 * 2 ** Math.min(failures - 1, 5)),
+    },
     24,
     runID,
   )
@@ -161,14 +186,25 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
   }
   const milestone = getCurrentMilestone((await readRoadmap(input.directory))!)
   const memory = await readMagiMemory(input.directory)
-  const userSteering = input.userPrompt || memory.pendingUserSteering
+  const guidance = state.steeringQueue ?? []
+  const userSteering = [
+    state.pendingUserSteering,
+    memory.pendingUserSteering,
+    ...guidance.map((item) => item.text),
+    input.userPrompt,
+  ]
+    .filter(Boolean)
+    .join("\n\n")
   const proposer = memory.lastProposer ? nextCouncilProposer(MagiCouncilMembers, memory.lastProposer) : "melchior"
-  const cycle = state.currentCycle + 1
+  const cycle = state.meeting?.cycle ?? state.currentCycle + 1
   const context = await collectMagiContext({ directory: input.directory })
   const requirements = [
     "Immutable master goal: " + roadmap.goal,
     "Current milestone: " + milestone?.title + "\n" + milestone?.description,
-    userSteering ? "PRIORITY USER DIRECTIVE / STEERING: " + userSteering : "",
+    userSteering
+      ? "USER CONVERSATION / GUIDANCE: Interpret each message in context. Questions and status requests are not authorization to change work. Apply explicit priorities and corrections to the existing goal; do not replace it.\n" +
+        userSteering
+      : "",
     state.error ? "Previous runtime failure to resolve: " + state.error : "",
     "Recent council feedback: " +
       state.events
@@ -177,11 +213,18 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
         .map((event) => event.text)
         .join("\n"),
     context.text,
+    await readCouncilMemory(input.directory),
+    state.meeting
+      ? "Continue the SAME meeting at round " +
+        (state.meeting.round + 1) +
+        ". Revise the previous draft to address the recorded objections. Read source files to gather missing evidence; do not repeat an unchanged rejected proposal.\n" +
+        JSON.stringify(state.meeting.rounds)
+      : "",
   ].join("\n\n")
   await updateMagiState(
     input.directory,
     { time: Date.now(), type: "status", title: "Cycle #" + cycle, text: requirements },
-    { currentCycle: cycle, status: "running", votes: {}, awaitingExecution: false, pendingUserSteering: undefined },
+    { currentCycle: cycle, status: "running", votes: {}, awaitingExecution: false },
     config.display.transcriptLimit,
     runID,
   )
@@ -197,8 +240,11 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
     userPrompt: "Propose one concrete step toward this milestone. Preserve the original goal.\n" + requirements,
   })
   if (!(await active(input, runID))) return stopped
-  const rounds: MagiDebateRound[] = []
-  for (let round = 1; round <= config.council.maxDebateRounds; round++) {
+  const rounds: MagiDebateRound[] = [...(state.meeting?.rounds ?? [])]
+  // One durable round per scheduler turn keeps stop, reporting and recovery live.
+  // Unapproved meetings resume with a revised proposal, with no round ceiling.
+  {
+    const round = (state.meeting?.round ?? 0) + 1
     const votes = await deliberateProposal({
       bridge: { client: input.client, config, directory: input.directory },
       proposer,
@@ -233,6 +279,20 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
   }
   const position = finalDebatePosition(rounds, config.council.vetoPolicy, config.council.votePolicy)
   if (shouldStopSelfImprovement(rounds) || position !== "approve" || draft.terminal) {
+    await recordCouncilDeliberation(input.directory, {
+      runID,
+      cycle,
+      goal: roadmap.goal,
+      milestoneTitle: milestone?.title,
+      milestoneId: milestone?.id,
+      proposer,
+      proposalTitle: draft.title,
+      proposalRationale: draft.rationale,
+      rounds,
+      finalPosition: position === "approve" ? "revise" : position,
+      directivePrompt: draft.prompt,
+      userSteering,
+    })
     await updateMagiState(
       input.directory,
       {
@@ -241,7 +301,12 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
         title: "Council withheld authorization",
         text: "Council stop/revision is a pause, not proof of goal completion.",
       },
-      { awaitingExecution: false, status: "idle", stopReason: "council" },
+      {
+        awaitingExecution: false,
+        status: "idle",
+        stopReason: "council",
+        meeting: { cycle, round: rounds.at(-1)!.round, rounds: rounds.slice(-6) },
+      },
       24,
       runID,
     )
@@ -261,14 +326,17 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
       "[OH-MY-MAGI COUNCIL TASK — CYCLE #" + cycle + "]",
       "Master goal: " + roadmap.goal,
       "Milestone: " + milestone?.title + "\n" + milestone?.description,
-      userSteering ? "User Priority Instruction: " + userSteering : "",
+      userSteering
+        ? "User conversation context (questions are not work authorization; follow the approved council task): " +
+          userSteering
+        : "",
       draft.prompt,
       ...rounds
         .at(-1)!
         .decisions.flatMap((item) => (item.requiredChange ? ["Required council change: " + item.requiredChange] : [])),
       "OmO Workforce Instructions:",
-      "- You are Sisyphus, OmO's Lead Execution PM.",
-      "- Use the `task` tool to delegate specialized work to OmO specialist subagents (explore for code search, librarian for docs, hephaestus for refactoring, oracle for debugging).",
+      "- Use your native OmO agent instructions, categories, skills and task tool. Preserve all upstream permission and model constraints.",
+      "- Delegate to available specialists when useful; wait for background work to complete and collect its results before reporting completion.",
       "- Execute this step and report actual artifacts, commands, outputs, and remaining milestone gaps.",
       "Never edit .magi runtime state or mark roadmap milestones complete; the runtime records independently verified completion.",
     ]
@@ -280,6 +348,7 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
     decision: { draft, finalPosition: position, injected: true, rounds, selectedPrompt: prompt },
   })
   await recordCouncilDeliberation(input.directory, {
+    runID,
     cycle,
     goal: roadmap.goal,
     milestoneTitle: milestone?.title,
@@ -291,7 +360,18 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
     finalPosition: position,
     directivePrompt: prompt,
     userSteering,
-  }).catch(() => undefined)
+  })
+  if (!(await active(input, runID))) return stopped
+  await saveCouncilMemory(input.directory, draft.memory)
+  await mutateMagiState(input.directory, (current) =>
+    current.runID !== runID
+      ? current
+      : {
+          ...current,
+          pendingUserSteering: undefined,
+          steeringQueue: (current.steeringQueue ?? []).filter((item) => !guidance.some((used) => used.id === item.id)),
+        },
+  )
   await updateMagiState(
     input.directory,
     { time: Date.now(), type: "decision", title: draft.title, text: prompt, position },
@@ -303,6 +383,9 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
       executionAfter: Date.now(),
       error: undefined,
       stopReason: undefined,
+      meeting: undefined,
+      failureCount: 0,
+      retryAt: undefined,
     },
     config.display.transcriptLimit,
     runID,
@@ -325,12 +408,17 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<void> {
   const state = await readMagiState(input.directory)
   try {
     if (!state.runID || !state.awaitingExecution || !input.client || !(await active(input, state.runID))) return
+    if (await workforceBusy(input.client, input.directory, input.sessionID)) return
     const messages = await input.client.session.messages({
       path: { id: input.sessionID },
       query: { directory: input.directory },
     })
     if (messages.error) throw new Error("Failed to read executor evidence")
-    const message = messages.data?.filter((item) => item.info.role === "assistant").at(-1)
+    const message = messages.data
+      ?.filter(
+        (item) => item.info.role === "assistant" && !(state.ignoredMessageIDs ?? []).includes(item.info.parentID),
+      )
+      .at(-1)
     if (
       !message ||
       message.info.role !== "assistant" ||
@@ -390,6 +478,8 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<void> {
       await markMilestoneComplete(input.directory, milestone.id, report.summary + "\n" + verdict.critique)
     const stateLatest = await readMagiState(input.directory)
     await recordCycleOutcome(input.directory, {
+      runID: state.runID,
+      milestoneId: milestone?.id,
       cycle: stateLatest.currentCycle,
       verificationPassed: report.passed,
       verificationSummary: report.summary,
@@ -398,7 +488,7 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<void> {
       milestoneCompleted: report.passed && verdict.approved && Boolean(milestone),
       milestoneTitle: milestone?.title,
       telemetry: stateLatest.telemetry,
-    }).catch(() => undefined)
+    })
     await writeMagiMemory(input.directory, {
       ...(await readMagiMemory(input.directory)),
       previousCompleted: report.passed && verdict.approved,
@@ -418,11 +508,14 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<void> {
       state.runID,
     )
     if (!result.injected || !(await active(input, state.runID))) return
-    const executorAgent = await resolveExecutorAgent(input.directory)
+    const executorAgent = await resolveExecutorAgent(input.directory, input.client)
     const response = await input.client.session.promptAsync({
       path: { id: input.sessionID },
       query: { directory: input.directory },
-      body: { ...(executorAgent ? { agent: executorAgent } : {}), parts: [{ type: "text", text: result.prompt }] },
+      body: {
+        ...(executorAgent ? { agent: executorAgent } : {}),
+        parts: [{ type: "text", text: result.prompt, synthetic: true }],
+      },
     })
     if (response.error) throw new Error("Executor dispatch failed: " + JSON.stringify(response.error))
   } catch (error) {

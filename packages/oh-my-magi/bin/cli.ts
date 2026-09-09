@@ -2,6 +2,7 @@
 import path from "node:path"
 import { doctorOhMyMagi, getStatusReport, installOhMyMagi } from "../src/installer"
 import { setAutonomousLoop } from "../src/continuation"
+import { repairWindowsRuntime } from "../src/windows"
 
 const args = process.argv.slice(2)
 const command = args[0] ?? "status"
@@ -33,6 +34,7 @@ if (args.includes("--help") || args.includes("-h") || command === "help") {
       "Options:",
       "  --project <dir>   Target project directory (default: current directory)",
       "  --local           Use local repository path instead of npm package name",
+      "  --repair-windows  Repair Windows runtime directory attributes before doctor checks",
       "",
       "Commands:",
       "  install   Registers oh-my-magi and migrates recognized legacy Magi files",
@@ -61,8 +63,11 @@ if (command === "install") {
 }
 
 if (command === "doctor") {
+  if (args.includes("--repair-windows"))
+    console.log("Runtime directories prepared: " + (await repairWindowsRuntime(targetDir, process.env, true)).join(", "))
   console.log(`Checking oh-my-magi health for: ${targetDir}...`)
   const report = await doctorOhMyMagi(targetDir)
+  for (const recommendation of report.recommendations) console.log("  - " + recommendation)
   if (report.ok) {
     console.log(
       "✓ Project registration checks passed. Restart OpenCode to load the plugin; this check does not test providers or runtime compatibility.",

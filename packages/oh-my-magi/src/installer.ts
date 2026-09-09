@@ -5,10 +5,11 @@ import { pathToFileURL } from "node:url"
 import { applyEdits, modify } from "jsonc-parser"
 import { parseJsonc } from "./config"
 import { readMagiState } from "./state"
-import { detectOmO } from "./omo-bridge"
+import { detectOmO, containsOmOSpec, harmonizeOmOConfig, OMO_VERSION } from "./omo-bridge"
 import { formatCouncilObservationBulletin } from "./observer"
+import { migrateOmORegistrations } from "./migration"
 
-export type InstallOptions = { projectDirectory: string; pluginSpecifier?: string }
+export type InstallOptions = { projectDirectory: string; pluginSpecifier?: string; migrationFiles?: string[] }
 export type DoctorReport = {
   ok: boolean
   projectDirectory: string
@@ -38,6 +39,7 @@ export async function installOhMyMagi(options: InstallOptions) {
   const tui = entry("tui")
   if (local && !(await Bun.file(path.join(specifier, "dist", "server.js")).exists()))
     throw new Error("Build the local package first: bun run build")
+  await migrateOmORegistrations(project, specifier, options.migrationFiles)
   const configFile = await configPath(opencodeDir, "opencode")
   const tuiFile = await configPath(opencodeDir, "tui")
   // Parse both first: malformed user configuration must never be replaced with an empty object.
@@ -57,6 +59,7 @@ export async function installOhMyMagi(options: InstallOptions) {
   await Bun.write(configFile, serverText)
   await Bun.write(tuiFile, tuiText)
   await migrateLegacyFiles(opencodeDir)
+  await harmonizeOmOConfig(project)
   return { opencodeDir, configFile, tuiFile }
 }
 
@@ -69,7 +72,7 @@ async function patchedConfig(file: string, spec: string) {
   const text = (await Bun.file(file).exists()) ? await Bun.file(file).text() : "{}\n"
   const config = parseJsonc(text) as Record<string, unknown>
   if (config.plugin !== undefined && !Array.isArray(config.plugin)) throw new Error("plugin must be an array: " + file)
-  const list: unknown[] = Array.isArray(config.plugin) ? config.plugin : []
+  const list: unknown[] = Array.isArray(config.plugin) ? config.plugin.filter((item) => !containsOmOSpec(item)) : []
   const index = list.findIndex((entry) => containsMagiSpec(entry) || containsLegacyMagiSpec(entry))
   const entry = index >= 0 ? list[index] : undefined
   const replacement = Array.isArray(entry) ? [spec, ...entry.slice(1)] : spec
@@ -163,9 +166,9 @@ export async function doctorOhMyMagi(projectDirectory: string): Promise<DoctorRe
   if (!pluginRegistered) issues.push("Server plugin not registered in project configuration")
   if (!tuiRegistered) issues.push("Optional TUI panel not registered in project configuration")
   if (!omoStatus.installed) {
-    recommendations.push("oh-my-openagent (OmO) workforce plugin is not registered. Run 'opencode plugin oh-my-openagent' to provide Sisyphus and specialist subagents.")
+    issues.push("Bundled OmO dependency missing; reinstall oh-my-magi.")
   } else if (!omoStatus.todoEnforcerDisabled) {
-    recommendations.push("OmO 'todo-continuation-enforcer' hook is enabled; harmonize it via oh-my-openagent.jsonc to prevent loop contention with Magi council.")
+    recommendations.push("OpenCode will prepare .omo/omo.jsonc on startup so Magi owns project continuation.")
   }
   return {
     ok: issues.length === 0,
@@ -187,6 +190,9 @@ export async function getStatusReport(projectDirectory: string) {
   const lines = [
     "=== Oh-My-Magi Status ===",
     "Directory: " + projectDirectory,
+    "OmO engine: oh-my-opencode@" +
+      OMO_VERSION +
+      " (bundled dependency; doctor checks installation, startup verifies runtime)",
     "Status: " + state.status,
     "Loop Active: " + state.loopActive,
     "Cycle: #" + state.currentCycle + " (unlimited)",
@@ -200,6 +206,10 @@ export async function getStatusReport(projectDirectory: string) {
     state.pendingUserSteering ? "Pending User Steering: " + state.pendingUserSteering : "",
     "Minutes & Ledger: .magi/COUNCIL.md",
     state.error ? "Last error: " + state.error : "",
+    state.meeting ? "Meeting round: " + state.meeting.round + " (unlimited)" : "",
+    state.retryAt ? "Next retry: " + new Date(state.retryAt).toISOString() : "",
+    "Pending guidance: " + (state.steeringQueue ?? []).map((item) => item.text).join(" | "),
+    "Monitor: .magi/index.html | Minutes: .magi/COUNCIL.md | Reports: .magi/reports/",
   ]
 
   const bulletin = formatCouncilObservationBulletin(state)
@@ -207,6 +217,9 @@ export async function getStatusReport(projectDirectory: string) {
     lines.push("", ...bulletin)
   }
 
-  lines.push("", "User Intervention: use '/magi steer <directive>' to guide next deliberation.")
+  lines.push(
+    "",
+    "User intervention: talk normally in the OpenCode session running this goal to guide the next deliberation.",
+  )
   return lines.filter(Boolean).join("\n")
 }

@@ -12,6 +12,7 @@ export function openCodeFixture(
       const body =
         request.method === "POST" ? ((await request.json().catch(() => ({}))) as Record<string, unknown>) : {}
       requests.push({ method: request.method, path: url.pathname, directory: url.searchParams.get("directory"), body })
+      if (url.pathname === "/agent") return Response.json([{ name: "sisyphus", mode: "primary" }])
       if (url.pathname === "/provider")
         return Response.json({
           all: [
@@ -50,10 +51,11 @@ export function openCodeFixture(
   return {
     client: createOpencodeClient({ baseUrl: server.url.toString() }),
     requests,
-    complete(text = "Produced the fixture artifact; verification can inspect it.") {
+    complete(text = "Produced the fixture artifact; verification can inspect it.", parentID?: string) {
       messages.push({
         info: {
           role: "assistant",
+          parentID,
           id: "result-" + messages.length,
           time: { created: Date.now(), completed: Date.now() },
         },

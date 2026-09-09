@@ -13,7 +13,8 @@ export type AgentRoleModels = {
 export function createMelchiorAgent(model?: string): AgentConfig {
   const thinkingConfig = buildThinkingConfig(model)
   return {
-    description: "Melchior-1: Council Architect & Scientist. Evaluates theoretical soundness, structural integrity, modularity, and system health.",
+    description:
+      "Melchior-1: Council Architect & Scientist. Evaluates theoretical soundness, structural integrity, modularity, and system health.",
     mode: "subagent",
     model,
     temperature: 0.2,
@@ -33,7 +34,8 @@ ${MagiPrompts.melchior}
 export function createBalthasarAgent(model?: string): AgentConfig {
   const thinkingConfig = buildThinkingConfig(model)
   return {
-    description: "Balthasar-2: Council Risk & Flaw Auditor. Holds unilateral safety veto against destructive changes, regressions, or unsafe autonomy.",
+    description:
+      "Balthasar-2: Council Risk & Flaw Auditor. Holds unilateral safety veto against destructive changes, regressions, or unsafe autonomy.",
     mode: "subagent",
     model,
     temperature: 0.2,
@@ -53,7 +55,8 @@ ${MagiPrompts.balthasar}
 export function createCasperAgent(model?: string): AgentConfig {
   const thinkingConfig = buildThinkingConfig(model)
   return {
-    description: "Casper-3: Council Practical Realist & Human Intent Advocate. Evaluates user value, deliverables, and pragmatic execution.",
+    description:
+      "Casper-3: Council Practical Realist & Human Intent Advocate. Evaluates user value, deliverables, and pragmatic execution.",
     mode: "subagent",
     model,
     temperature: 0.2,

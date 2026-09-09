@@ -17,7 +17,7 @@ describe("Installer & Doctor", () => {
   })
 
   test("installs plugin files and registers command", async () => {
-    const res = await installOhMyMagi({ projectDirectory: tempDir })
+    const res = await installOhMyMagi({ projectDirectory: tempDir, migrationFiles: [] })
     expect(await Bun.file(res.configFile).exists()).toBe(true)
     expect(await Bun.file(res.tuiFile).exists()).toBe(true)
 
@@ -30,7 +30,7 @@ describe("Installer & Doctor", () => {
     expect(uninstalledReport.ok).toBe(false)
     expect(uninstalledReport.issues.length).toBeGreaterThan(0)
 
-    await installOhMyMagi({ projectDirectory: tempDir })
+    await installOhMyMagi({ projectDirectory: tempDir, migrationFiles: [] })
     const installedReport = await doctorOhMyMagi(tempDir)
     expect(installedReport.ok).toBe(true)
     expect(installedReport.issues.length).toBe(0)
@@ -53,7 +53,7 @@ describe("Installer & Doctor", () => {
       path.join(tempDir, ".opencode", "plugins", "magi-server.ts"),
       'export { default, MagiServerPlugin } from "../../packages/magi-opencode-plugin/src/server"',
     )
-    await installOhMyMagi({ projectDirectory: tempDir })
+    await installOhMyMagi({ projectDirectory: tempDir, migrationFiles: [] })
     const text = await Bun.file(file).text()
     expect(text).toContain("Keep this comment")
     expect(parseJsonc(text)).toEqual({ plugin: ["oh-my-magi", "some-magi-helper"], model: "local/model" })
@@ -67,7 +67,7 @@ describe("Installer & Doctor", () => {
     const file = path.join(tempDir, ".opencode", "opencode.jsonc")
     const original = '{"plugin": [unclosed'
     await Bun.write(file, original)
-    await expect(installOhMyMagi({ projectDirectory: tempDir })).rejects.toThrow("Invalid JSONC")
+    await expect(installOhMyMagi({ projectDirectory: tempDir, migrationFiles: [] })).rejects.toThrow("Invalid JSONC")
     expect(await Bun.file(file).text()).toBe(original)
   })
 })

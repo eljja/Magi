@@ -20,7 +20,9 @@ State and process ownership are local to a project. Keep one controller per proj
 
 Configure providers through OpenCode. Never commit provider credentials. Runtime state and reports may contain goals, source excerpts, command outputs, or private research. Common token patterns are redacted in collected evidence, but redaction is not a comprehensive secret-detection guarantee.
 
-Ignore `.magi/runtime/`, `.magi/runs/`, and migration backups in Git. Decide whether the goal/roadmap and non-secret configuration should be versioned for your project.
+Startup writes `.magi/.gitignore` for runtime, run artifacts, backups, reports, events, the monitor and meeting minutes. Decide explicitly which reviewed documents and non-secret configuration should be versioned for your project. Redaction is not a guarantee that reports are safe to publish.
+
+The full upstream OmO plugin is loaded as a dependency and retains its own tools, hooks and permission behavior. Magi disables the three competing project-level scheduling hooks, not upstream security guards. Review `.omo/omo.jsonc` and the upstream SUL-1.0 license when deploying or distributing the combined system.
 
 Keep servers on loopback unless remote access is intentional and appropriately authenticated. Follow the security documentation for the exact OpenCode version you deploy.
 

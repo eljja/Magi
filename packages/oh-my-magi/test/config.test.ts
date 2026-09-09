@@ -19,7 +19,7 @@ describe("Config Management", () => {
     const config = await loadMagiConfig(tempDir)
     expect(config.council.votePolicy).toBe("majority")
     expect(config.council.vetoPolicy).toBe("safety-critical")
-    expect(config.council.maxDebateRounds).toBe(1)
+    expect(config.council.maxDebateRounds).toBe(0)
     expect(config.selfImprovement.enabled).toBe(false)
     expect(config.selfImprovement.maxCycles).toBe(0)
     expect(config.selfImprovement.mode).toBe("continuous")

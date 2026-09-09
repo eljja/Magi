@@ -3,9 +3,10 @@ import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { handleSessionIdleEvent, runMagiCycle, setAutonomousLoop } from "../src/continuation"
-import { mutateMagiState, readMagiState } from "../src/state"
+import { mutateMagiState, readMagiState, writeMagiState } from "../src/state"
 import { readRoadmap } from "../src/roadmap"
 import { openCodeFixture } from "./fixture"
+import { queueSteering } from "../src/steering"
 
 describe("Persistent goal controller", () => {
   let directory: string
@@ -29,6 +30,61 @@ describe("Persistent goal controller", () => {
     await rm(directory, { recursive: true, force: true })
   })
   const input = () => ({ directory, sessionID: "owner", client: fixture.client })
+
+  test("guidance arriving during a meeting survives acknowledgement of earlier guidance", async () => {
+    await queueSteering(directory, "Earlier guidance")
+    fixture.stop()
+    fixture = openCodeFixture({
+      reply: async (body) => {
+        if (String(body.system).includes("proposal owner")) {
+          await queueSteering(directory, "Arrived during meeting")
+          return JSON.stringify({ title: "Step", prompt: "Work", rationale: "Evidence" })
+        }
+        return JSON.stringify({ position: "approve", rationale: "Reviewed" })
+      },
+    })
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    await runMagiCycle(input())
+    expect((await readMagiState(directory)).steeringQueue?.map((item) => item.text)).toEqual(["Arrived during meeting"])
+    expect(await Bun.file(path.join(directory, ".magi", "COUNCIL.md")).text()).toContain("Earlier guidance")
+  })
+
+  test("rejected meetings are archived and their guidance remains pending", async () => {
+    await queueSteering(directory, "Keep this until approved")
+    fixture.stop()
+    fixture = openCodeFixture({
+      reply: async (body) =>
+        String(body.system).includes("proposal owner")
+          ? JSON.stringify({ title: "Unsafe proposal", prompt: "Proposal", rationale: "Review me" })
+          : JSON.stringify({ position: "reject", rationale: "Evidence insufficient", safetyCritical: true }),
+    })
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    expect((await runMagiCycle(input())).injected).toBe(false)
+    expect((await readMagiState(directory)).steeringQueue?.length).toBe(1)
+    const ledger = await Bun.file(path.join(directory, ".magi", "COUNCIL.md")).text()
+    expect(ledger).toContain("NOT authorized")
+    expect(ledger).toContain("Evidence insufficient")
+  })
+
+  test("repeated start preserves the generation and pending execution", async () => {
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    await runMagiCycle(input())
+    const original = await readMagiState(directory)
+    await setAutonomousLoop(directory, true, { sessionID: "owner" })
+    const current = await readMagiState(directory)
+    expect(current.runID).toBe(original.runID)
+    expect(current.awaitingExecution).toBe(true)
+  })
+
+  test("an offline stop remains effective even if another process writes stale active state", async () => {
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    const stale = await readMagiState(directory)
+    await setAutonomousLoop(directory, false)
+    await writeMagiState(directory, stale)
+    expect((await readMagiState(directory)).loopActive).toBe(false)
+    await setAutonomousLoop(directory, true, { sessionID: "owner" })
+    expect((await readMagiState(directory)).loopActive).toBe(true)
+  })
 
   test("cannot fabricate council approval without a client", async () => {
     await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })

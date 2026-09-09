@@ -31,6 +31,7 @@ export type MagiProposalDraft = {
   prompt: string
   rationale: string
   terminal: boolean
+  memory?: string
 }
 
 export type MagiCouncilJudgment = {
@@ -240,6 +241,8 @@ export function buildSelfImprovementDraftPrompt(input: {
         prompt: "concrete, actionable executor prompt for OpenCode",
         rationale: "why this improvement matters next",
         terminal: false,
+        memory:
+          "Updated durable working memory: retain all enduring user constraints, approved decisions, unresolved questions and rejected approaches. Supersede a user instruction only with explicit later user guidance. Do not present this draft as approved.",
       },
       null,
       2,
@@ -260,6 +263,7 @@ export function normalizeProposalDraft(proposer: MagiCouncilMember, input: unkno
   const terminal = item.terminal === true
   return {
     proposer,
+    memory: typeof item.memory === "string" ? item.memory : undefined,
     title:
       typeof item.title === "string" && item.title.trim()
         ? item.title.trim()

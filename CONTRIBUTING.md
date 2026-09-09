@@ -15,7 +15,7 @@ bun run smoke
 bun pm pack
 ```
 
-The smoke test runs current OpenCode against an isolated deterministic provider. It does not use real provider credentials. For a local executable, set `MAGI_OPENCODE_BIN` before running it.
+The smoke test runs actual OpenCode and the pinned official OmO dependency against an isolated deterministic provider. It verifies the first upstream executor, real task delegation to an explore child, a child read tool, repeated cycles, steering, stop/resume and reports. It does not use real provider credentials. For a local executable, set `MAGI_OPENCODE_BIN` before running it.
 
 Never run tests or typechecking from the monorepo root. Follow [AGENTS.md](AGENTS.md), including package-specific instructions when editing the fork. Use `dev` or `origin/dev` for baseline comparisons.
 
@@ -25,7 +25,7 @@ Explain the defect, changed behavior, and checks performed. Preserve unrelated u
 
 The default autonomous mode must preserve one goal without an iteration cap. Do not turn missing LLM evidence, empty verification, or a failed request into an approval. User stop must remain effective during pending council work.
 
-Update the [release audit](docs/RELEASE-AUDIT.md) when changing compatibility claims. A typecheck is not a desktop/web end-to-end test. An OmO-inspired agent name is not an upstream harness integration.
+Update the [release audit](docs/RELEASE-AUDIT.md) when changing compatibility claims. A typecheck is not a desktop/web end-to-end test. Preserve the actual upstream plugin integration and rerun integration tests whenever its exact dependency version or hook coordination changes. Keep telemetry distinct from model judgments and preserve rejected decisions as well as approvals.
 
 ## Publishing
 

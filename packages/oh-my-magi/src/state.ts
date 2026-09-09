@@ -1,7 +1,8 @@
 import { ensureDirectory } from "./fs"
 import path from "node:path"
-import { rename } from "node:fs/promises"
-import type { MagiCouncilMember, MagiPosition } from "./council"
+import { rename, readdir, unlink } from "node:fs/promises"
+import type { MagiCouncilMember, MagiPosition, MagiDebateRound } from "./council"
+import { appendReport } from "./reporting"
 
 export type MagiRuntimeEvent = {
   time: number
@@ -52,6 +53,11 @@ export type MagiRuntimeState = {
   telemetry?: MagiTelemetry
   observations?: MagiCouncilObservation[]
   pendingUserSteering?: string
+  steeringQueue?: { id: string; time: number; text: string; source?: { sessionID: string; messageID: string } }[]
+  ignoredMessageIDs?: string[]
+  meeting?: { cycle: number; round: number; rounds: MagiDebateRound[] }
+  failureCount?: number
+  retryAt?: number
 }
 
 export type MagiRuntimeMemory = {
@@ -94,7 +100,44 @@ export function emptyMagiState(): MagiRuntimeState {
   }
 }
 
+export async function stopMarkers(directory: string) {
+  const folder = path.join(magiRuntimeDir(directory), "stops")
+  return (
+    await readdir(folder).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return []
+      throw error
+    })
+  )
+    .filter((name) => /^[0-9a-f-]+\.json$/.test(name))
+    .map((name) => path.join(folder, name))
+}
+
+export async function persistStop(directory: string) {
+  const folder = path.join(magiRuntimeDir(directory), "stops")
+  await ensureDirectory(folder)
+  await Bun.write(path.join(folder, crypto.randomUUID() + ".json"), JSON.stringify({ time: Date.now() }))
+}
+
+export async function acknowledgeStops(markers: string[]) {
+  // Remove only markers observed BEFORE starting; a concurrent later stop wins.
+  await Promise.all(
+    markers.map((file) =>
+      unlink(file).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== "ENOENT") throw error
+      }),
+    ),
+  )
+}
+
 export async function readMagiState(directory: string): Promise<MagiRuntimeState> {
+  const state = await readSavedMagiState(directory)
+  const markers = await stopMarkers(directory)
+  return markers.length
+    ? { ...state, loopActive: false, awaitingExecution: false, status: "idle", stopReason: "user" }
+    : state
+}
+
+async function readSavedMagiState(directory: string): Promise<MagiRuntimeState> {
   const file = magiStatePath(directory)
   if (!(await Bun.file(file).exists())) return emptyMagiState()
   const content: unknown = await Bun.file(file)
@@ -154,7 +197,7 @@ export async function updateMagiState(
   limit = 24,
   runID?: string,
 ) {
-  return mutateMagiState(directory, (current) =>
+  const state = await mutateMagiState(directory, (current) =>
     runID && current.runID !== runID
       ? current
       : {
@@ -163,6 +206,13 @@ export async function updateMagiState(
           events: [...current.events, event].slice(-limit),
         },
   )
+  if ((!runID || state.runID === runID) && state.events.at(-1)?.time === event.time)
+    await appendReport(
+      directory,
+      "events/" + new Date(event.time).toISOString().slice(0, 10) + ".jsonl",
+      JSON.stringify({ runID: state.runID, cycle: state.currentCycle, ...event }) + "\n",
+    )
+  return state
 }
 
 export async function readMagiMemory(directory: string): Promise<MagiRuntimeMemory> {

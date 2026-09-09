@@ -1,0 +1,39 @@
+name: Publish oh-my-magi
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-oh-my-magi
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'eljja/Magi'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/oh-my-magi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm install --global npm@11
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun typecheck
+      - run: bun test
+      - run: bun run build
+      - run: bun run smoke
+      - name: Publish reviewed package using npm trusted publishing
+        run: npm publish --access public --provenance
+      - name: Verify public registry visibility
+        run: npm view oh-my-magi version --registry=https://registry.npmjs.org

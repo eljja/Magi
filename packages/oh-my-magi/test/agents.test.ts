@@ -74,6 +74,7 @@ describe("Magi Supreme Council Pure Governor System", () => {
     expect(registeredAgents.melchior).toBeDefined()
     expect(registeredAgents.balthasar).toBeDefined()
     expect(registeredAgents.casper).toBeDefined()
+    await pluginInstance.dispose?.()
   })
 
   it("respects user pre-configured default_agent if already set", async () => {
@@ -96,5 +97,6 @@ describe("Magi Supreme Council Pure Governor System", () => {
     }
 
     expect(configRecord.default_agent).toBe("sisyphus")
+    await pluginInstance.dispose?.()
   })
 })

@@ -55,7 +55,8 @@ function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
         <text fg={theme().textMuted}>
           Workforce: {props.state().telemetry?.toolCallCount} ops | Last: {props.state().telemetry?.lastTool ?? "none"}
           <Show when={(props.state().telemetry?.modifiedFiles.length ?? 0) > 0}>
-            {" "}| Files: {props.state().telemetry?.modifiedFiles.length}
+            {" "}
+            | Files: {props.state().telemetry?.modifiedFiles.length}
           </Show>
         </text>
       </Show>
@@ -68,9 +69,10 @@ function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
           )}
         </For>
       </Show>
-      <Show when={props.state().selectedPrompt}>
-        <text fg={theme().success}>✓ Approved prompt injected into session</text>
+      <Show when={props.state().awaitingExecution}>
+        <text fg={theme().success}>Approved task awaiting execution / verification</text>
       </Show>
+      <text fg={theme().textMuted}>Minutes: .magi/COUNCIL.md | Monitor: .magi/index.html</text>
       <For each={events()}>
         {(event) => (
           <box flexDirection="column">

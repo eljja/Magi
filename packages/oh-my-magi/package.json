@@ -9,6 +9,10 @@
     "opencode": ">=1.18.29 <2"
   },
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "author": "eljja",
   "repository": {
     "type": "git",
@@ -53,13 +57,17 @@
     "agent",
     "command",
     "package.json",
+    "compatibility.json",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md",
+    "licenses"
   ],
   "dependencies": {
-    "@opencode-ai/plugin": "1.18.29",
-    "@opencode-ai/sdk": "1.18.29",
-    "jsonc-parser": "3.3.1"
+    "@opencode-ai/plugin": "1.18.30",
+    "@opencode-ai/sdk": "1.18.30",
+    "jsonc-parser": "3.3.1",
+    "oh-my-opencode": "4.19.4"
   },
   "peerDependencies": {
     "@opentui/core": ">=0.4.5",

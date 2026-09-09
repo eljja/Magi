@@ -6,6 +6,7 @@ export type ResilienceConfig = {
   timeoutMs: number
   maxRetries: number
   fallbackChain: string[]
+  stallTimeoutMs?: number
 }
 
 export type RolesConfig = {
@@ -44,7 +45,7 @@ export const MagiConfigDefault: MagiConfig = {
   council: {
     votePolicy: "majority",
     vetoPolicy: "safety-critical",
-    maxDebateRounds: 1,
+    maxDebateRounds: 0,
   },
   roles: {
     council: "",
@@ -54,6 +55,7 @@ export const MagiConfigDefault: MagiConfig = {
     timeoutMs: 60000,
     maxRetries: 2,
     fallbackChain: [],
+    stallTimeoutMs: 1800000,
   },
   selfImprovement: {
     enabled: false,
@@ -76,7 +78,8 @@ export async function loadMagiConfig(directory: string): Promise<MagiConfig> {
     council: {
       votePolicy: local.council?.votePolicy === "unanimous" ? "unanimous" : MagiConfigDefault.council.votePolicy,
       vetoPolicy: local.council?.vetoPolicy === "none" ? "none" : MagiConfigDefault.council.vetoPolicy,
-      maxDebateRounds: positiveInt(local.council?.maxDebateRounds, MagiConfigDefault.council.maxDebateRounds),
+      // Kept for config compatibility. Meetings have no round limit.
+      maxDebateRounds: 0,
       model: typeof local.council?.model === "string" ? local.council.model : undefined,
       melchiorModel: typeof local.council?.melchiorModel === "string" ? local.council.melchiorModel : undefined,
       balthasarModel: typeof local.council?.balthasarModel === "string" ? local.council.balthasarModel : undefined,
@@ -88,6 +91,7 @@ export async function loadMagiConfig(directory: string): Promise<MagiConfig> {
       specialists: typeof local.roles?.specialists === "string" ? local.roles.specialists : undefined,
     },
     resilience: {
+      stallTimeoutMs: positiveInt(local.resilience?.stallTimeoutMs, 1800000),
       timeoutMs: positiveInt(local.resilience?.timeoutMs, MagiConfigDefault.resilience.timeoutMs),
       maxRetries: nonNegativeInt(local.resilience?.maxRetries, MagiConfigDefault.resilience.maxRetries),
       fallbackChain: Array.isArray(local.resilience?.fallbackChain)

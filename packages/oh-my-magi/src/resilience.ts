@@ -17,11 +17,19 @@ export async function executeResilientPrompt(options: ResilientExecutionOptions)
   if (!options.client) return undefined
   const candidates = [...new Set([options.primaryModel || undefined, ...(options.fallbackChain ?? [])])]
   const retries = options.maxRetries ?? 2
+  const failure: { configuration?: string } = {}
   for (const [index, model] of candidates.entries()) {
     for (let attempt = 0; attempt <= retries; attempt++) {
       if (options.signal?.aborted) return undefined
-      const response = await attemptSinglePrompt({ ...options, client: options.client, primaryModel: model })
+      const response = await attemptSinglePrompt({ ...options, client: options.client, primaryModel: model }).catch(
+        (error) => {
+          if (!(error instanceof Error) || !error.message.startsWith("Magi configuration required:")) throw error
+          failure.configuration = error.message
+          return undefined
+        },
+      )
       if (response?.trim()) return response
+      if (failure.configuration) break
       if (attempt < retries) await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * 2 ** attempt, 4000)))
     }
     if (candidates[index + 1])
@@ -31,6 +39,7 @@ export async function executeResilientPrompt(options: ResilientExecutionOptions)
         reason: "Request failed or timed out after " + (retries + 1) + " attempts",
       })
   }
+  if (failure.configuration) throw new Error(failure.configuration)
   return undefined
 }
 
@@ -63,7 +72,19 @@ async function attemptSinglePrompt(options: ResilientExecutionOptions & { client
         },
       })
       .catch(() => undefined)
-    if (response?.data?.info.error) return undefined
+    const error = response?.data?.info.error ?? response?.error
+    if (error) {
+      const detail = JSON.stringify(error)
+      if (/ProviderAuthError|401|403|invalid.api.key|authentication|unauthorized/i.test(detail))
+        throw new Error(
+          "Magi configuration required: provider authentication failed. Update OpenCode provider credentials, then resume the goal.",
+        )
+      if (/ModelNotFound|model.not.found|unknown.model/i.test(detail))
+        throw new Error(
+          "Magi configuration required: selected model is unavailable. Update model settings, then resume the goal.",
+        )
+      return undefined
+    }
     return response?.data?.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n")
   } finally {
     // Abort server-side work as well as the HTTP request before deleting the isolated review session.

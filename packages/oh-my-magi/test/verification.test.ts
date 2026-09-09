@@ -72,4 +72,29 @@ describe("Verification Harness", () => {
     expect(report.passed).toBe(false)
     expect(report.checks[0]?.durationMs).toBeLessThan(2000)
   })
+
+  test("verification deadline also terminates a spawned child holding output open", async () => {
+    await Bun.write(
+      path.join(tempDir, ".magi/config.jsonc"),
+      JSON.stringify({
+        verification: {
+          timeoutMs: 600,
+          commands: [
+            {
+              name: "tree",
+              command: [
+                process.execPath,
+                "-e",
+                "Bun.spawn([process.execPath, '-e', 'setInterval(() => {}, 1000)'], {stdout:'inherit',stderr:'inherit'}); setInterval(() => {}, 1000)",
+              ],
+            },
+          ],
+        },
+      }),
+    )
+    const report = await runMechanicalVerification(tempDir)
+    expect(report.passed).toBe(false)
+    expect(report.checks[0]?.output).toContain("timed out")
+    expect(report.checks[0]?.durationMs).toBeLessThan(7000)
+  })
 })

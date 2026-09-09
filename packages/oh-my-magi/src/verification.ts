@@ -4,6 +4,7 @@ import type { OpencodeClientInstance } from "./bridge"
 import { loadMagiConfig, type MagiConfig } from "./config"
 import { collectMagiContext, redact } from "./context"
 import { executeResilientPrompt } from "./resilience"
+import { terminateProcessTree } from "./process"
 
 export type VerificationCheck = { name: string; command: string[]; passed: boolean; output: string; durationMs: number }
 export type VerificationReport = { passed: boolean; checks: VerificationCheck[]; summary: string }
@@ -23,19 +24,39 @@ export async function runMechanicalVerification(directory: string): Promise<Veri
     if (!Array.isArray(item.command) || !item.command.length || item.command.some((arg) => typeof arg !== "string"))
       throw new Error("Verification command must be a nonempty array of strings")
     const started = Date.now()
-    const proc = Bun.spawn(item.command, { cwd, stdout: "pipe", stderr: "pipe" })
-    const timer = setTimeout(() => proc.kill(), config.verification.timeoutMs)
+    const proc = Bun.spawn(item.command, {
+      cwd,
+      stdout: "pipe",
+      stderr: "pipe",
+      detached: process.platform !== "win32",
+    })
+    const deadline = new AbortController()
+    const cleanup: { task?: Promise<void> } = {}
+    const timer = setTimeout(() => {
+      deadline.abort()
+      cleanup.task = terminateProcessTree(proc)
+    }, config.verification.timeoutMs)
     try {
-      const [stdout, stderr, code] = await Promise.all([readOutput(proc.stdout), readOutput(proc.stderr), proc.exited])
+      const [stdout, stderr, code] = await Promise.all([
+        readOutput(proc.stdout, deadline.signal),
+        readOutput(proc.stderr, deadline.signal),
+        proc.exited,
+      ])
       checks.push({
         name: item.name,
         command: item.command,
-        passed: code === 0,
-        output: redact(stdout + "\n" + stderr),
+        passed: code === 0 && !deadline.signal.aborted,
+        output: redact(
+          stdout +
+            "\n" +
+            stderr +
+            (deadline.signal.aborted ? "\nVerification timed out; process tree termination requested." : ""),
+        ),
         durationMs: Date.now() - started,
       })
     } finally {
       clearTimeout(timer)
+      await cleanup.task
     }
     if (!checks.at(-1)?.passed) break
   }
@@ -51,19 +72,28 @@ export async function runMechanicalVerification(directory: string): Promise<Veri
   }
 }
 
-async function readOutput(stream: ReadableStream<Uint8Array>) {
+async function readOutput(stream: ReadableStream<Uint8Array>, signal: AbortSignal) {
   const reader = stream.getReader()
   const decoder = new TextDecoder()
   let text = ""
-  while (true) {
-    const result = await reader.read()
-    if (result.done) break
-    text = (text + decoder.decode(result.value, { stream: true })).slice(-16000)
+  const cancel = () => {
+    void reader.cancel().catch(() => undefined)
   }
-  return text
+  signal.addEventListener("abort", cancel, { once: true })
+  try {
+    while (true) {
+      const result = await reader.read()
+      if (result.done) break
+      text = (text + decoder.decode(result.value, { stream: true })).slice(-16000)
+    }
+    return text
+  } finally {
+    signal.removeEventListener("abort", cancel)
+    reader.releaseLock()
+  }
 }
 
-async function detectVerificationCommands(
+export async function detectVerificationCommands(
   directory: string,
 ): Promise<{ name: string; command: string[]; cwd?: string }[]> {
   const file = Bun.file(path.join(directory, "package.json"))
@@ -74,6 +104,24 @@ async function detectVerificationCommands(
   return ["typecheck", "test", "lint"]
     .filter((name) => typeof pkg.scripts?.[name] === "string")
     .map((name) => ({ name, command: ["bun", "run", name] }))
+}
+
+export async function validateVerificationSetup(directory: string) {
+  const config = await loadMagiConfig(directory)
+  const commands = config.verification.commands.length
+    ? config.verification.commands
+    : await detectVerificationCommands(directory)
+  if (!commands.length)
+    throw new Error(
+      "Magi configuration required: configure reproducible verification.commands in .magi/config.jsonc before starting or resuming autonomous work.",
+    )
+  for (const item of commands) {
+    if (!Array.isArray(item.command) || !item.command.length || item.command.some((arg) => typeof arg !== "string"))
+      throw new Error("Magi configuration required: verification commands must be nonempty arrays of strings")
+    const relative = path.relative(await realpath(directory), await realpath(path.resolve(directory, item.cwd ?? ".")))
+    if (relative.startsWith("..") || path.isAbsolute(relative))
+      throw new Error("Verification cwd must stay inside the project")
+  }
 }
 
 export async function judgeCycleOutcome(input: {

@@ -2,10 +2,12 @@ name: magi
 
 on:
   push:
-    branches: [dev]
+    branches: [main, dev, omm]
   pull_request:
-    branches: [dev]
+    branches: [main, dev, omm]
   workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -21,6 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        opencode: ["1.18.29", "latest"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +46,8 @@ jobs:
       - name: Current OpenCode server smoke
         run: bun run smoke
         working-directory: packages/oh-my-magi
+        env:
+          MAGI_OPENCODE_VERSION: ${{ matrix.opencode }}
 
   core:
     name: core checks

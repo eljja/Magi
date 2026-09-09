@@ -37,5 +37,11 @@ tsconfig.tsbuildinfo
 # Magi runtime & local state
 .magi/runtime/
 .magi/runs/
+**/.magi/backups/
+**/.magi/reports/
+**/.magi/events/
+**/.magi/STATUS.md
+**/.magi/COUNCIL.md
+**/.magi/index.html
 .opencode/magi-migration/
 .opencode/opencode.json

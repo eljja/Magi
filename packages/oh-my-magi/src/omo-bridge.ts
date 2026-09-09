@@ -1,114 +1,156 @@
 import path from "node:path"
+import os from "node:os"
+import { applyEdits, modify } from "jsonc-parser"
+import type { PluginInput } from "@opencode-ai/plugin"
 import { parseJsonc } from "./config"
-import { isRecord, safeReadFile, safeWriteFile } from "./fs"
+import { isRecord, safeWriteFile } from "./fs"
+import compatibility from "../compatibility.json"
 
-export type OmOStatus = {
-  installed: boolean
-  pluginSpec?: string
-  configPath?: string
-  todoEnforcerDisabled: boolean
-  issues: string[]
+export const OMO_VERSION = compatibility.omoTested
+// OMM owns project-level autonomous scheduling. Upstream agents and tools remain enabled.
+export const OMO_MANAGED_HOOKS = ["todo-continuation-enforcer", "goal", "atlas"] as const
+const runtimes = new Map<string, { agent: string; tools: string[] }>()
+
+export function containsOmOSpec(entry: unknown) {
+  const spec = Array.isArray(entry) ? entry[0] : entry
+  return typeof spec === "string" && /^(?:oh-my-opencode|oh-my-openagent)(?:@[^/]+)?(?:\/(?:server|tui))?$/.test(spec)
 }
 
-const OMO_PLUGIN_NAMES = ["oh-my-openagent", "oh-my-opencode"]
-const OMO_CONFIG_FILENAMES = ["oh-my-openagent.jsonc", "oh-my-openagent.json", "oh-my-opencode.jsonc", "oh-my-opencode.json"]
+export function registerOmORuntime(directory: string, agent: string, tools: string[]) {
+  runtimes.set(path.resolve(directory), { agent, tools })
+}
 
-/**
- * Detects whether oh-my-openagent (OmO) is registered in the project's OpenCode configuration.
- */
-export async function detectOmO(directory: string): Promise<OmOStatus> {
-  const issues: string[] = []
-  let installed = false
-  let pluginSpec: string | undefined
+export function forgetOmORuntime(directory: string) {
+  runtimes.delete(path.resolve(directory))
+}
 
-  // 1. Check .opencode/opencode.json[c] for plugin registration
-  for (const name of ["opencode.jsonc", "opencode.json"]) {
-    const file = path.join(directory, ".opencode", name)
-    const raw = await safeReadFile(file)
-    if (!raw) continue
-
-    const parsed = parseJsonc(raw)
-    if (isRecord(parsed) && Array.isArray(parsed.plugin)) {
-      for (const entry of parsed.plugin) {
-        const spec = typeof entry === "string" ? entry : Array.isArray(entry) && typeof entry[0] === "string" ? entry[0] : ""
-        if (OMO_PLUGIN_NAMES.some((omo) => spec === omo || spec.includes(omo))) {
-          installed = true
-          pluginSpec = spec
-          break
-        }
-      }
-    }
-    if (installed) break
-  }
-
-  // 2. Check for OmO configuration files
-  let configPath: string | undefined
-  let todoEnforcerDisabled = false
-
-  for (const name of OMO_CONFIG_FILENAMES) {
-    const candidate = path.join(directory, name)
-    const raw = await safeReadFile(candidate)
-    if (!raw) continue
-
-    configPath = candidate
-    const parsed = parseJsonc(raw)
-    if (isRecord(parsed) && Array.isArray(parsed.disabled_hooks)) {
-      todoEnforcerDisabled = parsed.disabled_hooks.includes("todo-continuation-enforcer")
-    }
-    break
-  }
-
-  if (!installed) {
-    issues.push("oh-my-openagent is not registered in .opencode/opencode.json[c]. Run 'opencode plugin oh-my-openagent'.")
-  }
-
-  if (installed && configPath && !todoEnforcerDisabled) {
-    issues.push("OmO 'todo-continuation-enforcer' hook is not disabled, which may cause competing continuation loops.")
-  }
-
+export async function detectOmO(directory: string) {
+  const runtime = runtimes.get(path.resolve(directory))
+  const dependency = await import("oh-my-opencode").then(() => true).catch(() => false)
+  const configPath = await omoConfigPath(directory)
+  const config = await readConfig(configPath)
+  const hooks = Array.isArray(config.disabled_hooks) ? config.disabled_hooks : []
   return {
-    installed,
-    pluginSpec,
+    installed: dependency,
+    loaded: Boolean(runtime),
+    version: OMO_VERSION,
+    executor: runtime?.agent,
+    tools: runtime?.tools ?? [],
     configPath,
-    todoEnforcerDisabled,
-    issues,
+    todoEnforcerDisabled: OMO_MANAGED_HOOKS.every((hook) => hooks.includes(hook)),
+    issues: dependency ? [] : ["Bundled OmO dependency is missing. Reinstall oh-my-magi."],
   }
 }
 
-/**
- * Harmonizes OmO configuration to prevent competing continuation loops on session.idle.
- * Disables 'todo-continuation-enforcer' so Magi Supreme Council retains exclusive macro-loop governance.
- */
-export async function harmonizeOmOConfig(directory: string): Promise<{ harmonized: boolean; configPath: string }> {
-  // Find or create oh-my-openagent.jsonc
-  const targetPath = path.join(directory, "oh-my-openagent.jsonc")
-  const raw = await safeReadFile(targetPath)
-  const current = raw ? parseJsonc(raw) : {}
-  const obj = isRecord(current) ? current : {}
-
-  const disabledHooks = Array.isArray(obj.disabled_hooks)
-    ? (obj.disabled_hooks.filter((h): h is string => typeof h === "string") as string[])
-    : []
-
-  if (!disabledHooks.includes("todo-continuation-enforcer")) {
-    disabledHooks.push("todo-continuation-enforcer")
-  }
-
-  const updated = {
-    ...obj,
-    disabled_hooks: disabledHooks,
-  }
-
-  await safeWriteFile(targetPath, `${JSON.stringify(updated, null, 2)}\n`)
-  return { harmonized: true, configPath: targetPath }
+async function omoConfigPath(directory: string) {
+  const base = path.join(directory, ".omo", "omo")
+  return !(await Bun.file(base + ".jsonc").exists()) && (await Bun.file(base + ".json").exists())
+    ? base + ".json"
+    : base + ".jsonc"
 }
 
-/**
- * Resolves the executor agent to dispatch tasks to.
- * Returns 'sisyphus' if OmO is registered/available, or undefined to use OpenCode's default agent.
- */
-export async function resolveExecutorAgent(directory: string): Promise<string | undefined> {
-  const omo = await detectOmO(directory)
-  return omo.installed ? "sisyphus" : undefined
+async function readConfig(file: string): Promise<Record<string, unknown>> {
+  return (await Bun.file(file).exists()) ? (parseJsonc(await Bun.file(file).text()) as Record<string, unknown>) : {}
 }
 
+export async function harmonizeOmOConfig(directory: string) {
+  const ignoreFile = path.join(directory, ".magi", ".gitignore")
+  const ignore = (await Bun.file(ignoreFile).exists()) ? await Bun.file(ignoreFile).text() : ""
+  const missing = [
+    "/runtime/",
+    "/runs/",
+    "/backups/",
+    "/reports/",
+    "/events/",
+    "/index.html",
+    "/STATUS.md",
+    "/COUNCIL.md",
+  ].filter((line) => !ignore.split(/\r?\n/).includes(line))
+  if (missing.length) await safeWriteFile(ignoreFile, ignore.trimEnd() + "\n" + missing.join("\n") + "\n")
+  const target = await omoConfigPath(directory)
+  const exists = await Bun.file(target).exists()
+  const original = exists ? await Bun.file(target).text() : "{}\n"
+  const config = parseJsonc(original) as Record<string, unknown>
+  const legacy = ["oh-my-openagent.jsonc", "oh-my-openagent.json", "oh-my-opencode.jsonc", "oh-my-opencode.json"]
+  const inherited: Record<string, unknown>[] = [
+    await readConfig(await omoConfigPath(process.env.HOME ?? process.env.USERPROFILE ?? os.homedir())),
+  ]
+  for (let parent = path.dirname(path.resolve(directory)); ; parent = path.dirname(parent)) {
+    inherited.push(await readConfig(await omoConfigPath(parent)))
+    if (parent === path.dirname(parent)) break
+  }
+  const legacyConfigs = await Promise.all(
+    legacy.flatMap((name) => [path.join(directory, ".opencode", name), path.join(directory, name)]).map(readConfig),
+  )
+  const seed = Object.assign({}, ...legacyConfigs.reverse(), config) as Record<string, unknown>
+  const layers = [...inherited, ...legacyConfigs, seed].flatMap((item) => [
+    item,
+    ...(isRecord(item.opencode) ? [item.opencode] : []),
+  ])
+  const disabled = [
+    ...new Set([
+      ...layers.flatMap((item) =>
+        Array.isArray(item.disabled_hooks)
+          ? item.disabled_hooks.filter((value): value is string => typeof value === "string")
+          : [],
+      ),
+      ...OMO_MANAGED_HOOKS,
+    ]),
+  ]
+  const edits: [string[], unknown][] = [
+    ...Object.entries(seed)
+      .filter(([key]) => !(key in config))
+      .map(([key, value]): [string[], unknown] => [[key], value]),
+    [["disabled_hooks"], disabled],
+    [["opencode", "disabled_hooks"], disabled],
+  ]
+  // Prevent upstream self-healing from registering a second global TUI plugin.
+  edits.push([["tui", "sidebar", "enabled"], false], [["opencode", "tui", "sidebar", "enabled"], false])
+  if (seed.telemetry === undefined) edits.push([["telemetry"], false])
+  const profiles = layers.flatMap((layer) => (isRecord(layer.profiles) ? Object.entries(layer.profiles) : []))
+  for (const name of new Set(profiles.map(([name]) => name))) {
+    const extra = profiles
+      .filter(([key]) => key === name)
+      .flatMap(([, profile]) => {
+        if (!isRecord(profile)) return []
+        return [profile, ...(isRecord(profile.opencode) ? [profile.opencode] : [])].flatMap((layer) =>
+          Array.isArray(layer.disabled_hooks) ? layer.disabled_hooks : [],
+        )
+      })
+    const hooks = [...new Set([...disabled, ...extra])]
+    edits.push(
+      [["profiles", name, "disabled_hooks"], hooks],
+      [["profiles", name, "opencode", "disabled_hooks"], hooks],
+      [["profiles", name, "opencode", "tui", "sidebar", "enabled"], false],
+    )
+  }
+  const updated = edits.reduce(
+    (text, [keys, value]) =>
+      applyEdits(text, modify(text, keys, value, { formattingOptions: { insertSpaces: true, tabSize: 2 } })),
+    original,
+  )
+  if (updated !== original) {
+    if (exists)
+      await safeWriteFile(
+        path.join(directory, ".magi", "backups", `omo-${Date.now()}-${crypto.randomUUID()}.jsonc`),
+        original,
+      )
+    await safeWriteFile(target, updated)
+  }
+  return { harmonized: true, configPath: target }
+}
+
+export async function resolveExecutorAgent(directory: string, client?: PluginInput["client"]) {
+  if (!client) throw new Error("OpenCode client is required to verify the OmO executor")
+  const result = await client.app.agents({ query: { directory } })
+  if (result.error || !Array.isArray(result.data)) throw new Error("Cannot verify loaded OmO agents")
+  const expected = runtimes.get(path.resolve(directory))?.agent
+  const executor = result.data.find((agent) =>
+    expected ? agent.name === expected : /^sisyphus(?:\s|$)/i.test(agent.name),
+  )
+  if (!executor || executor.mode === "subagent")
+    throw new Error(
+      "OmO primary executor is unavailable. Check OmO model/disabled_agents settings and restart OpenCode.",
+    )
+  return executor.name
+}
