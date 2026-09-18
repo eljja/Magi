@@ -421,8 +421,15 @@ try {
   const upstreamLog = await Bun.file(path.join(directory, "oh-my-opencode.log"))
     .text()
     .catch(() => "")
-  if (upstreamLog.includes("Migration validation failed"))
+  const configurationWarnings = upstreamLog.split("\n").filter((line) => line.includes("Migration validation failed"))
+  await write("configuration-warnings.log", configurationWarnings.join("\n"))
+  if (configurationWarnings.some((line) => line.includes(JSON.stringify(project).slice(1, -1))))
     throw new Error("OmO rejected its configuration; fix the schema before testing model behavior")
+  for (const name of ["Sisyphus - ultraworker", "Sisyphus-Junior", "explore", "librarian"]) {
+    const agent = agents.find((agent: { name: string }) => agent.name === name)
+    if (agent?.model?.providerID !== "openrouter" || agent.model.modelID !== model)
+      throw new Error("OmO did not apply the selected free model to " + name)
+  }
   console.log("REAL_OPENCODE_READY " + JSON.stringify({ port, project, connected: providers.connected, model }))
   const probe = (await request("/session", { title: "Isolated shell preflight (not goal evidence)" })).id
   await request("/session/" + probe + "/shell", {

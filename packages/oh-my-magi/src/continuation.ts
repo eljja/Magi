@@ -35,7 +35,7 @@ import {
 import { runIndependentJudge, runMechanicalVerification, validateVerificationSetup } from "./verification"
 import { dispatchExecution } from "./execution"
 import { recordCouncilDeliberation, recordCycleOutcome } from "./ledger"
-import { workforceBusy } from "./workforce"
+import { executionSettled, workforceBusy } from "./workforce"
 import { readCouncilMemory, saveCouncilMemory } from "./memory"
 import { archiveCouncilReply } from "./review"
 import { abortMagiReviews } from "./resilience"
@@ -508,18 +508,34 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
     : stopped
 }
 
-export async function handleSessionIdleEvent(input: CycleInput): Promise<void> {
+export async function handleSessionIdleEvent(input: CycleInput): Promise<"waiting" | undefined> {
   if (running.has(input.directory)) return
   running.add(input.directory)
   const state = await readMagiState(input.directory)
   try {
     if (!state.runID || !state.awaitingExecution || !input.client || !(await active(input, state.runID))) return
-    if (await workforceBusy(input.client, input.directory, state.executionSessionID ?? input.sessionID)) return
+    if (await workforceBusy(input.client, input.directory, state.executionSessionID ?? input.sessionID))
+      return "waiting"
     const messages = await input.client.session.messages({
       path: { id: state.executionSessionID ?? input.sessionID },
       query: { directory: input.directory },
     })
     if (messages.error) throw new Error("Failed to read executor evidence")
+    if (
+      messages.data?.length &&
+      !(await executionSettled(
+        input.client,
+        input.directory,
+        state.executionSessionID ?? input.sessionID,
+        messages.data,
+      ))
+    ) {
+      const latest = messages.data.at(-1)!
+      // A dispatched request without a response can still use the crash recovery
+      // path after a minute; never verify an older answer while it is pending.
+      if (latest.info.role === "user" && Date.now() - latest.info.time.created >= 60000) return
+      return "waiting"
+    }
     const message = messages.data
       ?.filter(
         (item) => item.info.role === "assistant" && !(state.ignoredMessageIDs ?? []).includes(item.info.parentID),
@@ -538,11 +554,12 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<void> {
       return
     }
     if (message.info.error) throw new Error("Executor failed: " + JSON.stringify(message.info.error))
+    const saved = state.pendingVerification?.messageID === message.info.id ? state.pendingVerification : undefined
     const executionReport =
-      state.pendingVerification?.executionReport ??
+      saved?.executionReport ??
       redact(message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n"))
     const toolEvidence =
-      state.pendingVerification?.toolEvidence ??
+      saved?.toolEvidence ??
       redact(
         JSON.stringify(
           messages.data
@@ -556,7 +573,7 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<void> {
             ),
         ).slice(-24000),
       )
-    const pendingVerification = state.pendingVerification ?? {
+    const pendingVerification = saved ?? {
       messageID: message.info.id,
       executionReport,
       toolEvidence,
@@ -601,6 +618,26 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<void> {
       verificationReport: report,
     })
     if (!(await active(input, state.runID))) return
+    const latest = await input.client.session.messages({
+      path: { id: state.executionSessionID ?? input.sessionID },
+      query: { directory: input.directory },
+    })
+    if (latest.error) throw new Error("Cannot recheck executor evidence after independent review")
+    if (
+      latest.data?.at(-1)?.info.id !== message.info.id ||
+      !(await executionSettled(
+        input.client,
+        input.directory,
+        state.executionSessionID ?? input.sessionID,
+        latest.data ?? [],
+      )) ||
+      (await workforceBusy(input.client, input.directory, state.executionSessionID ?? input.sessionID))
+    ) {
+      await mutateMagiState(input.directory, (current) =>
+        current.runID === state.runID ? { ...current, pendingVerification: undefined } : current,
+      )
+      return "waiting"
+    }
     await mutateMagiState(input.directory, (current) =>
       current.runID === state.runID
         ? { ...current, pendingVerification: { ...pendingVerification, report, verdict } }

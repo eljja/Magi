@@ -7,7 +7,12 @@ export const proposalSchema = {
   required: ["title", "prompt", "rationale"],
   properties: {
     title: { type: "string", minLength: 1 },
-    prompt: { type: "string", minLength: 1 },
+    prompt: {
+      type: "string",
+      minLength: 1,
+      description:
+        "Direct instructions for the OmO executor to perform the approved work and produce evidence. This is the task itself, not instructions to generate another proposal, JSON object, or prompt.",
+    },
     rationale: { type: "string", minLength: 1 },
     terminal: { type: "boolean" },
     memory: { type: "string" },

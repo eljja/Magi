@@ -84,6 +84,35 @@ describe("Persistent goal controller", () => {
     expect(fixture.requests.filter((request) => request.path.endsWith("/prompt_async"))).toHaveLength(1)
   })
 
+  test("a late workforce reply invalidates review instead of completing a stale milestone", async () => {
+    fixture.stop()
+    let reviews = 0
+    fixture = openCodeFixture({
+      reply: async (body) => {
+        if (String(body.system).includes("proposal owner"))
+          return JSON.stringify({ title: "Step", prompt: "Produce an artifact", rationale: "Goal evidence" })
+        if (body.agent === "magi-judge") {
+          if (++reviews === 1) fixture.complete("Background task woke the worker during review")
+          return JSON.stringify({ approved: true, critique: "Reviewed the submitted evidence" })
+        }
+        return JSON.stringify({ position: "approve", rationale: "Reviewed" })
+      },
+    })
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    await runMagiCycle(input())
+    fixture.complete("Initial answer before the background wake")
+    expect(await handleSessionIdleEvent(input())).toBe("waiting")
+    const waiting = await readMagiState(directory)
+    expect(waiting.currentCycle).toBe(1)
+    expect(waiting.awaitingExecution).toBe(true)
+    expect(waiting.pendingVerification).toBeUndefined()
+    expect((await readRoadmap(directory))?.milestones[0]?.completed).toBe(false)
+    expect(fixture.requests.filter((request) => request.path.endsWith("/prompt_async"))).toHaveLength(0)
+    await handleSessionIdleEvent(input())
+    expect(reviews).toBe(2)
+    expect((await readMagiState(directory)).currentCycle).toBe(2)
+  })
+
   test("guidance arriving during a meeting survives acknowledgement of earlier guidance", async () => {
     await queueSteering(directory, "Earlier guidance")
     fixture.stop()

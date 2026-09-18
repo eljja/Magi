@@ -41,7 +41,7 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
     // An OpenCode server must stay running. Recover the saved session on reload without requiring a UI-specific event.
     if (await workforce(state.executionSessionID ?? state.sessionID)) return
     if (state.awaitingExecution) {
-      await handleSessionIdleEvent({ directory, sessionID: state.sessionID, client })
+      if ((await handleSessionIdleEvent({ directory, sessionID: state.sessionID, client })) === "waiting") return
       const current = await readMagiState(directory)
       if (
         current.loopActive &&
