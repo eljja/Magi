@@ -2,7 +2,11 @@
 
 Continuous, single-goal research and development governance over the **official OmO runtime** in OpenCode.
 
-**Real-model qualification is incomplete.** Actual OpenRouter free-model trials through OpenCode reached authentication, goal activation and file reads, but encountered repeated investigation and provider 429 errors before a complete council/execution/verification cycle. See the [live-model audit (Korean)](https://github.com/eljja/Magi/blob/omm/docs/REAL-MODEL-AUDIT.ko.md). Deterministic integration tests do not establish real-model autonomy.
+**Real-model qualification is incomplete.** Actual free-model proposals, independent assessments, final votes and official OmO specialist delegation have been observed. Some models still repeat investigation without finishing implementation. See the [live-model audit (Korean)](https://github.com/eljja/Magi/blob/omm/docs/REAL-MODEL-AUDIT.ko.md) and [current autonomy design](https://github.com/eljja/Magi/blob/omm/docs/AUTONOMY-DESIGN.ko.md). Deterministic integration tests do not establish real-model autonomy.
+
+Magi's three identities use separate decision sessions and persistent judgment histories. Opening arguments are independent; final votes follow peer review. OpenCode validates proposals and votes through native `StructuredOutput`, so council models must support tool calling. All three valid final votes are required before applying majority/unanimous policy. Missing votes never imply approval. Partial meetings resume after transient failures without repeating completed judgments.
+
+The user talks to Magi; a fresh official OmO child session executes each approved task. Execution reports and actual tool evidence feed the next meeting. Failed independent review preserves that evidence and rechecks current files before completing a milestone. Workers cannot use the user-control tools to stop or steer the goal. `.magi/members/*.md` preserves each identity's own prior decisions; the monitor separately shows live council requests and workforce activity.
 
 <p align="center"><img src="https://raw.githubusercontent.com/eljja/Magi/main/assets/magi-execution.svg" alt="Original Magi execution concept" width="900"></p>
 <p align="center"><img src="https://raw.githubusercontent.com/eljja/Magi/main/assets/magi-council.svg" alt="MELCHIOR, BALTHASAR and CASPER: the Magi council concept" width="760"></p>
@@ -86,7 +90,7 @@ Magi's `.magi/config.jsonc` controls its council and verification:
 {
   "roles": { "council": "your-provider/your-model" },
   "selfImprovement": { "mode": "continuous" },
-  "resilience": { "timeoutMs": 120000, "maxRetries": 2, "fallbackChain": [] },
+  "resilience": { "timeoutMs": 180000, "maxRetries": 2, "fallbackChain": [] },
   "verification": {
     "commands": [
       { "name": "tests", "command": ["bun", "test"], "cwd": "packages/your-package" },
@@ -168,7 +172,8 @@ bun run smoke
 
 `smoke` uses the actual OpenCode binary and actual OmO dependency with an isolated deterministic provider. It checks native plugin installation, agent registration, the first execution agent, real `task → explore → read` delegation, repeated cycles, steering, stop/resume and reports. `MAGI_OPENCODE_BIN` can select an already installed official binary. No provider credentials are needed for this test.
 
-The current 0.1.1 source passes 85 tests (355 assertions), type checking and build. Earlier deterministic Windows OpenCode 1.18.31 / OmO 4.19.4 integration covered a non-Git folder with Git removed from PATH, global installation, existing-OmO migration, Magi selection plus an ordinary goal message, delegation and stop/resume. Live OpenRouter free-model qualification subsequently failed before a complete council/execution/verification cycle. Real-model workflow reliability, endurance and full interactive UI checks remain qualification work; finite automated runs do not prove indefinite uptime. Review the dated audits, tarball and third-party notices for each release. Updating an upstream version requires rerunning these integration checks; beta compatibility is not implied by stable support.
+Regression coverage includes partial meetings, isolated execution, reviewer outages, control ownership and repeated-evidence stalls. Windows integration with actual OpenCode 1.18.29 / 1.18.31 and OmO 4.19.4 covers a non-Git folder with Git removed from PATH, global installation, existing-OmO migration, Magi selection plus an ordinary goal message, delegation and stop/resume. Real-model workflow reliability, endurance and full interactive UI checks remain qualification work; finite automated runs do not prove indefinite uptime. Review the dated audits, tarball and third-party notices for each release. Updating an upstream version requires rerunning these integration checks; beta compatibility is not implied by stable support.
+
+From a source checkout, `bun run smoke:live` runs a separate real-provider qualification using `MAGI_LIVE_MODEL` and a hidden-input or environment-provided `OPENROUTER_API_KEY`. It only accepts current zero-price `:free` tool models, forwards real responses, and checks a protected original test suite. Its 20-minute / 80-request test allowance does not limit Magi's goal loop. See the [reproduction instructions](https://github.com/eljja/Magi/blob/omm/docs/AUTONOMY-DESIGN.ko.md#검증과-재현). Default decision timeout is three minutes; workforce stall timeout is thirty minutes. Repeated identical tool evidence does not count as fresh progress.
 
 OMM code is MIT. OmO retains its **SUL-1.0** license. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and the [engineering audit](../../docs/RELEASE-AUDIT.md).
-

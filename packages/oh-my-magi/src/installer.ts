@@ -212,6 +212,10 @@ export async function getStatusReport(projectDirectory: string) {
         .join(", "),
     state.pendingUserSteering ? "Pending User Steering: " + state.pendingUserSteering : "",
     "Minutes & Ledger: .magi/COUNCIL.md",
+    ...Object.entries(state.councilActivity ?? {}).map(
+      ([stage, activity]) =>
+        `Council ${stage}: ${activity.status} · ${activity.model ?? "selected model"} · attempt ${activity.attempt} · ${activity.detail}`,
+    ),
     state.error ? "Last error: " + state.error : "",
     state.meeting ? "Meeting round: " + state.meeting.round + " (unlimited)" : "",
     state.retryAt ? "Next retry: " + new Date(state.retryAt).toISOString() : "",

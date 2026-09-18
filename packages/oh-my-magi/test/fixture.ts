@@ -24,7 +24,12 @@ export function openCodeFixture(
         })
       if (url.pathname === "/session" && request.method === "POST")
         return Response.json({ id: "internal-" + requests.length })
-      if (url.pathname.endsWith("/message") && request.method === "GET") return Response.json(messages)
+      if (url.pathname.endsWith("/message") && request.method === "GET")
+        return Response.json(
+          messages.filter(
+            (message) => !message.info.sessionID || url.pathname === "/session/" + message.info.sessionID + "/message",
+          ),
+        )
       if (url.pathname.endsWith("/message")) {
         const system = String(body.system)
         const text = options.reply
@@ -42,7 +47,16 @@ export function openCodeFixture(
                   confidence: 0.9,
                 })
               : JSON.stringify({ position: "approve", rationale: "Fixture evidence supports this step" })
-        return Response.json({ info: {}, parts: text ? [{ type: "text", text }] : [] })
+        const structured =
+          body.format && text
+            ? await Promise.resolve()
+                .then(() => JSON.parse(text))
+                .catch(() => undefined)
+            : undefined
+        return Response.json({
+          info: structured === undefined ? {} : { structured },
+          parts: text ? [{ type: "text", text }] : [],
+        })
       }
       if (url.pathname.endsWith("/prompt_async")) return new Response(null, { status: 204 })
       return Response.json(true)
@@ -51,11 +65,16 @@ export function openCodeFixture(
   return {
     client: createOpencodeClient({ baseUrl: server.url.toString() }),
     requests,
-    complete(text = "Produced the fixture artifact; verification can inspect it.", parentID?: string) {
+    complete(
+      text = "Produced the fixture artifact; verification can inspect it.",
+      parentID?: string,
+      sessionID?: string,
+    ) {
       messages.push({
         info: {
           role: "assistant",
           parentID,
+          sessionID,
           id: "result-" + messages.length,
           time: { created: Date.now(), completed: Date.now() },
         },

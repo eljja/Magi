@@ -203,3 +203,55 @@ test("authentication failures produce an actionable error without repeated same-
     server.stop(true)
   }
 })
+
+test("changing call IDs with identical tool evidence cannot keep a stalled worker alive forever", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "magi-repeat-"))
+  let sequence = 0
+  const calls: string[] = []
+  const server = Bun.serve({
+    port: 0,
+    fetch(request) {
+      const url = new URL(request.url)
+      calls.push(url.pathname)
+      if (url.pathname === "/session/status") return Response.json({ worker: { type: "busy" } })
+      if (url.pathname.endsWith("/message"))
+        return Response.json([
+          {
+            info: { id: "msg_" + ++sequence, role: "assistant", parentID: "msg_goal" },
+            parts: [
+              {
+                id: "part_" + sequence,
+                type: "tool",
+                tool: "read",
+                state: { status: "completed", input: { filePath: "sum.ts" }, output: "unchanged source" },
+              },
+            ],
+          },
+        ])
+      return Response.json(true)
+    },
+  })
+  try {
+    await Bun.write(path.join(dir, ".magi/config.jsonc"), '{"resilience":{"stallTimeoutMs":50}}')
+    await setAutonomousLoop(dir, true, { sessionID: "owner", goal: "One goal" })
+    await mutateMagiState(dir, (state) => ({
+      ...state,
+      awaitingExecution: true,
+      executionSessionID: "worker",
+      selectedPrompt: "Approved work",
+    }))
+    const watchdog = createWorkforceWatchdog(dir, createOpencodeClient({ baseUrl: server.url.toString() }))
+    await watchdog("worker", 100)
+    await watchdog("worker", 130)
+    expect(calls).not.toContain("/session/worker/abort")
+    await watchdog("worker", 151)
+    expect(calls).toContain("/session/worker/abort")
+    const state = await readMagiState(dir)
+    expect(state.loopActive).toBe(true)
+    expect(state.executionRecovery).toContain("unchanged source")
+    expect(state.ignoredMessageIDs).toContain("msg_goal")
+  } finally {
+    server.stop(true)
+    await rm(dir, { recursive: true, force: true })
+  }
+})

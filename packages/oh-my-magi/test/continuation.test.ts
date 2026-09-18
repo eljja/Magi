@@ -7,6 +7,7 @@ import { mutateMagiState, readMagiState, writeMagiState } from "../src/state"
 import { readRoadmap } from "../src/roadmap"
 import { openCodeFixture } from "./fixture"
 import { queueSteering } from "../src/steering"
+import { dispatchExecution } from "../src/execution"
 
 describe("Persistent goal controller", () => {
   let directory: string
@@ -30,6 +31,56 @@ describe("Persistent goal controller", () => {
     await rm(directory, { recursive: true, force: true })
   })
   const input = () => ({ directory, sessionID: "owner", client: fixture.client })
+
+  test("approved work uses an isolated OmO child and ignores conversation acknowledgements", async () => {
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    const result = await runMagiCycle(input())
+    const approved = await readMagiState(directory)
+    await dispatchExecution({ ...input(), runID: approved.runID!, prompt: result.prompt })
+    const dispatched = await readMagiState(directory)
+    expect(dispatched.executionSessionID).not.toBe("owner")
+    expect(fixture.requests.some((request) => request.path === "/session" && request.body.parentID === "owner")).toBe(
+      true,
+    )
+    expect(fixture.requests.find((request) => request.path.endsWith("/prompt_async"))?.body.agent).toBe("sisyphus")
+    fixture.complete("I only acknowledge the goal", undefined, "owner")
+    await handleSessionIdleEvent(input())
+    expect((await readMagiState(directory)).currentCycle).toBe(1)
+    fixture.complete("Produced the actual artifact", undefined, dispatched.executionSessionID)
+    await handleSessionIdleEvent(input())
+    expect((await readMagiState(directory)).currentCycle).toBe(2)
+    expect(fixture.requests.some((request) => request.path === "/session/owner/prompt_async")).toBe(false)
+  })
+
+  test("a failed independent judge retries saved execution evidence without rerunning the workforce", async () => {
+    fixture.stop()
+    let reviews = 0
+    fixture = openCodeFixture({
+      reply: async (body) => {
+        if (String(body.system).includes("proposal owner"))
+          return JSON.stringify({ title: "Step", prompt: "Produce an artifact", rationale: "Goal evidence" })
+        if (body.agent === "magi-judge") {
+          reviews++
+          if (reviews === 1) return undefined
+          expect(JSON.stringify(body.parts)).toContain("Actual execution survived the reviewer outage")
+          return JSON.stringify({ approved: true, critique: "Checks and evidence support this milestone" })
+        }
+        return JSON.stringify({ position: "approve", rationale: "Reviewed" })
+      },
+    })
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    await runMagiCycle(input())
+    fixture.complete("Actual execution survived the reviewer outage")
+    await handleSessionIdleEvent(input())
+    const failed = await readMagiState(directory)
+    expect(failed.awaitingExecution).toBe(true)
+    expect(failed.pendingVerification?.executionReport).toContain("survived")
+    expect(fixture.requests.filter((request) => request.path.endsWith("/prompt_async"))).toHaveLength(0)
+    await handleSessionIdleEvent(input())
+    expect(reviews).toBe(2)
+    expect((await readMagiState(directory)).currentCycle).toBe(2)
+    expect(fixture.requests.filter((request) => request.path.endsWith("/prompt_async"))).toHaveLength(1)
+  })
 
   test("guidance arriving during a meeting survives acknowledgement of earlier guidance", async () => {
     await queueSteering(directory, "Earlier guidance")
@@ -64,6 +115,52 @@ describe("Persistent goal controller", () => {
     const ledger = await Bun.file(path.join(directory, ".magi", "COUNCIL.md")).text()
     expect(ledger).toContain("NOT authorized")
     expect(ledger).toContain("Evidence insufficient")
+  })
+
+  test("partial independent opinions survive a failed member and resume without repeating completed votes", async () => {
+    fixture.stop()
+    const calls: { agent: string; stage: string; prompt: string }[] = []
+    fixture = openCodeFixture({
+      reply: async (body) => {
+        const prompt = JSON.stringify(body.parts)
+        const stage = String(body.system).includes("proposal owner")
+          ? "proposal"
+          : prompt.includes("Opening assessment")
+            ? "opening"
+            : "vote"
+        calls.push({ agent: String(body.agent), stage, prompt })
+        if (stage === "proposal")
+          return JSON.stringify({
+            title: "Inspect evidence",
+            prompt: "Collect relevant facts",
+            rationale: "Need baseline",
+          })
+        if (
+          stage === "opening" &&
+          body.agent === "magi-balthasar" &&
+          calls.filter((call) => call.agent === body.agent && call.stage === stage).length === 1
+        )
+          return undefined
+        return JSON.stringify({ position: "approve", rationale: String(body.agent) + " independent evidence" })
+      },
+    })
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    await expect(runMagiCycle(input())).rejects.toThrow("structured decision")
+    const failed = await readMagiState(directory)
+    expect(failed.currentCycle).toBe(1)
+    expect(failed.awaitingExecution).toBe(false)
+    expect(Object.keys(failed.meeting?.pending?.opening ?? {}).sort()).toEqual(["casper", "melchior"])
+    expect(await Bun.file(path.join(directory, ".magi", "COUNCIL.md")).text()).toContain("CASPER · opening")
+    expect((await runMagiCycle(input())).injected).toBe(true)
+    expect((await readMagiState(directory)).currentCycle).toBe(1)
+    expect(calls.filter((call) => call.stage === "proposal")).toHaveLength(1)
+    expect(calls.filter((call) => call.stage === "opening")).toHaveLength(4)
+    expect(calls.filter((call) => call.stage === "vote")).toHaveLength(3)
+    for (const call of calls.filter((call) => call.stage === "vote")) {
+      expect(call.prompt).toContain("magi-melchior independent evidence")
+      expect(call.prompt).toContain("magi-balthasar independent evidence")
+      expect(call.prompt).toContain("magi-casper independent evidence")
+    }
   })
 
   test("repeated start preserves the generation and pending execution", async () => {

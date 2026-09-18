@@ -22,7 +22,11 @@ if (process.env.MAGI_SMOKE_GIT === "true") {
 const provider = Bun.serve({
   port: 0,
   async fetch(request) {
-    const body = (await request.json()) as { messages?: { role: string; content: unknown }[]; stream?: boolean }
+    const body = (await request.json()) as {
+      messages?: { role: string; content: unknown }[]
+      stream?: boolean
+      tools?: { function: { name: string } }[]
+    }
     const prompt = JSON.stringify(body.messages)
     const lastUserIndex = body.messages?.findLastIndex((message) => message.role === "user") ?? -1
     const lastUser = JSON.stringify(body.messages?.[lastUserIndex]?.content ?? "")
@@ -35,7 +39,7 @@ const provider = Bun.serve({
       "You are BALTHASAR",
       "You are CASPER",
     ].some((role) => system.includes(role))
-    const call =
+    const workforceCall =
       !reviewing && !hasToolResult && lastUser.includes("magi-smoke-child")
         ? { name: "read", arguments: JSON.stringify({ filePath: path.join(project, "fixture.txt") }) }
         : !reviewing && !hasToolResult && lastUser.includes("[OH-MY-MAGI COUNCIL TASK")
@@ -61,6 +65,10 @@ const provider = Bun.serve({
         : prompt.includes("Round 1 deliberation")
           ? JSON.stringify({ position: "approve", rationale: "Smoke fixture council vote", confidence: 0.9 })
           : "MAGI_OMO_CHILD_EVIDENCE: Smoke fixture execution completed. The verification command validates the deterministic fixture."
+    const call =
+      reviewing && body.tools?.some((tool) => tool.function.name === "StructuredOutput")
+        ? { name: "StructuredOutput", arguments: text }
+        : workforceCall
     const id = "chatcmpl-" + crypto.randomUUID()
     const toolCalls = call
       ? [{ index: 0, id: "call-" + crypto.randomUUID(), type: "function", function: call }]
@@ -320,10 +328,7 @@ try {
     if (attempt >= 300) throw new Error("Continuation timed out: " + JSON.stringify(state))
     await Bun.sleep(500)
   }
-  const evidence = (await request("/session/" + session.id + "/message")) as {
-    info: { role: string; agent?: string }
-    parts: { type: string; tool?: string; state?: { status: string; output?: string } }[]
-  }[]
+  const evidence = await executionEvidence(session.id)
   await Bun.write(path.join(directory, "execution-evidence.json"), JSON.stringify(evidence, null, 2))
   const task = evidence
     .flatMap((message) => message.parts)
@@ -347,7 +352,7 @@ try {
     throw new Error("Approved work did not execute through real OmO")
   const childSessions = (await request("/session/" + session.id + "/children")) as { id: string }[]
   if (!childSessions.length) throw new Error("OmO did not create an actual child session")
-  const childEvidence = await Promise.all(childSessions.map((child) => request("/session/" + child.id + "/message")))
+  const childEvidence = await Promise.all(childSessions.map((child) => executionEvidence(child.id)))
   await Bun.write(path.join(directory, "child-evidence.json"), JSON.stringify(childEvidence, null, 2))
   if (!JSON.stringify(childEvidence).includes('"tool":"read"')) throw new Error("Child agent did not use read tool")
   console.log("Real OmO task -> explore -> read verified, including first execution")
@@ -366,10 +371,32 @@ try {
   await request("/session/" + session.id + "/command", { command: "magi", arguments: "stop" }).catch(() => undefined)
   if ((await readMagiState(project)).loopActive) throw new Error("Stop did not persist")
   console.log("Stop persisted. PASS. Artifacts: " + directory)
+  const resumeTime = Date.now()
   await request("/session/" + session.id + "/command", { command: "magi", arguments: "resume" })
   const resumed = await readMagiState(project)
-  if (!resumed.loopActive || resumed.goal !== beforeStop.goal || resumed.currentCycle <= beforeStop.currentCycle)
-    throw new Error("Resume did not preserve and advance the goal")
+  // Resuming a partially recorded meeting continues that cycle instead of
+  // incrementing a counter and abandoning its decisions. Require real work.
+  if (
+    !resumed.loopActive ||
+    resumed.goal !== beforeStop.goal ||
+    resumed.currentCycle < beforeStop.currentCycle ||
+    resumed.runID === beforeStop.runID
+  )
+    throw new Error("Resume did not preserve the goal and renew its controller generation")
+  for (let attempt = 0; ; attempt++) {
+    const messages = await executionEvidence(session.id)
+    if (
+      messages.some(
+        (message) =>
+          message.info.time.created >= resumeTime &&
+          message.info.agent?.toLowerCase().startsWith("sisyphus") &&
+          message.parts.some((part) => part.tool === "task" && part.state?.status === "completed"),
+      )
+    )
+      break
+    if (attempt >= 240) throw new Error("Resumed council did not dispatch real OmO work")
+    await Bun.sleep(500)
+  }
   await request("/session/" + session.id + "/command", { command: "magi", arguments: "stop" }).catch(() => undefined)
   for (const file of ["COUNCIL.md", "STATUS.md", "index.html"]) {
     if (!(await Bun.file(path.join(project, ".magi", file)).exists())) throw new Error("Missing report: " + file)
@@ -390,4 +417,17 @@ try {
   console.log("OpenCode log tail:\n" + logs.split("\n").slice(-45).join("\n"))
   provider.stop(true)
   console.log("Smoke logs: " + directory)
+}
+
+async function executionEvidence(sessionID: string): Promise<
+  {
+    info: { role: string; agent?: string; time: { created: number } }
+    parts: { type: string; tool?: string; state?: { status: string; output?: string } }[]
+  }[]
+> {
+  const [messages, children] = await Promise.all([
+    request("/session/" + sessionID + "/message"),
+    request("/session/" + sessionID + "/children") as Promise<{ id: string }[]>,
+  ])
+  return [...messages, ...(await Promise.all(children.map((child) => executionEvidence(child.id)))).flat()]
 }

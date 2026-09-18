@@ -1,8 +1,40 @@
 import { describe, expect, test } from "bun:test"
 import { executeResilientPrompt, discoverAvailableModels } from "../src/resilience"
 import { openCodeFixture } from "./fixture"
+import { createOpencodeClient } from "@opencode-ai/sdk"
 
 describe("Resilience using the real OpenCode SDK over HTTP", () => {
+  test("requires native structured output instead of accepting unvalidated text as a vote", async () => {
+    const bodies: Record<string, unknown>[] = []
+    const server = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const route = new URL(request.url).pathname
+        if (route === "/session") return Response.json({ id: "review" })
+        if (route.endsWith("/message")) {
+          bodies.push(await request.json())
+          return Response.json({ info: {}, parts: [{ type: "text", text: '{"position":"approve"}' }] })
+        }
+        return Response.json(true)
+      },
+    })
+    try {
+      await expect(
+        executeResilientPrompt({
+          client: createOpencodeClient({ baseUrl: server.url.toString() }),
+          directory: "/project",
+          system: "Vote",
+          prompt: "Evidence",
+          schema: { type: "object" },
+          maxRetries: 0,
+        }),
+      ).rejects.toThrow("no validated structured decision")
+      expect(bodies[0]?.format).toEqual({ type: "json_schema", schema: { type: "object" }, retryCount: 0 })
+      expect(bodies[0]?.tools).toEqual({ "*": false, StructuredOutput: true })
+    } finally {
+      server.stop(true)
+    }
+  })
   test("scopes create, prompt, abort, and deletion to the project", async () => {
     const fixture = openCodeFixture({ reply: async () => "Council response" })
     try {

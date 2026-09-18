@@ -52,7 +52,7 @@ export const MagiConfigDefault: MagiConfig = {
     sisyphus: "",
   },
   resilience: {
-    timeoutMs: 60000,
+    timeoutMs: 180000,
     maxRetries: 2,
     fallbackChain: [],
     stallTimeoutMs: 1800000,

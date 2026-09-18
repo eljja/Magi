@@ -162,9 +162,8 @@ async function initializeOmOMagi(input: PluginInput, councilPlugin: Plugin): Pro
       return
     }
     registerOmORuntime(input.directory, executor[0], Object.keys(upstream.tool))
-    // OpenCode selects the command agent before command.execute.before. Set the real
-    // upstream display name here so the FIRST approved task also uses the full harness.
-    config.command!.magi!.agent = executor[0]
+    // Control stays in the human conversation; approved work uses fresh OmO children.
+    config.command!.magi!.agent = "magi"
   }
   return {
     ...composed,
@@ -227,7 +226,10 @@ async function initializeOmOMagi(input: PluginInput, councilPlugin: Plugin): Pro
         if (event.event.properties.sessionID && isRecoveryAbort(input.directory, event.event.properties.sessionID))
           return
         const state = await readMagiState(input.directory)
-        if (state.loopActive && event.event.properties.sessionID === state.sessionID) {
+        if (
+          state.loopActive &&
+          [state.sessionID, state.executionSessionID].includes(event.event.properties.sessionID)
+        ) {
           await council.event?.(event)
           await stopWorkforce()
         }

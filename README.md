@@ -8,13 +8,15 @@
 
 [한국어](README.ko.md) · [Installation and configuration](packages/oh-my-magi/README.md) · [Engineering audit](docs/RELEASE-AUDIT.md) · [Contributing](CONTRIBUTING.md)
 
-**Real-model qualification:** live OpenRouter free-model trials through OpenCode exposed repeated investigation and provider 429 errors. A complete real-model debate → implementation → verification → next meeting has **not passed**. Read the [live-model audit (Korean)](docs/REAL-MODEL-AUDIT.ko.md) before relying on unattended operation.
+**Real-model qualification:** real free-model proposals, three independent assessments, peer review, final votes and actual OmO delegation have now been observed. End-to-end implementation and verification remain under qualification; repeated investigation still occurs with some models. Read the [live-model audit (Korean)](docs/REAL-MODEL-AUDIT.ko.md) and [autonomy design](docs/AUTONOMY-DESIGN.ko.md).
 
 Oh-My-Magi (OMM) adds continuous research and development governance to [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) (OmO) on OpenCode. It loads the official `oh-my-opencode@4.19.4` server plugin as a dependency, including its agent factories, tools, skills, MCP integration and background task manager. These are upstream implementations, not recreated agent prompts.
 
 Magi maintains one goal, proposes the next step, obtains independent council votes, delegates approved work to the OmO workforce, and verifies the result. **There is no iteration limit.** Completing the initial roadmap leads to another research or improvement increment within the same goal.
 
 The three council perspectives are **Melchior** (architecture and scientific reasoning), **Balthasar** (risk and safety veto), and **Casper** (practical value and user intent). Their model-generated decisions are recorded separately from automatic tool telemetry.
+
+Each identity has an isolated decision session and a persistent judgment history. They assess the proposal independently, then read one another's arguments and cast validated final votes. All three votes are required before applying the voting policy. Approved work runs in a fresh official OmO child session, keeping the human conversation available for guidance. An unavailable council member or reviewer resumes from saved evidence instead of discarding completed work. These are separate agent identities; they can share one model or use different models.
 
 <p align="center">
   <img src="assets/magi-council.svg" alt="Magi three-member council concept: MELCHIOR-1, BALTHASAR-2 and CASPER-3" width="760">
@@ -67,6 +69,7 @@ Open **`.magi/index.html`** in a browser for the goal monitor. It refreshes ever
 | Artifact                        | Purpose                                                                                                                     |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `.magi/COUNCIL.md`              | Accumulating meeting minutes: proposals, votes, rejected/revised decisions, approved directives, outcomes and user guidance |
+| `.magi/members/*.md`            | Each identity's own accumulated final judgments, available in later meetings                                                |
 | `.magi/STATUS.md`               | Latest readable progress report                                                                                             |
 | `.magi/reports/YYYY-MM-DD.md`   | Progress snapshots every minute while active                                                                                |
 | `.magi/events/YYYY-MM-DD.jsonl` | Durable council/controller events, including intermediate votes and failures                                                |
@@ -77,12 +80,16 @@ Reporting continues while the council or executor is working. Tool telemetry inc
 
 Meetings have no round limit: unapproved proposals return with recorded objections for revision and further evidence. `USER-GUIDANCE.md` retains conversation history and `MEMORY.md` holds working memory; later meetings and context compaction read them alongside the council ledger. A watchdog detects stalled workforce attempts, and transient failures use increasing retry delays without imposing a goal iteration limit.
 
+The monitor shows requests and errors for each council identity independently of workforce tool counts. Repeating identical tool results does not reset the evidence-progress timeout. Recovery carries the collected results forward. Workers cannot issue user steering or stop the goal through Magi's control tools.
+
 ## How it works
 
 ```mermaid
 flowchart TD
-  User[User: one goal and guidance] --> Council[Magi: proposal and three independent votes]
-  Council -->|Approved| OmO[Official OmO executor, specialists and tools]
+  User[User: one goal and ordinary conversation] --> Proposal[Rotating proposer]
+  Proposal --> Opening[Three isolated opening assessments]
+  Opening --> Council[Peer objections, revisions and three final votes]
+  Council -->|Approved| OmO[Fresh official OmO execution session and specialists]
   OmO --> Verify[Mechanical checks and independent review]
   Verify -->|Verified milestone or repair needed| Council
   Council -->|Revise, reject or transient error| Retry[Wait and reconsider the same goal]
@@ -106,9 +113,10 @@ Keep an OpenCode server running for unattended work. The saved goal recovers whe
 - **Compatibility:** minimum OpenCode `1.18.29`, current SDK/target `1.18.31`, official OmO npm stable `4.19.4`. CI checks the minimum and moving latest versions. See the [upgrade procedure](packages/oh-my-magi/README.md#updating-compatibility).
 - **Actual Windows integration (OpenCode 1.18.29 and 1.18.31):** global installation into a non-repository folder with Git absent from PATH, existing OmO migration/restart, selecting Magi and sending an ordinary goal, real `task → explore → read`, three consecutive cycles, conversational steering, stop/resume and reports passed with a deterministic local provider.
 - **Cross-platform CI:** all six minimum/latest OpenCode jobs on Linux, macOS and Windows, plus the core regression job, passed. [0.1.1 validation run](https://github.com/eljja/Magi/actions/runs/35353297752).
-- **Package validation:** the current source passes 85 automated tests (355 assertions), typechecking and build. The earlier release tarball passed deterministic integration after production-only installation into a separate consumer project; see the dated audits for its scope.
+- **Package validation:** regression coverage includes partial-vote recovery, isolated execution, reviewer outages, control ownership and repeated-evidence stalls. See the [dated audit](docs/AUTONOMY-DESIGN.ko.md) for commands and scope.
 - **CLI, desktop and web:** share the server-side agents, tools and commands. The optional TUI panel is specific to the terminal; the file-based monitor works separately in a browser.
-- **Remaining qualification checks:** a complete real-provider workflow (the free-model trials failed), endurance runs, full interactive desktop/TUI and reconnect QA. Short automated tests do not prove infinite uptime or every upstream feature/provider combination.
+- **Actual-provider testing:** `bun run smoke:live` uses a selected zero-price OpenRouter model, real OpenCode and official OmO in an isolated folder. It checks protected original behavior tests and preserves public evidence. See the [reproduction guide](docs/AUTONOMY-DESIGN.ko.md#검증과-재현).
+- **Remaining qualification checks:** reliable complete real-provider workflows, endurance runs, full interactive desktop/TUI and reconnect QA. Short automated tests do not prove infinite uptime or every upstream feature/provider combination.
 
 See the [0.1.1 user-flow audit (Korean)](docs/USER-FLOW-AUDIT.ko.md) and [historical 0.1.0 release audit](docs/RELEASE-AUDIT.md). The repository retains an older OpenCode fork and legacy Magi packages; the maintained plugin is `packages/oh-my-magi`.
 

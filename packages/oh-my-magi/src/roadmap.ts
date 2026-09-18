@@ -1,6 +1,5 @@
-import { ensureDirectory } from "./fs"
+import { atomicWriteFile } from "./fs"
 import path from "node:path"
-import { rename } from "node:fs/promises"
 
 export type Milestone = {
   id: number
@@ -33,11 +32,8 @@ export async function readRoadmap(directory: string): Promise<ProjectRoadmap | u
 }
 
 export async function writeRoadmap(directory: string, roadmap: ProjectRoadmap): Promise<void> {
-  await ensureDirectory(path.join(directory, ".magi"))
-  const temporary = `${magiRoadmapJsonPath(directory)}.${crypto.randomUUID()}.tmp`
-  await Bun.write(temporary, JSON.stringify(roadmap, null, 2))
-  await rename(temporary, magiRoadmapJsonPath(directory))
-  await Bun.write(magiRoadmapPath(directory), formatRoadmapMarkdown(roadmap))
+  await atomicWriteFile(magiRoadmapJsonPath(directory), JSON.stringify(roadmap, null, 2))
+  await atomicWriteFile(magiRoadmapPath(directory), formatRoadmapMarkdown(roadmap))
 }
 
 export async function initializeRoadmap(input: {

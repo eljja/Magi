@@ -26,6 +26,7 @@
   "scripts": {
     "build": "bun script/build.ts",
     "smoke": "bun script/smoke.ts",
+    "smoke:live": "bun script/live-smoke.ts",
     "prepack": "bun run build",
     "typecheck": "tsgo --noEmit",
     "test": "bun test --timeout 30000"

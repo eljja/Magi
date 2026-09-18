@@ -7,6 +7,26 @@ import { setAutonomousLoop } from "../src/continuation"
 import { mutateMagiState, readMagiState } from "../src/state"
 import { openCodeFixture } from "./fixture"
 
+test("autonomous workers cannot stop the goal or impersonate user steering", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "magi-controls-"))
+  const fixture = openCodeFixture()
+  const plugin = await MagiServerPlugin({ directory, client: fixture.client } as Parameters<typeof MagiServerPlugin>[0])
+  try {
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Original goal" })
+    const context = { sessionID: "worker" } as Parameters<NonNullable<typeof plugin.tool>[string]["execute"]>[1]
+    await expect(plugin.tool!.magi_stop!.execute({}, context)).rejects.toThrow("user conversation")
+    await expect(plugin.tool!.magi_steer!.execute({ directive: "Replace the user's goal" }, context)).rejects.toThrow(
+      "not user steering",
+    )
+    expect((await readMagiState(directory)).loopActive).toBe(true)
+    expect((await readMagiState(directory)).steeringQueue ?? []).toHaveLength(0)
+  } finally {
+    await plugin.dispose?.()
+    fixture.stop()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 test("native OpenCode user abort stops the persisted goal", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "magi-server-"))
   const fixture = openCodeFixture()

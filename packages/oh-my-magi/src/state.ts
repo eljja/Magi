@@ -1,7 +1,24 @@
 import { ensureDirectory, atomicWriteFile } from "./fs"
 import path from "node:path"
 import { readFile, readdir, unlink } from "node:fs/promises"
-import type { MagiCouncilMember, MagiPosition, MagiDebateRound } from "./council"
+import type {
+  MagiCouncilMember,
+  MagiPosition,
+  MagiDebateRound,
+  MagiProposalDraft,
+  MagiCouncilJudgment,
+} from "./council"
+import type { ReviewProgress } from "./resilience"
+import type { JudgeVerdict, VerificationReport } from "./verification"
+
+export type PendingCouncilRound = {
+  key: string
+  proposer: MagiCouncilMember
+  requirements: string
+  draft?: MagiProposalDraft
+  opening?: Partial<Record<MagiCouncilMember, MagiCouncilJudgment>>
+  votes?: Partial<Record<MagiCouncilMember, MagiCouncilJudgment>>
+}
 import { appendReport } from "./reporting"
 
 export type MagiRuntimeEvent = {
@@ -49,6 +66,16 @@ export type MagiRuntimeState = {
   runID?: string
   awaitingExecution?: boolean
   executionAfter?: number
+  executionSessionID?: string
+  executionMilestoneID?: number
+  executionRecovery?: string
+  pendingVerification?: {
+    messageID: string
+    executionReport: string
+    toolEvidence: string
+    report?: VerificationReport
+    verdict?: JudgeVerdict
+  }
   lastMessageID?: string
   stopReason?: "user" | "completed" | "max_cycles" | "error" | "council"
   telemetry?: MagiTelemetry
@@ -56,7 +83,11 @@ export type MagiRuntimeState = {
   pendingUserSteering?: string
   steeringQueue?: { id: string; time: number; text: string; source?: { sessionID: string; messageID: string } }[]
   ignoredMessageIDs?: string[]
-  meeting?: { cycle: number; round: number; rounds: MagiDebateRound[] }
+  meeting?: { cycle: number; round: number; rounds: MagiDebateRound[]; pending?: PendingCouncilRound }
+  councilActivity?: Record<
+    string,
+    ReviewProgress & { member?: MagiCouncilMember; startedAt: number; updatedAt: number }
+  >
   failureCount?: number
   retryAt?: number
 }

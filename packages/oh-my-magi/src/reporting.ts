@@ -1,6 +1,6 @@
 import path from "node:path"
-import { appendFile, rename } from "node:fs/promises"
-import { ensureDirectory } from "./fs"
+import { appendFile } from "node:fs/promises"
+import { atomicWriteFile, ensureDirectory } from "./fs"
 import { redact } from "./context"
 import type { MagiRuntimeState } from "./state"
 
@@ -38,12 +38,19 @@ export async function publishReport(directory: string, state: MagiRuntimeState, 
       `State: ${state.loopActive ? "active" : "stopped"} / ${state.status} · Cycle ${state.currentCycle} · No iteration limit`,
       "Current work: " + state.topic,
       "Owner session: " + (state.sessionID ?? "none"),
+      "OmO execution session: " + (state.executionSessionID ?? "none"),
       "Tool operations (cumulative): " + (state.telemetry?.toolCallCount ?? 0),
       "Last tool activity: " +
         (state.telemetry?.toolCallCount ? new Date(state.telemetry.lastActiveAt).toISOString() : "none"),
       state.error ? "Runtime issue (will retry while active): " + state.error : "",
-      state.meeting ? "Meeting round: " + state.meeting.round + " (no round limit)" : "",
+      state.meeting ? "Completed debate rounds: " + state.meeting.round + " (no round limit)" : "",
       state.retryAt ? "Next retry: " + new Date(state.retryAt).toISOString() : "",
+      "",
+      "## Live council requests (independent from workforce tools)",
+      ...Object.entries(state.councilActivity ?? {}).map(
+        ([stage, activity]) =>
+          `- ${stage}: ${activity.status} · ${activity.model ?? "selected model"} · attempt ${activity.attempt} · ${activity.detail} · updated ${new Date(activity.updatedAt).toISOString()}`,
+      ),
       "",
       "## Pending user guidance",
       ...(state.steeringQueue ?? []).map((item) => "- " + item.text),
@@ -58,7 +65,7 @@ export async function publishReport(directory: string, state: MagiRuntimeState, 
       "",
       "## Intervention",
       "Guide Magi by talking normally in the OpenCode session running this goal. Controls: /magi status · /magi stop · /magi resume",
-      "Meeting history: COUNCIL.md · Memory: MEMORY.md · User history: USER-GUIDANCE.md · Roadmap: ROADMAP.md · Periodic history: reports/",
+      "Meeting history: COUNCIL.md · Identity histories: members/ · Memory: MEMORY.md · User history: USER-GUIDANCE.md · Roadmap: ROADMAP.md · Periodic history: reports/",
       "Reports refresh while the OpenCode server is alive. Check the timestamp to detect a stopped host.",
     ]
       .filter(Boolean)
@@ -73,6 +80,14 @@ export async function publishReport(directory: string, state: MagiRuntimeState, 
 <div class="grid"><div class="card"><small>CYCLE</small><div class="number">${state.currentCycle}</div>No iteration limit</div><div class="card"><small>WORKFORCE OPERATIONS</small><div class="number">${state.telemetry?.toolCallCount ?? 0}</div>Cumulative tool activity</div><div class="card"><small>CURRENT PHASE</small><div class="number">${state.awaitingExecution ? "Execution" : clean(state.status)}</div>${state.awaitingExecution ? "Awaiting independent verification" : "Council and goal management"}</div></div>
 ${state.error ? `<div class="card error"><h2>Needs attention</h2><p>${clean(state.error)}</p><small>${state.loopActive ? "The controller will retry. You can provide guidance below." : "Resume when ready."}</small></div>` : ""}
 <h2>Council votes</h2><div class="grid">${["melchior", "balthasar", "casper"].map((member) => `<div class="card"><small>${member.toUpperCase()}</small><div class="number">${clean(state.votes[member as keyof typeof state.votes] ?? "Pending")}</div></div>`).join("")}</div>
+<h2>Live council requests</h2><div class="grid">${
+    Object.entries(state.councilActivity ?? {})
+      .map(
+        ([stage, activity]) =>
+          `<div class="card"><small>${clean(stage)}</small><p>${clean(activity.status)} · attempt ${activity.attempt}</p><p>${clean(activity.detail)}</p><small>${clean(activity.model ?? "Selected model")} · ${new Date(activity.updatedAt).toISOString()}</small></div>`,
+      )
+      .join("") || "<p>No decision requests yet.</p>"
+  }</div>
 <h2>Latest decisions and results</h2>${state.events
     .slice(-8)
     .toReversed()
@@ -96,9 +111,7 @@ ${state.error ? `<div class="card error"><h2>Needs attention</h2><p>${clean(stat
       ["index.html", html],
     ]) {
       const target = path.join(directory, ".magi", name!)
-      const temporary = target + "." + crypto.randomUUID() + ".tmp"
-      await Bun.write(temporary, content!)
-      await rename(temporary, target)
+      await atomicWriteFile(target, content!)
     }
     if (archive) {
       await ensureDirectory(path.join(directory, ".magi", "reports"))

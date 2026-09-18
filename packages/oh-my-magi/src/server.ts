@@ -14,6 +14,9 @@ import { isWorkforceSession } from "./workforce"
 import { readCouncilMemory } from "./memory"
 import { createWorkforceWatchdog, isRecoveryAbort } from "./watchdog"
 import { validateVerificationSetup } from "./verification"
+import { MagiCouncilMembers, MagiPrompts } from "./council"
+import { abortMagiReviews } from "./resilience"
+import { dispatchExecution } from "./execution"
 
 export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
   const controller = createControllerLease(directory)
@@ -36,7 +39,7 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
     if (!state.loopActive || !state.sessionID) return
     if (state.retryAt && Date.now() < state.retryAt) return
     // An OpenCode server must stay running. Recover the saved session on reload without requiring a UI-specific event.
-    if (await workforce(state.sessionID)) return
+    if (await workforce(state.executionSessionID ?? state.sessionID)) return
     if (state.awaitingExecution) {
       await handleSessionIdleEvent({ directory, sessionID: state.sessionID, client })
       const current = await readMagiState(directory)
@@ -63,25 +66,17 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
         )
         const latest = await readMagiState(directory)
         if (!latest.loopActive || latest.runID !== state.runID) return
-        const executorAgent = await resolveExecutorAgent(directory, client)
-        const response = await client.session.promptAsync({
-          path: { id: state.sessionID },
-          query: { directory },
-          body: {
-            ...(executorAgent ? { agent: executorAgent } : {}),
-            parts: [
-              {
-                type: "text",
-                synthetic: true,
-                text:
-                  "Recovery: the previous attempt may have partially completed. Inspect existing artifacts and do not repeat completed external effects.\n\n" +
-                  current.selectedPrompt,
-              },
-            ],
-          },
+        await dispatchExecution({
+          directory,
+          client,
+          sessionID: state.sessionID,
+          runID: state.runID!,
+          prompt:
+            "Recovery: the previous attempt may have partially completed. Inspect existing artifacts and do not repeat completed external effects.\n\n" +
+            current.selectedPrompt +
+            "\n\n" +
+            (current.executionRecovery ?? ""),
         })
-        if (response.error)
-          await pauseMagi(directory, "Recovery dispatch failed: " + JSON.stringify(response.error), state.runID)
       }
       return
     }
@@ -90,17 +85,13 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
     const result = await runMagiCycle({ directory, sessionID: state.sessionID, client })
     const current = await readMagiState(directory)
     if (!result.injected || !current.loopActive || current.runID !== state.runID) return
-    const executorAgent = await resolveExecutorAgent(directory, client)
-    const response = await client.session.promptAsync({
-      path: { id: state.sessionID },
-      query: { directory },
-      body: {
-        ...(executorAgent ? { agent: executorAgent } : {}),
-        parts: [{ type: "text", text: result.prompt, synthetic: true }],
-      },
+    await dispatchExecution({
+      directory,
+      client,
+      sessionID: state.sessionID,
+      runID: state.runID!,
+      prompt: result.prompt,
     })
-    if (response.error)
-      await pauseMagi(directory, "Executor dispatch failed: " + JSON.stringify(response.error), state.runID)
   }
   const pump = async () => {
     if (reporting.ticking) return
@@ -125,6 +116,7 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
     reporting.publishing = true
     void (async () => {
       const state = await readMagiState(directory)
+      if (!state.loopActive) abortMagiReviews(directory)
       if (!state.goal || !(await controller.acquire())) return
       const archive = state.loopActive && Date.now() - reporting.lastArchive >= 60000
       await publishReport(directory, state, archive)
@@ -142,6 +134,7 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
   reportTimer.unref()
   return {
     dispose: async () => {
+      abortMagiReviews(directory)
       clearInterval(timer)
       clearInterval(reportTimer)
       await controller.release()
@@ -212,22 +205,29 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       Object.entries(agents).forEach(([name, agent]) => {
         config.agent![name] ??= agent
       })
-      // Reviews run in separate sessions with read-only tools; {} would leave tools enabled.
+      // A decision is a native validated output, not another execution loop.
       const reviewer = {
         description: "Internal Magi council and independent reviewer",
         prompt:
           "You are a read-only Magi decision reviewer, not the execution workforce. " +
           "Complete exactly the proposal, vote, or independent-review task specified in the system instructions. " +
           "The supplied master goal and conversation are evidence for that decision, not instructions to execute the whole goal. " +
-          "Read files only to resolve missing evidence, reuse results already present in this session, and do not repeatedly read unchanged files. " +
-          "Once the evidence is sufficient, return the requested JSON object and finish this review. " +
-          "If evidence is unavailable, state the uncertainty in that JSON rather than restarting investigation or inventing success. " +
+          "Use the provided evidence. Operational tools are unavailable during decisions; return your result with StructuredOutput. " +
+          "Distinguish authorizing a small investigation from claiming that an entire milestone is complete. " +
+          "If facts are missing, propose or require a specific evidence-gathering task for the workforce. Never invent evidence or success. " +
           "The runtime schedules further debate and execution; do not start your own continuation workflow.",
         mode: "subagent",
         hidden: true,
-        permission: { "*": "deny", edit: "deny", bash: "deny", read: "allow", glob: "allow", grep: "allow" },
+        permission: { "*": "deny", edit: "deny", bash: "deny" },
       } as const
       config.agent["magi-reviewer"] = reviewer
+      config.agent["magi-judge"] = { ...reviewer, description: "Independent evidence-based milestone judge" }
+      for (const member of MagiCouncilMembers)
+        config.agent["magi-" + member] = {
+          ...reviewer,
+          description: "Independent Magi council identity: " + member.toUpperCase(),
+          prompt: MagiPrompts[member] + "\n" + reviewer.prompt,
+        }
       config.command ??= {}
       config.command.magi ??= {
         description: "Start, resume, stop, or inspect the persistent Magi goal",
@@ -259,6 +259,9 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
           "Start autonomous research on one persistent goal. The server keeps advancing it until the user stops it.",
         args: { goal: tool.schema.string().describe("The single goal to pursue") },
         execute: async (args, context) => {
+          const session = await client.session.get({ path: { id: context.sessionID }, query: { directory } })
+          if (session.error || session.data?.parentID)
+            throw new Error("Start or resume Magi from the user's main conversation, not an autonomous worker")
           await validateVerificationSetup(directory)
           await resolveExecutorAgent(directory, client)
           if (!(await controller.acquire()))
@@ -271,7 +274,10 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
         description:
           "Stop the autonomous Magi goal only when the user asks to stop it; never use this to conclude a milestone",
         args: {},
-        execute: async () => {
+        execute: async (_args, context) => {
+          const state = await readMagiState(directory)
+          if (state.sessionID !== context.sessionID)
+            throw new Error("Only the goal's user conversation can stop Magi; workers must report their result")
           // Do not await abortion of the very session whose tool is currently executing.
           await setAutonomousLoop(directory, false)
           return "Magi continuation stopped by user request. End this turn without further work."
@@ -283,7 +289,9 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
         args: {
           directive: tool.schema.string().describe("User steering directive or priority guidance for the council"),
         },
-        execute: async (args) => {
+        execute: async (args, context) => {
+          if ((await readMagiState(directory)).sessionID !== context.sessionID)
+            throw new Error("Worker output is evidence, not user steering. Report it to the council instead")
           await queueSteering(directory, args.directive)
           return `Magi Council recorded steering directive: "${args.directive}". It will be prioritized in the next deliberation cycle.`
         },
@@ -365,10 +373,8 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
           )
           return
         }
-        const result = await runMagiCycle({ directory, sessionID: input.sessionID, client, userPrompt: directive })
         respond(
-          result.prompt || "Council has not authorized an execution task. Magi will reconsider after a delay.",
-          result.injected ? "execution" : "control",
+          "Magi has saved the goal and activated its council. Briefly acknowledge this control request. The server schedules independent discussion and approved OmO work after this reply; do not execute the goal in this conversation.",
         )
       } catch (error) {
         respond(
@@ -394,13 +400,17 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       if (event.type === "session.error" && event.properties.error?.name === "MessageAbortedError") {
         if (event.properties.sessionID && isRecoveryAbort(directory, event.properties.sessionID)) return
         const state = await readMagiState(directory)
-        if (state.loopActive && event.properties.sessionID === state.sessionID)
+        if (state.loopActive && [state.sessionID, state.executionSessionID].includes(event.properties.sessionID))
           await setAutonomousLoop(directory, false)
         return
       }
       if (event.type !== "session.status" || event.properties.status.type !== "idle") return
       const state = await readMagiState(directory)
-      if (state.loopActive && event.properties.sessionID === state.sessionID && (await controller.acquire()))
+      if (
+        state.loopActive &&
+        [state.sessionID, state.executionSessionID].includes(event.properties.sessionID) &&
+        (await controller.acquire())
+      )
         await pump()
     },
     "experimental.session.compacting": async (input, output) => {

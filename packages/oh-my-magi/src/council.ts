@@ -85,6 +85,11 @@ export function finalDebatePosition(
 ): MagiPosition {
   const last = rounds.at(-1)
   if (!last) return "revise"
+  if (
+    last.decisions.length !== 3 ||
+    MagiCouncilMembers.some((member) => last.decisions.filter((decision) => decision.member === member).length !== 1)
+  )
+    return "revise"
   if (vetoPolicy === "safety-critical" && last.decisions.some((d) => d.safetyCritical && d.vote === "reject")) {
     return "reject"
   }
@@ -111,7 +116,12 @@ export function shouldContinueDebate(
 
 export function shouldStopSelfImprovement(rounds: MagiDebateRound[]): boolean {
   const last = rounds.at(-1)
-  if (!last || last.decisions.length === 0) return false
+  if (
+    !last ||
+    last.decisions.length !== 3 ||
+    MagiCouncilMembers.some((member) => last.decisions.filter((decision) => decision.member === member).length !== 1)
+  )
+    return false
   return last.decisions.every(
     (decision) =>
       (decision.position ?? voteToPosition(decision.vote)) === "reject" &&
@@ -209,6 +219,9 @@ export function buildDebateRoundPrompt(input: {
     "",
     "Debate rules:",
     "- Do not agree merely to be agreeable.",
+    "- Be concise: use 2–4 sentences for your rationale and at most six short evidence points. Address specific peer objections without repeating the whole goal.",
+    "- Vote on authorizing this specific next task, not on whether the whole goal is already complete. A bounded investigation or test run may be approved to obtain missing facts.",
+    "- Cite supplied evidence and uncertainties. If more evidence is required, specify exactly what the workforce should collect. Do not call investigation tools yourself.",
     "- If your position changes from prior round, identify the new evidence that persuaded you.",
     "- If there is no new evidence, state so directly and set newEvidence: false.",
     "- Set safetyCritical: true ONLY if this proposal threatens data loss, security compromise, or breaking regressions.",
@@ -230,11 +243,15 @@ export function buildSelfImprovementDraftPrompt(input: {
     "",
     `Magi autonomous self-improvement draft${input.cycle ? ` #${input.cycle}` : ""}.`,
     `You are the proposal owner for this cycle: ${input.proposer.toUpperCase()}.`,
-    input.previousCompleted === false
-      ? "The previous task did not complete cleanly or had errors. Propose a targeted fix, test repair, or narrow continuation."
-      : "The previous task completed successfully. Propose the next meaningful improvement to code, tests, docs, or feature completeness.",
+    "Keep the executor task concrete and your rationale concise. Include updated durable memory of constraints, decisions and unresolved facts in the result.",
+    input.previousCompleted === undefined
+      ? "No previous execution has been verified. Propose the first concrete, useful step; do not claim a baseline already passed."
+      : input.previousCompleted === false
+        ? "The previous task did not complete cleanly or had errors. Propose a targeted fix, test repair, or narrow continuation."
+        : "The previous task completed successfully. Propose the next meaningful improvement to code, tests, docs, or feature completeness.",
     "",
-    "Use the supplied project evidence and read source files when necessary to choose the next step. Git history is optional; do not repeat investigation already supported by the supplied evidence.",
+    "Use the supplied project evidence. When facts are missing, propose a narrow investigation or implementation-and-test task for the OmO workforce. You do not execute that task yourself. Git history is optional.",
+    "Use the previous executor's real tool results and artifacts. Do not repeat an investigation that already established the needed facts. Failing behavior tests are evidence for an implementation repair, not a reason to keep collecting the same baseline. A verified milestone requires meaningful passing checks; a useful but incomplete task can still provide evidence for the next step within it.",
     "Return JSON matching this shape:",
     JSON.stringify(
       {
@@ -297,7 +314,7 @@ export function normalizeCouncilJudgment(input: unknown): MagiCouncilJudgment {
     requiredChange:
       typeof item.requiredChange === "string" && item.requiredChange.trim() ? item.requiredChange.trim() : undefined,
     newEvidence: item.newEvidence === true,
-    safetyCritical: typeof item.safetyCritical === "boolean" ? item.safetyCritical : position === "reject",
+    safetyCritical: item.safetyCritical === true,
   }
 }
 

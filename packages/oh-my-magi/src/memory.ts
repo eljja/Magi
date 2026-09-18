@@ -1,6 +1,6 @@
 import path from "node:path"
 import { appendReport } from "./reporting"
-import { safeWriteFile } from "./fs"
+import { atomicWriteFile } from "./fs"
 import { redact } from "./context"
 
 export async function rememberConversation(directory: string, item: { id: string; time: number; text: string }) {
@@ -17,7 +17,7 @@ async function excerpt(file: string, limit: number) {
   if (source.size <= limit) return source.text()
   return (
     (await source.slice(0, limit / 3).text()) +
-    "\n[Middle archived; use read to retrieve relevant older records from " +
+    "\n[Middle archived; request a workforce investigation to retrieve relevant older records from " +
     file +
     "]\n" +
     (await source.slice(-Math.floor((limit * 2) / 3)).text())
@@ -33,14 +33,14 @@ export async function readCouncilMemory(directory: string) {
     ),
   )
   return redact(
-    "Persistent council memory. Preserve enduring user instructions until explicitly superseded by later user guidance. Questions and one-time tasks in the archive do not authorize repeated execution. Decisions require council approval. The chronological source records take precedence over summaries. Read referenced files when an excerpt omits relevant history.\n" +
+    "Persistent council memory. Preserve enduring user instructions until explicitly superseded by later user guidance. Questions and one-time tasks in the archive do not authorize repeated execution. Decisions require council approval. The chronological source records take precedence over summaries. If an excerpt omits necessary history, require the workforce to retrieve those records; do not assume absent evidence.\n" +
       records.join("\n"),
   )
 }
 
 export async function saveCouncilMemory(directory: string, memory?: string) {
   if (!memory?.trim()) return
-  await safeWriteFile(
+  await atomicWriteFile(
     path.join(directory, ".magi", "MEMORY.md"),
     "# Magi working memory\n\n" +
       redact(memory.trim()) +

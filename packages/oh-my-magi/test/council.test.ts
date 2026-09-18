@@ -63,6 +63,33 @@ describe("Council Engine", () => {
     expect(finalDebatePosition(rounds, "safety-critical")).toBe("reject")
   })
 
+  test("binding authorization requires three distinct final voters", () => {
+    const approval = {
+      member: "melchior" as const,
+      vote: "approve" as const,
+      position: "approve" as const,
+      rationale: "Supported",
+    }
+    expect(
+      finalDebatePosition([{ round: 1, decisions: [approval, { ...approval, member: "casper" }], newEvidence: false }]),
+    ).toBe("revise")
+    expect(
+      finalDebatePosition([
+        { round: 1, decisions: [approval, approval, { ...approval, member: "casper" }], newEvidence: false },
+      ]),
+    ).toBe("revise")
+    const dissent = decisionFromJudgment(
+      "balthasar",
+      normalizeCouncilJudgment({ position: "reject", rationale: "Ordinary design disagreement" }),
+    )
+    expect(dissent.safetyCritical).toBe(false)
+    expect(
+      finalDebatePosition([
+        { round: 1, decisions: [approval, dissent, { ...approval, member: "casper" }], newEvidence: false },
+      ]),
+    ).toBe("approve")
+  })
+
   test("stops debate on stagnation", () => {
     const rounds: MagiDebateRound[] = [
       {
