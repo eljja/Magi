@@ -42,32 +42,35 @@ const provider = Bun.serve({
       "You are BALTHASAR",
       "You are CASPER",
     ].some((role) => system.includes(role))
+    const backgroundTask = lastUser.includes("BACKGROUND TASK") ? lastUser.match(/bg_[a-f0-9]+/)?.[0] : undefined
     const workforceCall =
-      !reviewing && !hasToolResult && lastUser.includes("magi-smoke-child")
-        ? { name: "read", arguments: JSON.stringify({ filePath: path.join(project, "fixture.txt") }) }
-        : !reviewing && !hasToolResult && lastUser.includes("magi-smoke-category-probe")
-          ? {
-              name: "task",
-              arguments: JSON.stringify({
-                description: "Verify configured category model",
-                prompt: "magi-smoke-child: read fixture.txt and return MAGI_OMO_CHILD_EVIDENCE",
-                category: "deep",
-                run_in_background: false,
-                load_skills: [],
-              }),
-            }
-          : !reviewing && !hasToolResult && lastUser.includes("[OH-MY-MAGI COUNCIL TASK")
+      !reviewing && !hasToolResult && backgroundTask
+        ? { name: "background_output", arguments: JSON.stringify({ task_id: backgroundTask }) }
+        : !reviewing && !hasToolResult && lastUser.includes("magi-smoke-child")
+          ? { name: "read", arguments: JSON.stringify({ filePath: path.join(project, "fixture.txt") }) }
+          : !reviewing && !hasToolResult && lastUser.includes("magi-smoke-category-probe")
             ? {
                 name: "task",
                 arguments: JSON.stringify({
-                  description: "Inspect smoke evidence",
+                  description: "Verify configured category model",
                   prompt: "magi-smoke-child: read fixture.txt and return MAGI_OMO_CHILD_EVIDENCE",
-                  subagent_type: "explore",
+                  category: "deep",
                   run_in_background: false,
                   load_skills: [],
                 }),
               }
-            : undefined
+            : !reviewing && !hasToolResult && lastUser.includes("[OH-MY-MAGI COUNCIL TASK")
+              ? {
+                  name: "task",
+                  arguments: JSON.stringify({
+                    description: "Inspect smoke evidence",
+                    prompt: "magi-smoke-child: read fixture.txt and return MAGI_OMO_CHILD_EVIDENCE",
+                    subagent_type: "explore",
+                    run_in_background: lastUser.includes("CYCLE #1]"),
+                    load_skills: [],
+                  }),
+                }
+              : undefined
     const text = prompt.includes("proposal owner")
       ? JSON.stringify({
           title: "Smoke evidence",
@@ -390,6 +393,29 @@ try {
   const childEvidence = await Promise.all(childSessions.map((child) => executionEvidence(child.id)))
   await Bun.write(path.join(directory, "child-evidence.json"), JSON.stringify(childEvidence, null, 2))
   if (!JSON.stringify(childEvidence).includes('"tool":"read"')) throw new Error("Child agent did not use read tool")
+  if (
+    !evidence.some((message) =>
+      message.parts.some(
+        (part) =>
+          part.tool === "background_output" &&
+          part.state?.status === "completed" &&
+          part.state.output?.includes("MAGI_OMO_CHILD_EVIDENCE"),
+      ),
+    )
+  )
+    throw new Error("The first cycle did not collect the real OmO background result before advancing")
+  const executions = (await request("/session/" + session.id + "/children")) as {
+    id: string
+    title: string
+    time: { created: number }
+  }[]
+  const firstCycle = executions.find((child) => child.title === "Magi workforce · cycle 1")
+  const secondCycle = executions.find((child) => child.title === "Magi workforce · cycle 2")
+  if (!firstCycle || !secondCycle) throw new Error("Missing isolated first/second execution sessions")
+  const firstReplies = (await executionEvidence(firstCycle.id)).filter((message) => message.info.role === "assistant")
+  if (secondCycle.time.created - Math.max(...firstReplies.map((message) => message.info.time.completed ?? 0)) < 30000)
+    throw new Error("A new execution overlapped the first background result settlement window")
+  console.log("Native background result collection and completion settlement verified")
   console.log("Real OmO task -> explore -> read verified, including first execution")
   const guidance = "Preserve the smoke goal and report child evidence"
   await request("/session/" + session.id + "/message", {
@@ -456,7 +482,7 @@ try {
 
 async function executionEvidence(sessionID: string): Promise<
   {
-    info: { role: string; agent?: string; time: { created: number } }
+    info: { role: string; agent?: string; time: { created: number; completed?: number } }
     parts: { type: string; tool?: string; state?: { status: string; output?: string } }[]
   }[]
 > {

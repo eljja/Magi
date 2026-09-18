@@ -102,7 +102,7 @@ Windows의 실제 OpenCode **1.18.29·1.18.31**과 공식 OmO **4.19.4**에서 G
 
 실제 제공자 시험은 `bun run smoke:live`로 재현할 수 있습니다. 현재 가격이 0인 OpenRouter 무료 모델만 허용하며, 원본 행동 테스트를 작업 폴더 밖에 보존해 최종 결과를 별도로 확인합니다. 자세한 [시험 절차](docs/AUTONOMY-DESIGN.ko.md#검증과-재현)를 참고하세요.
 
-CLI·데스크톱·웹은 같은 서버 기능을 사용합니다. 터미널 패널은 TUI 전용이며, 모니터 페이지는 별도로 여는 로컬 문서입니다. **실제 모델 장기 실행과 데스크톱·TUI 전체 조작 및 재접속 검증은 아직 남아 있습니다.** 수정판의 Linux·macOS·Windows 최소/최신 OpenCode [6개 CI 조합과 코어 검증이 모두 통과했습니다](https://github.com/eljja/Magi/actions/runs/35381730558). [한글 사용 흐름 점검](docs/USER-FLOW-AUDIT.ko.md)을 확인하세요.
+CLI·데스크톱·웹은 같은 서버 기능을 사용합니다. 터미널 패널은 TUI 전용이며, 모니터 페이지는 별도로 여는 로컬 문서입니다. **실제 모델 장기 실행과 데스크톱·TUI 전체 조작 및 재접속 검증은 아직 남아 있습니다.** 수정판의 Linux·macOS·Windows 최소/최신 OpenCode [6개 CI 조합과 코어 검증이 모두 통과했습니다](https://github.com/eljja/Magi/actions/runs/35383764757). [한글 사용 흐름 점검](docs/USER-FLOW-AUDIT.ko.md)을 확인하세요.
 
 OMM 자체 코드는 MIT이며, **OmO 의존성은 SUL-1.0**입니다. [라이선스 고지](packages/oh-my-magi/THIRD-PARTY-NOTICES.md)를 확인하세요. 이 저장소는 OmO 공식 제품이 아닙니다.
 
