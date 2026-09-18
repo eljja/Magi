@@ -103,7 +103,7 @@ Keep an OpenCode server running for unattended work. The saved goal recovers whe
 
 - **Compatibility:** minimum OpenCode `1.18.29`, current SDK/target `1.18.31`, official OmO npm stable `4.19.4`. CI checks the minimum and moving latest versions. See the [upgrade procedure](packages/oh-my-magi/README.md#updating-compatibility).
 - **Actual Windows integration (OpenCode 1.18.29 and 1.18.31):** global installation into a non-repository folder with Git absent from PATH, existing OmO migration/restart, selecting Magi and sending an ordinary goal, real `task → explore → read`, three consecutive cycles, conversational steering, stop/resume and reports passed with a deterministic local provider.
-- **Cross-platform CI:** minimum/latest OpenCode runs on Linux, macOS and Windows. [0.1.1 validation run](https://github.com/eljja/Magi/actions/runs/35352121391).
+- **Cross-platform CI:** all six minimum/latest OpenCode jobs on Linux, macOS and Windows, plus the core regression job, passed. [0.1.1 validation run](https://github.com/eljja/Magi/actions/runs/35353297752).
 - **Package validation:** 84 automated tests (350 assertions), typechecking and build passed; the release tarball also passed the integration smoke after production-only installation into a separate consumer project.
 - **CLI, desktop and web:** share the server-side agents, tools and commands. The optional TUI panel is specific to the terminal; the file-based monitor works separately in a browser.
 - **Remaining qualification checks:** real-provider endurance runs, full interactive desktop/TUI and reconnect QA. Short automated tests do not prove infinite uptime or every upstream feature/provider combination.

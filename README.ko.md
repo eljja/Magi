@@ -91,7 +91,7 @@ Windows에서 OpenCode 자체가 기존 런타임 폴더의 읽기 전용 속성
 
 Windows의 실제 OpenCode **1.18.29·1.18.31**과 공식 OmO **4.19.4**에서 Git 없는 일반 폴더, 전역 설치, 기존 OmO 전환·재시작, Magi 선택 후 일반 목표 입력, `task → explore → read` 위임, 3회 연속 사이클, 대화 개입, 중지·재개, 보고 생성을 테스트용 모델 서버로 검증했습니다. **84개 테스트·350개 검증 조건**, 타입 검사와 빌드를 통과했습니다. 배포용 tarball도 개발 의존성 없는 별도 소비자 폴더에 설치해 검증했습니다.
 
-CLI·데스크톱·웹은 같은 서버 기능을 사용합니다. 터미널 패널은 TUI 전용이며, 모니터 페이지는 별도로 여는 로컬 문서입니다. **실제 모델 장기 실행과 데스크톱·TUI 전체 조작 및 재접속 검증은 아직 남아 있습니다.** 수정판의 Linux·macOS·Windows 최소/최신 OpenCode [CI 실행](https://github.com/eljja/Magi/actions/runs/35352121391)과 [한글 사용 흐름 점검](docs/USER-FLOW-AUDIT.ko.md)을 확인하세요.
+CLI·데스크톱·웹은 같은 서버 기능을 사용합니다. 터미널 패널은 TUI 전용이며, 모니터 페이지는 별도로 여는 로컬 문서입니다. **실제 모델 장기 실행과 데스크톱·TUI 전체 조작 및 재접속 검증은 아직 남아 있습니다.** 수정판의 Linux·macOS·Windows 최소/최신 OpenCode [6개 CI 조합과 코어 검증이 모두 통과했습니다](https://github.com/eljja/Magi/actions/runs/35353297752). [한글 사용 흐름 점검](docs/USER-FLOW-AUDIT.ko.md)을 확인하세요.
 
 OMM 자체 코드는 MIT이며, **OmO 의존성은 SUL-1.0**입니다. [라이선스 고지](packages/oh-my-magi/THIRD-PARTY-NOTICES.md)를 확인하세요. 이 저장소는 OmO 공식 제품이 아닙니다.
 
