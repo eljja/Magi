@@ -6,6 +6,44 @@ import { MagiServerPlugin } from "../src/server"
 import { setAutonomousLoop } from "../src/continuation"
 import { mutateMagiState, readMagiState } from "../src/state"
 import { openCodeFixture } from "./fixture"
+import { createOpencodeClient } from "@opencode-ai/sdk"
+
+test("an offline stop is enforced against active children without aborting the human conversation", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "magi-offline-stop-"))
+  const aborted: string[] = []
+  const server = Bun.serve({
+    port: 0,
+    fetch(request) {
+      const route = new URL(request.url).pathname
+      if (route === "/session/status")
+        return Response.json({
+          owner: { type: "busy" },
+          worker: { type: "busy" },
+          specialist: { type: "busy" },
+          unrelated: { type: "busy" },
+        })
+      if (route === "/session/worker" || route === "/session/unrelated") return Response.json({ parentID: "owner" })
+      if (route === "/session/specialist") return Response.json({ parentID: "worker" })
+      if (route.endsWith("/abort")) aborted.push(route)
+      return Response.json({})
+    },
+  })
+  const client = createOpencodeClient({ baseUrl: server.url.toString() })
+  await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Original goal" })
+  await mutateMagiState(directory, (state) => ({ ...state, executionSessionID: "worker" }))
+  const plugin = await MagiServerPlugin({ directory, client } as Parameters<typeof MagiServerPlugin>[0])
+  try {
+    await setAutonomousLoop(directory, false)
+    const deadline = Date.now() + 18000
+    while (!aborted.length && Date.now() < deadline) await Bun.sleep(100)
+    expect(aborted.sort()).toEqual(["/session/specialist/abort", "/session/worker/abort"])
+    expect((await readMagiState(directory)).loopActive).toBe(false)
+  } finally {
+    await plugin.dispose?.()
+    server.stop(true)
+    await rm(directory, { recursive: true, force: true })
+  }
+}, 20000)
 
 test("autonomous workers cannot stop the goal or impersonate user steering", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "magi-controls-"))

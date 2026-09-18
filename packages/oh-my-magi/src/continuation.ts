@@ -223,8 +223,10 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
     [
       "Immutable master goal: " + roadmap.goal,
       "Current milestone: " + milestone?.title + "\n" + milestone?.description,
+      "Acceptance contract: every milestone, including an existing baseline/setup milestone, requires passing mechanical checks and independent review. When previous evidence already identifies a failing check or implementation gap, authorize the concrete repair or experiment next; do not repeat a completed investigation or weaken checks to advance the roadmap.",
       (await validateVerificationSetup(input.directory))
-        ? "Use the project's reproducible verification checks."
+        ? "Use the project's reproducible verification checks. Configured executable/argument arrays: " +
+          JSON.stringify(config.verification.commands)
         : "This folder has no verification checks yet. The first approved step must establish meaningful checks for this goal in .magi/config.jsonc verification.commands (arrays of executable and arguments, cwd inside the folder). For research validate sources, experiment artifacts or reproducibility. Do not create always-passing checks or require the user to set up Git. No milestone is complete without evidence.",
       userSteering
         ? "USER CONVERSATION / GUIDANCE: Interpret each message in context. Questions and status requests are not authorization to change work. Apply explicit priorities and corrections to the existing goal; do not replace it.\n" +
@@ -256,6 +258,8 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
     {
       currentCycle: cycle,
       status: "running",
+      error: undefined,
+      retryAt: undefined,
       votes: {},
       awaitingExecution: false,
       councilActivity: pending ? state.councilActivity : {},
@@ -425,6 +429,10 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
         .at(-1)!
         .decisions.flatMap((item) => (item.requiredChange ? ["Required council change: " + item.requiredChange] : [])),
       "OmO Workforce Instructions:",
+      config.verification.commands.length
+        ? "Configured verification commands (executable and arguments; use these exact executable paths when a command is not on PATH):\n" +
+          JSON.stringify(config.verification.commands)
+        : "",
       "- Use your native OmO agent instructions, categories, skills and task tool. Preserve all upstream permission and model constraints.",
       "- Delegate to available specialists when useful; wait for background work to complete and collect its results before reporting completion.",
       "- Execute this step and report actual artifacts, commands, outputs, and remaining milestone gaps.",
@@ -556,7 +564,7 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<void> {
     await updateMagiState(
       input.directory,
       { time: Date.now(), type: "continuation", title: "Verifying executor result", text: message.info.id },
-      { pendingVerification },
+      { pendingVerification, status: "running", error: undefined, retryAt: undefined },
       24,
       state.runID,
     )

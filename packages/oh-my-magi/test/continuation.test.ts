@@ -35,6 +35,8 @@ describe("Persistent goal controller", () => {
   test("approved work uses an isolated OmO child and ignores conversation acknowledgements", async () => {
     await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
     const result = await runMagiCycle(input())
+    expect(result.prompt).toContain(process.execPath.replaceAll("\\", "\\\\"))
+    expect(result.prompt).toContain("Configured verification commands")
     const approved = await readMagiState(directory)
     await dispatchExecution({ ...input(), runID: approved.runID!, prompt: result.prompt })
     const dispatched = await readMagiState(directory)
@@ -190,6 +192,15 @@ describe("Persistent goal controller", () => {
     expect(state.awaitingExecution).toBe(false)
     expect(state.loopActive).toBe(true)
     expect(state.status).toBe("error")
+  })
+
+  test("incomplete model proposals are rejected instead of inventing a rationale", async () => {
+    fixture.stop()
+    fixture = openCodeFixture({ reply: async () => JSON.stringify({ title: "Missing rationale", prompt: "Do work" }) })
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    await expect(runMagiCycle(input())).rejects.toThrow("Invalid council proposal")
+    expect((await readMagiState(directory)).awaitingExecution).toBe(false)
+    expect(fixture.requests.some((request) => request.path.endsWith("/prompt_async"))).toBe(false)
   })
 
   test("propagating one council failure preserves its backoff; a later failure counts again", async () => {

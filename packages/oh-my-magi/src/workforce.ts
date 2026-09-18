@@ -30,3 +30,15 @@ export async function workforceBusy(client: PluginInput["client"], directory: st
   const descendants = await Promise.all(busy.map(([id]) => isWorkforceSession(client, directory, id, owner)))
   return descendants.some(Boolean)
 }
+
+export async function abortWorkforceExecution(client: PluginInput["client"], directory: string, execution: string) {
+  const result = await client.session.status({ query: { directory }, signal: AbortSignal.timeout(10000) })
+  if (result.error) throw new Error("Cannot inspect stopped workforce sessions")
+  const results = await Promise.all(
+    Object.entries(result.data ?? {}).map(async ([id, status]) => {
+      if (status.type === "idle" || !(await isWorkforceSession(client, directory, id, execution))) return
+      return client.session.abort({ path: { id }, query: { directory }, signal: AbortSignal.timeout(10000) })
+    }),
+  )
+  if (results.some((result) => result?.error)) throw new Error("Could not stop a running workforce child")
+}

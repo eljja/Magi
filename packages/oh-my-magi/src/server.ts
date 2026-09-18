@@ -10,7 +10,7 @@ import { resolveExecutorAgent } from "./omo-bridge"
 import { createOmOMagi } from "./omo-runtime"
 import { queueSteering } from "./steering"
 import { publishReport, appendReport } from "./reporting"
-import { isWorkforceSession } from "./workforce"
+import { abortWorkforceExecution, isWorkforceSession } from "./workforce"
 import { readCouncilMemory } from "./memory"
 import { createWorkforceWatchdog, isRecoveryAbort } from "./watchdog"
 import { validateVerificationSetup } from "./verification"
@@ -118,6 +118,8 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       const state = await readMagiState(directory)
       if (!state.loopActive) abortMagiReviews(directory)
       if (!state.goal || !(await controller.acquire())) return
+      if (!state.loopActive && state.stopReason === "user" && state.executionSessionID)
+        await abortWorkforceExecution(client, directory, state.executionSessionID)
       const archive = state.loopActive && Date.now() - reporting.lastArchive >= 60000
       await publishReport(directory, state, archive)
       if (archive) reporting.lastArchive = Date.now()

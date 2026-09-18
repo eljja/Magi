@@ -23,10 +23,13 @@ const provider = Bun.serve({
   port: 0,
   async fetch(request) {
     const body = (await request.json()) as {
+      model?: string
       messages?: { role: string; content: unknown }[]
       stream?: boolean
       tools?: { function: { name: string } }[]
     }
+    if (body.model !== "fixture")
+      return Response.json({ error: { message: "Unexpected model selected in compatibility test" } }, { status: 400 })
     const prompt = JSON.stringify(body.messages)
     const lastUserIndex = body.messages?.findLastIndex((message) => message.role === "user") ?? -1
     const lastUser = JSON.stringify(body.messages?.[lastUserIndex]?.content ?? "")
@@ -42,18 +45,29 @@ const provider = Bun.serve({
     const workforceCall =
       !reviewing && !hasToolResult && lastUser.includes("magi-smoke-child")
         ? { name: "read", arguments: JSON.stringify({ filePath: path.join(project, "fixture.txt") }) }
-        : !reviewing && !hasToolResult && lastUser.includes("[OH-MY-MAGI COUNCIL TASK")
+        : !reviewing && !hasToolResult && lastUser.includes("magi-smoke-category-probe")
           ? {
               name: "task",
               arguments: JSON.stringify({
-                description: "Inspect smoke evidence",
+                description: "Verify configured category model",
                 prompt: "magi-smoke-child: read fixture.txt and return MAGI_OMO_CHILD_EVIDENCE",
-                subagent_type: "explore",
+                category: "deep",
                 run_in_background: false,
                 load_skills: [],
               }),
             }
-          : undefined
+          : !reviewing && !hasToolResult && lastUser.includes("[OH-MY-MAGI COUNCIL TASK")
+            ? {
+                name: "task",
+                arguments: JSON.stringify({
+                  description: "Inspect smoke evidence",
+                  prompt: "magi-smoke-child: read fixture.txt and return MAGI_OMO_CHILD_EVIDENCE",
+                  subagent_type: "explore",
+                  run_in_background: false,
+                  load_skills: [],
+                }),
+              }
+            : undefined
     const text = prompt.includes("proposal owner")
       ? JSON.stringify({
           title: "Smoke evidence",
@@ -156,6 +170,7 @@ await Bun.write(
     telemetry: false,
     disabled_mcps: ["websearch", "context7", "grep_app"],
     disabled_hooks: ["auto-update-checker", "codegraph-bootstrap", "ast-grep-sg-provision"],
+    categories: { deep: { model: "fixture/fixture" } },
     agents: Object.fromEntries(
       [
         "sisyphus",
@@ -171,7 +186,7 @@ await Bun.write(
         "multimodal-looker",
         "athena",
         "athena-junior",
-      ].map((name) => [name, { model: "fixture/fixture" }]),
+      ].map((name) => [name, { model: name === "hephaestus" ? "fixture/gpt-5.6-sol" : "fixture/fixture" }]),
     ),
   }),
 )
@@ -211,7 +226,10 @@ await Bun.write(
         npm: "@ai-sdk/openai-compatible",
         name: "Local smoke fixture",
         options: { baseURL: provider.url.toString() + "v1", apiKey: "fixture-only" },
-        models: { fixture: { name: "Fixture", limit: { context: 128000, output: 8192 } } },
+        models: {
+          fixture: { name: "Fixture", limit: { context: 128000, output: 8192 } },
+          "gpt-5.6-sol": { name: "Forbidden default model decoy", limit: { context: 128000, output: 8192 } },
+        },
       },
     },
   }),
@@ -309,6 +327,23 @@ try {
   if (!agents.some((agent) => agent.name === "magi") || !agents.some((agent) => agent.name === "magi-reviewer"))
     throw new Error("Magi agents were not registered")
   console.log("Latest OpenCode loaded Magi agents and plugin")
+  const probe = (await request("/session", { title: "OmO category model compatibility probe" })) as { id: string }
+  await request("/session/" + probe.id + "/message", {
+    agent: agents.find((agent) => /^sisyphus(?:\s|$)/i.test(agent.name))!.name,
+    model: { providerID: "fixture", modelID: "fixture" },
+    parts: [{ type: "text", text: "magi-smoke-category-probe" }],
+  })
+  const categoryEvidence = await executionEvidence(probe.id)
+  await Bun.write(path.join(directory, "category-evidence.json"), JSON.stringify(categoryEvidence, null, 2))
+  if (
+    !categoryEvidence.some(
+      (message) =>
+        message.info.agent?.toLowerCase().includes("junior") &&
+        message.parts.some((part) => part.tool === "read" && part.state?.status === "completed"),
+    )
+  )
+    throw new Error("Legacy category model override did not execute through the configured provider")
+  console.log("Native OmO category model override and Sisyphus-Junior execution verified")
   const session = (await request("/session", { title: "Magi smoke" })) as { id: string }
   await request("/session/" + session.id + "/message", {
     agent: "magi",

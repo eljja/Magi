@@ -46,7 +46,14 @@ export async function askCouncilDraft(input: {
     throw new Error("Council proposer unavailable; no task was authorized")
   }
   const parsed = safeParseJson(text)
-  if (typeof parsed.prompt !== "string" || !parsed.prompt.trim() || typeof parsed.title !== "string")
+  if (
+    typeof parsed.prompt !== "string" ||
+    !parsed.prompt.trim() ||
+    typeof parsed.title !== "string" ||
+    !parsed.title.trim() ||
+    typeof parsed.rationale !== "string" ||
+    !parsed.rationale.trim()
+  )
     throw new Error("Invalid council proposal")
   return normalizeProposalDraft(input.proposer, parsed)
 }
@@ -76,7 +83,11 @@ export async function askCouncilMember(input: {
     throw new Error(`Council member ${input.member} unavailable; no vote was recorded`)
   }
   const parsed = safeParseJson(text)
-  if (!["approve", "revise", "reject"].includes(String(parsed.position)) || typeof parsed.rationale !== "string")
+  if (
+    !["approve", "revise", "reject"].includes(String(parsed.position)) ||
+    typeof parsed.rationale !== "string" ||
+    !parsed.rationale.trim()
+  )
     throw new Error("Invalid council vote")
   return normalizeCouncilJudgment(parsed)
 }

@@ -1,6 +1,6 @@
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { createMemo, createSignal, For, Show } from "solid-js"
-import { emptyMagiState, magiStatePath, type MagiRuntimeState } from "./state"
+import { emptyMagiState, readMagiState, type MagiRuntimeState } from "./state"
 
 const id = "oh-my-magi-tui"
 
@@ -23,6 +23,11 @@ function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
   const theme = () => props.api.theme.current
   const topic = createMemo(() => props.state().topic || "Select magi and describe your goal.")
   const events = createMemo(() => props.state().events.slice(-5).toReversed())
+  const requests = createMemo(() =>
+    Object.entries(props.state().councilActivity ?? {})
+      .filter(([, activity]) => activity.status !== "completed")
+      .slice(-4),
+  )
   const members = ["melchior", "balthasar", "casper"] as const
 
   return (
@@ -41,6 +46,13 @@ function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
           <text fg={theme().textMuted}>#{props.state().currentCycle}</text>
         </Show>
       </box>
+      <For each={requests()}>
+        {([stage, activity]) => (
+          <text fg={activity.status === "failed" ? theme().error : theme().textMuted}>
+            {stage}: {activity.status} · attempt {activity.attempt}
+          </text>
+        )}
+      </For>
       <text fg={theme().textMuted}>{topic()}</text>
       <box flexDirection="row" gap={1}>
         <For each={members}>
@@ -72,6 +84,9 @@ function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
       <Show when={props.state().awaitingExecution}>
         <text fg={theme().success}>Approved task awaiting execution / verification</text>
       </Show>
+      <Show when={props.state().error}>
+        <text fg={theme().error}>{props.state().error}</text>
+      </Show>
       <text fg={theme().textMuted}>Minutes: .magi/COUNCIL.md | Monitor: .magi/index.html</text>
       <For each={events()}>
         {(event) => (
@@ -90,9 +105,7 @@ function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
 
 async function read(directory: string): Promise<MagiRuntimeState> {
   try {
-    const file = Bun.file(magiStatePath(directory))
-    if (!(await file.exists())) return emptyMagiState()
-    return (await file.json().catch(() => emptyMagiState())) as MagiRuntimeState
+    return await readMagiState(directory)
   } catch {
     // Bun.file() may not be available in all runtimes
     return emptyMagiState()
@@ -118,7 +131,8 @@ export const MagiTuiPlugin: TuiPlugin = async (api) => {
   api.lifecycle.onDispose(unsubscribe)
 
   const control = async (command: "resume" | "stop") => {
-    const sessionID = api.route.current.name === "session" ? api.route.current.params?.sessionID : state().sessionID
+    const sessionID =
+      state().sessionID || (api.route.current.name === "session" ? api.route.current.params?.sessionID : undefined)
     if (typeof sessionID !== "string" || !sessionID) {
       api.ui.toast({ variant: "info", title: "Magi", message: "Select magi in a session and send your goal." })
       return

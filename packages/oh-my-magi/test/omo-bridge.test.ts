@@ -34,19 +34,19 @@ test("canonical OmO config preserves comments, settings and disables all competi
   expect(text).toContain("// keep my configuration")
   expect(text).toContain('"local/model"')
   const config = parseJsonc(text) as {
-    disabled_hooks: string[]
-    opencode: { disabled_hooks: string[] }
-    profiles: { local: { disabled_hooks: string[] } }
+    "[opencode]": { disabled_hooks: string[] }
+    profiles: { local: { "[opencode]": { disabled_hooks: string[] } } }
   }
   for (const hook of OMO_MANAGED_HOOKS) {
-    expect(config.disabled_hooks).toContain(hook)
-    expect(config.opencode.disabled_hooks).toContain(hook)
-    expect(config.profiles.local.disabled_hooks).toContain(hook)
+    expect(config["[opencode]"].disabled_hooks).toContain(hook)
+    expect(config.profiles.local["[opencode]"].disabled_hooks).toContain(hook)
   }
-  expect(config.disabled_hooks).toContain("comment-checker")
+  expect(config["[opencode]"].disabled_hooks).toContain("comment-checker")
   await harmonizeOmOConfig(dir)
   expect(await Bun.file(result.configPath).text()).toBe(text)
   expect((await readdir(path.join(dir, ".magi", "backups"))).length).toBe(1)
+  const ignore = await Bun.file(path.join(dir, ".magi", ".gitignore")).text()
+  for (const artifact of ["/members/", "/MEMORY.md", "/USER-GUIDANCE.md"]) expect(ignore).toContain(artifact)
 })
 
 test("executor resolution verifies real API agents and never falls back silently", async () => {
@@ -57,4 +57,31 @@ test("executor resolution verifies real API agents and never falls back silently
   } finally {
     fixture.stop()
   }
+})
+
+test("legacy category overrides become canonical model chains without losing fallbacks or profile settings", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "magi-omo-models-"))
+  await Bun.write(
+    path.join(dir, ".omo/omo.jsonc"),
+    JSON.stringify({
+      categories: {
+        deep: { model: "local/primary", fallback_models: [{ model: "local/backup", variant: "low" }], variant: "high" },
+        quick: { models: ["local/canonical"] },
+      },
+      opencode: { categories: { writing: { model: "local/writer" } } },
+      profiles: { local: { opencode: { categories: { deep: { model: "local/profile" } } } } },
+    }),
+  )
+  const result = await harmonizeOmOConfig(dir)
+  const text = await Bun.file(result.configPath).text()
+  const config = JSON.parse(text)
+  expect(config.categories.deep.models).toEqual(["local/primary", { model: "local/backup", variant: "low" }])
+  expect(config.categories.deep.model).toBeUndefined()
+  expect(config.categories.deep.fallback_models).toBeUndefined()
+  expect(config.categories.deep.variant).toBe("high")
+  expect(config.categories.quick.models).toEqual(["local/canonical"])
+  expect(config["[opencode]"].categories.writing.models).toEqual(["local/writer"])
+  expect(config.profiles.local["[opencode]"].categories.deep.models).toEqual(["local/profile"])
+  await harmonizeOmOConfig(dir)
+  expect(await Bun.file(result.configPath).text()).toBe(text)
 })

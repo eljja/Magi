@@ -29,19 +29,23 @@ describe("Roadmap & Todo Ledger", () => {
     })
 
     expect(roadmap.goal).toBe("Develop transparent oxide thin-film transistor")
-    expect(roadmap.milestones.length).toBe(5)
+    expect(roadmap.milestones.length).toBe(1)
     expect(roadmap.milestones[0]?.completed).toBe(false)
     expect(isRoadmapCompleted(roadmap)).toBe(false)
 
     const disk = await readRoadmap(tempDir)
     expect(disk).toBeDefined()
-    expect(disk?.milestones.length).toBe(5)
+    expect(disk?.milestones.length).toBe(1)
   })
 
   test("tracks milestone completion and advances active milestone", async () => {
     const roadmap = await initializeRoadmap({
       directory: tempDir,
       goal: "Build authentication service",
+      milestones: [
+        { title: "Authentication", description: "Implement and verify authentication" },
+        { title: "Recovery", description: "Implement and verify recovery" },
+      ],
     })
 
     let current = getCurrentMilestone(roadmap)
@@ -54,10 +58,7 @@ describe("Roadmap & Todo Ledger", () => {
     expect(current?.id).toBe(2)
 
     // Complete all milestones
-    await markMilestoneComplete(tempDir, 2)
-    await markMilestoneComplete(tempDir, 3)
-    await markMilestoneComplete(tempDir, 4)
-    const finalRoadmap = await markMilestoneComplete(tempDir, 5)
+    const finalRoadmap = await markMilestoneComplete(tempDir, 2)
 
     expect(isRoadmapCompleted(finalRoadmap!)).toBe(true)
     expect(getCurrentMilestone(finalRoadmap!)).toBeUndefined()
@@ -67,6 +68,10 @@ describe("Roadmap & Todo Ledger", () => {
     const roadmap = await initializeRoadmap({
       directory: tempDir,
       goal: "Thin film solar cell",
+      milestones: [
+        { title: "Evidence", description: "Verify literature sources" },
+        { title: "Experiment", description: "Reproduce experimental results" },
+      ],
     })
     await markMilestoneComplete(tempDir, 1, "Literature collected")
 
@@ -74,7 +79,7 @@ describe("Roadmap & Todo Ledger", () => {
     const md = formatRoadmapMarkdown(current)
 
     expect(md).toContain("# Project Master Roadmap: Thin film solar cell")
-    expect(md).toContain("1/5 milestones completed (20%)")
+    expect(md).toContain("1/2 milestones completed (50%)")
     expect(md).toContain("[x] Milestone #1")
     expect(md).toContain("[ ] Milestone #2")
     expect(md).toContain("**Verified Evidence**: Literature collected")

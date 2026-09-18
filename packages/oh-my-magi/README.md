@@ -8,6 +8,8 @@ Magi's three identities use separate decision sessions and persistent judgment h
 
 The user talks to Magi; a fresh official OmO child session executes each approved task. Execution reports and actual tool evidence feed the next meeting. Failed independent review preserves that evidence and rechecks current files before completing a milestone. Workers cannot use the user-control tools to stop or steer the goal. `.magi/members/*.md` preserves each identity's own prior decisions; the monitor separately shows live council requests and workforce activity.
 
+The default roadmap for a new goal describes the user's requested outcome. Council-approved increments determine how to get there; a fixed setup/research phase does not hold implementation back. Existing or explicitly supplied roadmaps are preserved. Every milestone still requires passing checks and independent review.
+
 <p align="center"><img src="https://raw.githubusercontent.com/eljja/Magi/main/assets/magi-execution.svg" alt="Original Magi execution concept" width="900"></p>
 <p align="center"><img src="https://raw.githubusercontent.com/eljja/Magi/main/assets/magi-council.svg" alt="MELCHIOR, BALTHASAR and CASPER: the Magi council concept" width="760"></p>
 
@@ -66,7 +68,7 @@ bun bin/cli.ts doctor --project /absolute/path/to/project
 bun bin/cli.ts stop --project /absolute/path/to/project
 ```
 
-Offline stop disables future scheduling. Use OpenCode's stop command or interrupt to abort in-flight work. Doctor verifies dependency/registration health; it does not certify a running provider.
+Offline stop disables future scheduling. A running Magi server also aborts the saved execution session and its descendants on its next reporting tick (within 15 seconds under normal operation). OpenCode's stop command or interrupt provides the immediate path. Doctor verifies dependency/registration health; it does not certify a running provider.
 
 ## Models and verification
 
@@ -75,14 +77,20 @@ Use OpenCode provider/auth configuration for local or hosted models. OmO agent m
 ```jsonc
 {
   "agents": {
-    "sisyphus": { "model": "your-provider/your-model" },
-    "explore": { "model": "your-provider/your-model" },
-    "librarian": { "model": "your-provider/your-model" },
+    "sisyphus": { "models": ["your-provider/your-model"] },
+    "explore": { "models": ["your-provider/your-model"] },
+    "librarian": { "models": ["your-provider/your-model"] },
+  },
+  "categories": {
+    "deep": { "models": ["your-provider/your-model"] },
+    "quick": { "models": ["your-provider/your-model"] },
   },
 }
 ```
 
 Unspecified OmO agents use upstream model selection. Its model guards, permissions and user-disabled capabilities remain effective; installing the package does not make every model suitable for every agent. Configure additional agents/categories as needed using the pinned upstream schema. Legacy Magi `roles.sisyphus` and `roles.specialists` fields do not configure upstream OmO; migrate them to the OmO config.
+
+OmO 4.19 stores OpenCode-only settings under the literal `"[opencode]"` key, including the brackets. OMM backs up and migrates older project settings, preserves explicit models/options and comments, and places its competing-loop exclusions in this namespace. Plain `"opencode"` and root-level plugin-only options can make the strict upstream loader reject the entire file. Use the canonical namespace in user-global OmO files as well; OMM does not rewrite those files.
 
 Magi's `.magi/config.jsonc` controls its council and verification:
 

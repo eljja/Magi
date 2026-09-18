@@ -142,7 +142,12 @@ export async function judgeCycleOutcome(input: {
     recommendations: [],
     confidence: 0,
   }
-  if (!input.client || !input.verificationReport?.passed || !input.executionReport?.trim()) return rejected
+  if (!input.verificationReport?.passed)
+    return {
+      ...rejected,
+      critique: "Mechanical checks failed or are missing. Repair the recorded failures before independent approval.",
+    }
+  if (!input.client || !input.executionReport?.trim()) return rejected
   const context = await collectMagiContext({ directory: input.directory })
   const text = await executeResilientPrompt({
     agent: "magi-judge",

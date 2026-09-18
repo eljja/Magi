@@ -43,24 +43,8 @@ export async function initializeRoadmap(input: {
 }): Promise<ProjectRoadmap> {
   const defaultMilestones: { title: string; description: string }[] = input.milestones ?? [
     {
-      title: "Environment, Tooling & Baseline Setup",
-      description: `Establish baseline evidence, required tools, and reproducible verification commands for: ${input.goal}`,
-    },
-    {
-      title: "Core Domain Research & Architecture Design",
-      description: `Review primary sources and existing work, identify gaps, and design an approach for: ${input.goal}`,
-    },
-    {
-      title: "Implementation or Reproducible Experiment",
-      description: `Produce concrete code, artifacts, or experiments advancing: ${input.goal}`,
-    },
-    {
-      title: "Mechanical Verification & Flaw Audit",
-      description: `Evaluate results against the goal, reproduce experiments or tests, and document limitations: ${input.goal}`,
-    },
-    {
-      title: "Final Integration & Documentation",
-      description: `Synthesize evidence, document reproducible results and remaining questions for: ${input.goal}`,
+      title: "Deliver and verify the user's goal",
+      description: `Deliver the requested result with reproducible evidence: ${input.goal}. The council chooses concrete increments toward this outcome. Inspect only what is needed, then implement or experiment and verify; a baseline report alone does not satisfy a request to fix or develop something. Preserve existing checks, repair failures, document results and limitations. Completion requires evidence for the user's requested outcome, not merely one successful subtask.`,
     },
   ]
 

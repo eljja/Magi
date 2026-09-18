@@ -1,6 +1,6 @@
 import path from "node:path"
 import os from "node:os"
-import { mkdtemp, mkdir } from "node:fs/promises"
+import { mkdtemp, mkdir, copyFile } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { pathToFileURL } from "node:url"
 import { readMagiState } from "../src/state"
@@ -93,6 +93,7 @@ const maximum = Math.min(80, Math.max(0, (before.free?.remaining ?? 80) - 1))
 if (maximum < 12) throw new Error("Insufficient remaining free requests for a council integration run")
 let nextRequest = 0
 let quotaBlocked = false
+const deniedModels = new Set<string>()
 const gateway = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
@@ -101,7 +102,20 @@ const gateway = Bun.serve({
     if (!new URL(request.url).pathname.endsWith("/chat/completions"))
       return new Response("Unsupported audit route", { status: 404 })
     const body = await request.json()
-    if (body.model !== model || calls.length >= maximum || quotaBlocked)
+    if (body.model !== model) {
+      deniedModels.add(String(body.model))
+      await write("denied-models.json", [...deniedModels])
+      return Response.json(
+        {
+          error: {
+            message: "Live-test model configuration rejected: only the selected free model is allowed",
+            code: 400,
+          },
+        },
+        { status: 400 },
+      )
+    }
+    if (calls.length >= maximum || quotaBlocked)
       return Response.json(
         { error: { message: "Live-test free-only allowance exhausted or model denied", code: 429 } },
         { status: 429 },
@@ -198,12 +212,19 @@ const gateway = Bun.serve({
 })
 
 const modelID = "openrouter/" + model
+const toolDirectory = path.join(directory, "tools")
+await mkdir(toolDirectory, { recursive: true })
+await copyFile(process.execPath, path.join(toolDirectory, process.platform === "win32" ? "bun.exe" : "bun"))
 const env = {
-  PATH: process.env
-    .PATH!.split(path.delimiter)
-    .filter((folder) => !existsSync(path.join(folder, process.platform === "win32" ? "git.exe" : "git")))
-    .join(path.delimiter),
+  PATH:
+    toolDirectory +
+    path.delimiter +
+    process.env
+      .PATH!.split(path.delimiter)
+      .filter((folder) => !existsSync(path.join(folder, process.platform === "win32" ? "git.exe" : "git")))
+      .join(path.delimiter),
   SystemRoot: process.env.SystemRoot || "",
+  PATHEXT: process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD",
   COMSPEC: process.env.COMSPEC || "",
   TEMP: directory,
   TMP: directory,
@@ -223,6 +244,24 @@ const env = {
   OPENROUTER_API_KEY: "local-audit-gateway",
 }
 await mkdir(env.HOME, { recursive: true })
+const preflight = Bun.spawn([path.join(toolDirectory, process.platform === "win32" ? "bun.exe" : "bun"), "--version"], {
+  env,
+  stdout: "pipe",
+  stderr: "pipe",
+})
+const preflightResult = await Promise.all([
+  new Response(preflight.stdout).text(),
+  new Response(preflight.stderr).text(),
+  preflight.exited,
+])
+await write("tools.json", {
+  bun: preflightResult[0].trim(),
+  bunExit: preflightResult[2],
+  bunOnPath: Bun.which("bun", { PATH: env.PATH }),
+  gitOnPath: Bun.which("git", { PATH: env.PATH }),
+})
+if (preflightResult[2] || !Bun.which("bun", { PATH: env.PATH }) || Bun.which("git", { PATH: env.PATH }))
+  throw new Error("Isolated tool preflight failed: Bun must be available and Git absent")
 const binary = process.env.MAGI_OPENCODE_BIN || Bun.which("opencode")
 if (!binary) throw new Error("Install OpenCode or set MAGI_OPENCODE_BIN to its executable")
 const packageDirectory = path.resolve(import.meta.dir, "..")
@@ -275,7 +314,7 @@ await Bun.write(
         "multimodal-looker",
         "athena",
         "athena-junior",
-      ].map((name) => [name, { model: modelID }]),
+      ].map((name) => [name, { models: [modelID] }]),
     ),
     categories: Object.fromEntries(
       [
@@ -287,7 +326,7 @@ await Bun.write(
         "ultrabrain",
         "deep",
         "artistry",
-      ].map((name) => [name, { model: modelID }]),
+      ].map((name) => [name, { models: [modelID] }]),
     ),
   }),
 )
@@ -322,6 +361,7 @@ await Bun.write(
     permission: { "*": "allow", external_directory: "deny" },
     provider: {
       openrouter: {
+        whitelist: [model],
         options: { apiKey: "{env:OPENROUTER_API_KEY}", baseURL: gateway.url.toString() + "api/v1" },
         models: {
           [model]: {
@@ -378,7 +418,31 @@ try {
   )
     throw new Error("Missing actual Magi/OmO agents")
   const providers = await request("/provider")
+  const upstreamLog = await Bun.file(path.join(directory, "oh-my-opencode.log"))
+    .text()
+    .catch(() => "")
+  if (upstreamLog.includes("Migration validation failed"))
+    throw new Error("OmO rejected its configuration; fix the schema before testing model behavior")
   console.log("REAL_OPENCODE_READY " + JSON.stringify({ port, project, connected: providers.connected, model }))
+  const probe = (await request("/session", { title: "Isolated shell preflight (not goal evidence)" })).id
+  await request("/session/" + probe + "/shell", {
+    agent: agents.find((agent: { name: string }) => /^sisyphus/i.test(agent.name)).name,
+    command: "bun --version",
+  })
+  const probeMessages = await collectMessages(probe)
+  await write("native-tools.json", probeMessages)
+  if (
+    !probeMessages.some((message) =>
+      message.parts.some(
+        (part) =>
+          part.type === "tool" &&
+          part.state?.status === "completed" &&
+          /^\s*\d+\.\d+\.\d+(?:[-+][\w.-]+)?\s*$/.test(part.state.output ?? ""),
+      ),
+    )
+  )
+    throw new Error("Native OpenCode shell cannot execute Bun; live model test was not started")
+  await request("/session/" + probe, undefined, "DELETE")
   sessionID = (await request("/session", { title: "Real OpenRouter free-model Magi verification" })).id
   await write("connection.json", { port, project, sessionID, model, connected: providers.connected })
   const goal =
@@ -409,6 +473,10 @@ try {
       last = summary
     }
     await write("progress.json", state)
+    if (deniedModels.size) {
+      verdict = "model-configuration-error"
+      break
+    }
     if (!guided && state.currentCycle >= 2 && !state.awaitingExecution) {
       await request("/session/" + sessionID + "/prompt_async", {
         agent: "magi",
@@ -491,6 +559,7 @@ try {
     before,
     after,
     workforceVerified,
+    deniedModels: [...deniedModels],
     verificationExit: verified[2],
     state: await readMagiState(project),
     finished: new Date().toISOString(),
@@ -505,7 +574,7 @@ try {
 async function collectMessages(id: string): Promise<
   {
     info: { agent?: string }
-    parts: { type: string; tool?: string; state?: { status: string } }[]
+    parts: { type: string; tool?: string; state?: { status: string; output?: string; metadata?: { exit?: number } } }[]
   }[]
 > {
   const messages = await request("/session/" + id + "/message")
