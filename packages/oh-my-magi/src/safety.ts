@@ -1,5 +1,6 @@
 import { ensureDirectory } from "./fs"
 import path from "node:path"
+import { optionalGit as git } from "./git"
 import type { MagiDebateRound, MagiPosition, MagiProposalDraft } from "./council"
 
 export type MagiSafetyPreparation = {
@@ -16,12 +17,6 @@ export type MagiRunDecisionReport = {
   injected: boolean
   rounds: MagiDebateRound[]
   selectedPrompt?: string
-}
-
-type GitResult = {
-  code: number
-  stdout: string
-  stderr: string
 }
 
 export async function prepareBranchSafety(input: {
@@ -46,7 +41,9 @@ export async function prepareBranchSafety(input: {
   const switched = branch ? await git(input.directory, ["switch", "-c", branch]) : undefined
 
   const warnings = [
-    inside.code === 0 ? undefined : "Git repository was not detected; branch isolation was skipped.",
+    inside.code === 0
+      ? undefined
+      : "Git repository was not detected; branch isolation was skipped. Git is optional: continue in the current folder without installing or initializing it.",
     enabled && inside.code === 0 && !clean
       ? "Working tree is not clean; branch isolation was skipped to avoid moving user work."
       : undefined,
@@ -82,7 +79,7 @@ export function formatSafetyEnvelope(input: { prompt: string; safety?: MagiSafet
     input.safety.warnings.length ? `Safety warnings: ${input.safety.warnings.join(" ")}` : undefined,
     input.safety.branch
       ? "Keep all self-improvement work on this branch. Do not commit unless explicitly asked; leave a PR-ready summary with verification."
-      : "Work in the current checkout. Preserve unrelated user edits, keep changes focused on the goal, and verify results. Do not commit or publish unless the user authorizes it.",
+      : "Work in the current folder, including when it is not a Git repository. Preserve unrelated user files, keep changes focused on the goal, and verify results. Do not require Git, create a repository, commit or publish unless the task specifically calls for it.",
     "",
     input.prompt,
   ]
@@ -109,20 +106,6 @@ export async function writeRunDecision(input: { safety?: MagiSafetyPreparation; 
       2,
     )}\n`,
   )
-}
-
-async function git(directory: string, args: string[]): Promise<GitResult> {
-  const proc = Bun.spawn(["git", ...args], {
-    cwd: directory,
-    stdout: "pipe",
-    stderr: "pipe",
-  })
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
-  return { code, stdout, stderr }
 }
 
 function branchName(prefix: string, title: string, runID: string) {

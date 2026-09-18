@@ -5,6 +5,29 @@ import { migrateOmORegistrations } from "./migration"
 import { isRecoveryAbort } from "./watchdog"
 import { isWorkforceSession } from "./workforce"
 import { repairWindowsRuntime } from "./windows"
+import { createMagiAgent } from "./agents/magi"
+
+export function createMagiSetupHooks(reason: string): Hooks {
+  const permission = { "*": "deny", edit: "deny", bash: "deny" } as const
+  return {
+    config: async (config) => {
+      config.agent ??= {}
+      config.agent.magi = {
+        ...createMagiAgent(),
+        description: "Magi setup: restart or repair required",
+        permission,
+        prompt:
+          "Explain this Magi setup issue in the user's language. Do not claim the council is running or perform the goal.\n" +
+          reason,
+      }
+    },
+    "chat.message": async (input, output) => {
+      if ((input.agent || output.message.agent) !== "magi") return
+      // Surface the exact startup issue even before a model/provider is connected.
+      throw new Error(reason)
+    },
+  }
+}
 
 // Keep unknown/future upstream hooks, tool definitions and lifecycle methods intact.
 export function composeHooks(upstream: Hooks, council: Hooks): Hooks {
@@ -36,6 +59,17 @@ export function composeHooks(upstream: Hooks, council: Hooks): Hooks {
 }
 
 export async function createOmOMagi(input: PluginInput, councilPlugin: Plugin): Promise<Hooks> {
+  return initializeOmOMagi(input, councilPlugin).catch((error) => {
+    const reason =
+      "Magi could not initialize OmO: " +
+      String(error) +
+      ". Repair the plugin/provider configuration and restart OpenCode. Install with: opencode plugin oh-my-magi (omm is a different npm package)."
+    console.warn(reason)
+    return createMagiSetupHooks(reason)
+  })
+}
+
+async function initializeOmOMagi(input: PluginInput, councilPlugin: Plugin): Promise<Hooks> {
   await repairWindowsRuntime(input.directory, process.env, true)
   const migrated = await migrateOmORegistrations(input.directory)
   if (migrated.length) {
@@ -45,7 +79,7 @@ export async function createOmOMagi(input: PluginInput, councilPlugin: Plugin): 
       "Magi preserved your OmO settings and migrated duplicate plugin registrations. Restart OpenCode once to activate OMM. Backups: .magi/backups. Updated: " +
       migrated.join(", ")
     console.warn(message)
-    throw new Error(message)
+    return createMagiSetupHooks(message)
   }
   await harmonizeOmOConfig(input.directory)
   const module = await import("oh-my-opencode")
@@ -92,11 +126,24 @@ export async function createOmOMagi(input: PluginInput, councilPlugin: Plugin): 
     )
   }
   const configure = async (config: Config) => {
+    // Keep the user's entry point visible even if OmO has no usable executor yet.
+    await council.config?.(config)
     if (config.plugin?.some(containsOmOSpec))
       throw new Error(
         "oh-my-magi already loads OmO. Remove the separate oh-my-opencode/oh-my-openagent server plugin entry to prevent duplicate managers.",
       )
-    await upstream.config?.(config)
+    const problem = await Promise.resolve()
+      .then(() => upstream.config?.(config))
+      .then(
+        () => undefined,
+        (error) => String(error),
+      )
+    if (problem) {
+      await createMagiSetupHooks(
+        "OmO configuration failed: " + problem + ". Review your provider/model settings and restart OpenCode.",
+      ).config?.(config)
+      return
+    }
     const agents = Object.entries(config.agent ?? {})
     const preferred = agents.find(
       ([name, agent]) =>
@@ -107,12 +154,14 @@ export async function createOmOMagi(input: PluginInput, councilPlugin: Plugin): 
     )
     const executor =
       preferred ?? agents.find(([name, agent]) => /^sisyphus(?:\s|$)/i.test(name) && agent && agent.mode !== "subagent")
-    if (!executor || !upstream.tool?.task)
-      throw new Error(
-        "OmO did not register its primary executor and task tool. Review .omo/omo.jsonc and provider/model availability.",
-      )
-    registerOmORuntime(input.directory, executor[0], Object.keys(upstream.tool))
     await council.config?.(config)
+    if (!executor || !upstream.tool?.task) {
+      console.warn(
+        "Magi is available, but OmO has no primary executor/task tool yet. Connect a model and review .omo/omo.jsonc, then restart.",
+      )
+      return
+    }
+    registerOmORuntime(input.directory, executor[0], Object.keys(upstream.tool))
     // OpenCode selects the command agent before command.execute.before. Set the real
     // upstream display name here so the FIRST approved task also uses the full harness.
     config.command!.magi!.agent = executor[0]
@@ -144,6 +193,14 @@ export async function createOmOMagi(input: PluginInput, councilPlugin: Plugin): 
       },
     },
     config: configure,
+    "chat.message": async (request, output) => {
+      const before = await readMagiState(input.directory)
+      await council["chat.message"]?.(request, output)
+      const after = await readMagiState(input.directory)
+      if (!before.loopActive && after.loopActive && after.sessionID === request.sessionID)
+        await resumeWorkforce(request.sessionID)
+      await upstream["chat.message"]?.(request, output)
+    },
     "command.execute.before": async (request, output) => {
       const state = await readMagiState(input.directory)
       if (

@@ -103,8 +103,14 @@ export async function recordCouncilDeliberation(directory: string, input: Delibe
   )
 
   for (const round of input.rounds) {
-    if (input.rounds.length > 1) {
-      lines.push(`#### Debate Round ${round.round}`)
+    lines.push(`#### Debate Round ${round.round}`)
+    if (round.discussion?.length) {
+      lines.push("##### Opening arguments (before peer review)")
+      for (const argument of round.discussion)
+        lines.push(
+          `* **${argument.member.toUpperCase()}**: ${argument.rationale}${argument.requiredChange ? " Required change: " + argument.requiredChange : ""}`,
+        )
+      lines.push("", "##### Rebuttals and final votes (after reading all three arguments)")
     }
     for (const decision of round.decisions) {
       const memberName = decision.member.toUpperCase()

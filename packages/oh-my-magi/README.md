@@ -7,13 +7,15 @@ Continuous, single-goal research and development governance over the **official 
 
 ## Installation
 
-Requires Bun 1.3.13+ and OpenCode 1.18.29+. The SDK and current compatibility target are 1.18.30. The package includes an exact dependency on `oh-my-opencode@4.19.4` (the official oh-my-openagent stable distribution). Register **only OMM**.
+Requires Bun 1.3.13+ and OpenCode 1.18.29+. The SDK and current compatibility target are 1.18.31. The package includes an exact dependency on `oh-my-opencode@4.19.4` (the official oh-my-openagent stable distribution). Register **only OMM**.
 
-Install the npm release:
+Run this in your operating-system terminal, then restart OpenCode. Global installation makes Magi available across folders:
 
 ```sh
-opencode plugin oh-my-magi
+opencode plugin oh-my-magi@0.1.1 --global
 ```
+
+The package name is **oh-my-magi**, not `omm` (an unrelated npm package). Omit `--global` only for intentional project-local installation. Run installation in a terminal, not an AI conversation.
 
 For development from this package directory:
 
@@ -26,14 +28,15 @@ opencode plugin /absolute/path/to/Magi/packages/oh-my-magi
 
 OpenCode detects `dist/server.js` and `dist/tui.js`. The server composes the actual upstream OmO plugin with Magi. The optional TUI uses the native OpenCode TUI plugin API. Restart OpenCode after changing plugin or OmO configuration.
 
-Already using OmO? OMM recognizes its npm server/TUI registrations in global, ancestor/project and explicit OpenCode config files. It backs up their original contents and paths under `.magi/backups/`, replaces the registrations with OMM, and preserves model settings, comments, plugin options and unrelated plugins. If migration happens during OpenCode startup, **restart OpenCode once**: that process may already have loaded the old OmO, so OMM deliberately waits for the next startup before initializing its own workforce. Custom wrappers and inline environment configuration need explicit inspection. The CLI installer performs the migration before startup and also moves recognized legacy files under `.opencode/magi-migration/`.
+Already using OmO? OMM recognizes its npm server/TUI registrations in global, ancestor/project and explicit OpenCode config files. It backs up their original contents and paths under `.magi/backups/`, replaces the registrations with OMM, and preserves model settings, comments, plugin options and unrelated plugins. If migration happens during OpenCode startup, **restart OpenCode once**: that process may already have loaded the old OmO, so OMM deliberately waits for the next startup before initializing its own workforce. During migration or startup failure, a visible Magi setup agent explains the issue instead of disappearing. Custom wrappers and inline environment configuration need explicit inspection. The CLI installer performs the migration before startup and also moves recognized legacy files under `.opencode/magi-migration/`.
 
 On affected Windows/Bun builds, an existing ReadOnly runtime directory can prevent OpenCode from starting with `EEXIST` before any plugin loads. Run `bunx oh-my-magi doctor --repair-windows --project <project>` and restart. This repairs directory attributes on known runtime folders, without changing files or ACLs. See [Bun #34413](https://github.com/oven-sh/bun/issues/34413).
 
 ## Start, inspect, guide and stop
 
 ```text
-/magi start <one persistent goal>
+Select the magi agent, then send your goal:
+Continuously research this topic and improve the evidence.
 /magi status
 Prioritize reproducibility before adding new experiments.
 Why did you choose this approach? Just explain it.
@@ -45,7 +48,7 @@ Talk normally in the session running the goal, just as you would talk to Sisyphu
 
 Only the active goal's session is captured. Synthetic system prompts, child/reviewer sessions, slash-command templates and conversations while stopped are excluded. Replayed recent message IDs are deduplicated. `/magi steer <guidance>` and `/magi feedback <guidance>` remain optional compatibility commands.
 
-`magi_start`, `magi_status`, `magi_steer` and `magi_stop` are also exposed as tools. Selecting the Magi agent alone does not activate autonomy. Start/resume verifies that an actual upstream primary executor is available. Both the first approved slash-command task and subsequent tasks use the real upstream agent display name.
+`magi_start`, `magi_status`, `magi_steer` and `magi_stop` are also exposed as tools. Selecting Magi and sending the first ordinary message saves it as the goal and starts the runtime. Council/reviewer requests inherit the selected model unless explicitly configured otherwise. No slash command or model-generated start-tool call is required. Stopped goals stay stopped until explicitly resumed. Start/resume verifies that an actual upstream primary executor is available. Both the first approved slash-command task and subsequent tasks use the real upstream agent display name.
 
 The saved goal is immutable during a run. Guidance is queued atomically, included in the next council proposal, and acknowledged only when an approved task incorporates it. Additional guidance arriving during a meeting survives that meeting. Stop preserves the goal. Repeating start/resume on an active goal does not create a duplicate cycle.
 
@@ -92,13 +95,13 @@ Magi's `.magi/config.jsonc` controls its council and verification:
 }
 ```
 
-For research, supply commands that validate experiment artifacts, metrics, data integrity or reproducibility. Missing checks never count as success. Automatic script detection is deliberately conservative and does not run tests from a monorepo root. A working directory must remain inside the project.
+Git and Git repositories are optional; ordinary folders can run Magi. For research, supply commands that validate experiment artifacts, metrics, data integrity or reproducibility. Missing checks never count as success. Automatic script detection is deliberately conservative and does not run tests from a monorepo root. A working directory must remain inside the project.
 
 Council members may use separate `council.melchiorModel`, `balthasarModel` and `casperModel` settings. They run through real OpenCode requests in read-only sessions. An independent reviewer evaluates execution evidence against the full milestone after mechanical checks.
 
-`maxCycles` and `maxDebateRounds` are ignored, including in old configurations. Meetings have no round ceiling: each scheduler turn saves one round, and an unapproved meeting resumes with its objections and a revised proposal. Recent rounds stay in prompt context while the full meeting archive remains on disk. Request retry limits and timeout intervals apply to individual operations, not the lifelong goal loop. Continuous mode adds another increment when the initial roadmap completes. Optional `mode: "complete"` stops after verified roadmap completion; use continuous mode for indefinite work.
+`maxCycles` and `maxDebateRounds` are ignored, including in old configurations. Each round shares three opening assessments, then collects rebuttals and three final votes; both phases are archived. Meetings have no round ceiling: each scheduler turn saves one round, and an unapproved meeting resumes with its objections and a revised proposal. Recent rounds stay in prompt context while the full meeting archive remains on disk. Request retry limits and timeout intervals apply to individual operations, not the lifelong goal loop. Continuous mode adds another increment when the initial roadmap completes. Optional `mode: "complete"` stops after verified roadmap completion; use continuous mode for indefinite work.
 
-`resilience.stallTimeoutMs` defaults to 1800000 (30 minutes without message/tool progress). The watchdog examines the owner and active descendants, waits for live progress, and aborts stalled attempts before recovering the approved task. Increase this interval for legitimately silent long-running work. Transient failures back off up to 30 minutes between retries, with no retry-count ceiling on the goal. Authentication/model configuration errors are reported explicitly; fix the configuration and resume. Missing verification commands are diagnosed before starting work.
+`resilience.stallTimeoutMs` defaults to 1800000 (30 minutes without message/tool progress). The watchdog examines the owner and active descendants, waits for live progress, and aborts stalled attempts before recovering the approved task. Increase this interval for legitimately silent long-running work. Transient failures back off up to 30 minutes between retries, with no retry-count ceiling on the goal. Authentication/model configuration errors are reported explicitly; fix the configuration and resume. A folder without checks can start: the council asks the executor to establish meaningful reproducible checks first. Missing checks still never count as completion.
 
 ## Reports and meeting records
 
@@ -163,6 +166,7 @@ bun run smoke
 
 `smoke` uses the actual OpenCode binary and actual OmO dependency with an isolated deterministic provider. It checks native plugin installation, agent registration, the first execution agent, real `task → explore → read` delegation, repeated cycles, steering, stop/resume and reports. `MAGI_OPENCODE_BIN` can select an already installed official binary. No provider credentials are needed for this test.
 
-The Windows OpenCode 1.18.30 / OmO 4.19.4 integration baseline and 81 automated tests pass. Cross-platform CI, real-model endurance and full interactive UI checks remain qualification work; finite automated runs do not prove indefinite uptime. Review the tarball and third-party notices for each release. Updating an upstream version requires rerunning these integration checks; beta compatibility is not implied by stable support.
+The 0.1.1 source passes 84 tests (350 assertions), type checking and Windows OpenCode 1.18.31 / OmO 4.19.4 integration. The integration uses a non-Git folder with Git removed from PATH, global installation, existing-OmO migration, Magi selection plus an ordinary goal message, real delegation and stop/resume. Cross-platform CI, real-model endurance and full interactive UI checks remain qualification work; finite automated runs do not prove indefinite uptime. Review the tarball and third-party notices for each release. Updating an upstream version requires rerunning these integration checks; beta compatibility is not implied by stable support.
 
 OMM code is MIT. OmO retains its **SUL-1.0** license. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and the [engineering audit](../../docs/RELEASE-AUDIT.md).
+

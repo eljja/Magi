@@ -25,12 +25,12 @@ _Original Magi concept artwork: three minds deliberate, the workforce acts, and 
 Install the npm package in your OpenCode project:
 
 ```sh
-opencode plugin oh-my-magi
+opencode plugin oh-my-magi@0.1.1 --global
 ```
 
-Only OMM needs registration; it loads its pinned OmO dependency. Existing recognized OmO registrations are backed up and migrated while preserving model and agent settings. If migration occurs at startup, restart OpenCode once to load the new configuration without duplicate managers.
+The npm package is **oh-my-magi**; `omm` names an unrelated package. Use `--global` for availability across folders. Only OMM needs registration; it loads its pinned OmO dependency. Existing recognized OmO registrations are backed up and migrated while preserving model and agent settings. If migration occurs at startup, restart OpenCode once to load the new configuration without duplicate managers.
 
-To use the current source with Bun **1.3.13+** and OpenCode **1.18.29+** (current target: **1.18.30**):
+To use the current source with Bun **1.3.13+** and OpenCode **1.18.29+** (current target: **1.18.31**):
 
 ```sh
 git clone --branch omm https://github.com/eljja/Magi.git
@@ -43,10 +43,10 @@ bun bin/cli.ts install --local --project /absolute/path/to/your/project
 
 Alternatively, run `opencode plugin /absolute/path/to/Magi/packages/oh-my-magi` in the target project after building. OpenCode detects the server and optional TUI targets. The OMM installer additionally backs up and migrates recognized legacy registrations.
 
-Configure a model/provider in OpenCode, define reproducible verification commands, then restart OpenCode in the project:
+Connect a model in OpenCode, select **magi**, and send your goal. The runtime starts automatically; Git is optional and missing verification checks can be established by the first approved task:
 
 ```text
-/magi start Continuously improve the reproducibility and accuracy of this research pipeline
+Continuously improve the reproducibility and accuracy of this research pipeline
 /magi status
 Prioritize reproducibility before adding new experiments.
 Why did you choose this approach? Just explain it.
@@ -95,9 +95,11 @@ Keep an OpenCode server running for unattended work. The saved goal recovers whe
 
 ## Compatibility and release status
 
-**Published:** [oh-my-magi 0.1.0](https://www.npmjs.com/package/oh-my-magi) is available on npm. Its registry artifact matches the reviewed release tarball. See the [publication record (Korean)](docs/RELEASE-AUDIT.md#publication-attempt).
+**0.1.1 update pending publication:** agent selection and ordinary goal entry start automatically; Git is optional and council members exchange arguments before final votes. The versioned command above requires the 0.1.1 release.
 
-- **Compatibility:** minimum OpenCode `1.18.29`, current SDK/target `1.18.30`, official OmO npm stable `4.19.4`. CI checks the minimum and moving latest versions. See the [upgrade procedure](packages/oh-my-magi/README.md#updating-compatibility).
+**Previously published:** [oh-my-magi 0.1.0](https://www.npmjs.com/package/oh-my-magi) is available on npm. Its registry artifact matches the reviewed release tarball. See the [publication record (Korean)](docs/RELEASE-AUDIT.md#publication-attempt).
+
+- **Compatibility:** minimum OpenCode `1.18.29`, current SDK/target `1.18.31`, official OmO npm stable `4.19.4`. CI checks the minimum and moving latest versions. See the [upgrade procedure](packages/oh-my-magi/README.md#updating-compatibility).
 - **Actual Windows integration (OpenCode 1.18.30):** existing OmO migration and restart, native plugin installation, real upstream agent registration, first execution through Sisyphus, `task → explore → read`, repeated goal cycles, steering, stop/resume and report generation were exercised with a deterministic local provider.
 - **Cross-platform CI:** minimum/latest OpenCode jobs passed on Linux, macOS and Windows. [CI results](https://github.com/eljja/Magi/actions/runs/34361639844).
 - **Package validation:** 81 automated tests (327 assertions) and typechecking passed; the built tarball also passed the integration smoke after installation into a separate consumer project.

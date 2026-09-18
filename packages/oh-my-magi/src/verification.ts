@@ -111,10 +111,8 @@ export async function validateVerificationSetup(directory: string) {
   const commands = config.verification.commands.length
     ? config.verification.commands
     : await detectVerificationCommands(directory)
-  if (!commands.length)
-    throw new Error(
-      "Magi configuration required: configure reproducible verification.commands in .magi/config.jsonc before starting or resuming autonomous work.",
-    )
+  // An empty folder can start. The first approved task establishes meaningful
+  // checks; missing checks still never count as verified completion.
   for (const item of commands) {
     if (!Array.isArray(item.command) || !item.command.length || item.command.some((arg) => typeof arg !== "string"))
       throw new Error("Magi configuration required: verification commands must be nonempty arrays of strings")
@@ -122,6 +120,7 @@ export async function validateVerificationSetup(directory: string) {
     if (relative.startsWith("..") || path.isAbsolute(relative))
       throw new Error("Verification cwd must stay inside the project")
   }
+  return commands.length > 0
 }
 
 export async function judgeCycleOutcome(input: {

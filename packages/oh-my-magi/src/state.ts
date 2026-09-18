@@ -1,6 +1,6 @@
-import { ensureDirectory } from "./fs"
+import { ensureDirectory, atomicWriteFile } from "./fs"
 import path from "node:path"
-import { rename, readdir, unlink } from "node:fs/promises"
+import { readFile, readdir, unlink } from "node:fs/promises"
 import type { MagiCouncilMember, MagiPosition, MagiDebateRound } from "./council"
 import { appendReport } from "./reporting"
 
@@ -44,6 +44,7 @@ export type MagiRuntimeState = {
   selectedPrompt?: string
   error?: string
   goal?: string
+  model?: string
   sessionID?: string
   runID?: string
   awaitingExecution?: boolean
@@ -86,7 +87,7 @@ export function emptyMagiState(): MagiRuntimeState {
     loopActive: false,
     currentCycle: 0,
     maxCycles: 0,
-    topic: "Magi is idle. Type /magi or /magi start to convene the council.",
+    topic: "Select the magi agent and describe one goal to start the council.",
     updatedAt: Date.now(),
     events: [],
     votes: {},
@@ -139,9 +140,13 @@ export async function readMagiState(directory: string): Promise<MagiRuntimeState
 
 async function readSavedMagiState(directory: string): Promise<MagiRuntimeState> {
   const file = magiStatePath(directory)
-  if (!(await Bun.file(file).exists())) return emptyMagiState()
-  const content: unknown = await Bun.file(file)
-    .json()
+  const text = await readFile(file, "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined
+    throw error
+  })
+  if (text === undefined) return emptyMagiState()
+  const content: unknown = await Promise.resolve()
+    .then(() => JSON.parse(text))
     .catch(() => undefined)
   if (!content || typeof content !== "object" || Array.isArray(content))
     return {
@@ -177,9 +182,7 @@ export async function mutateMagiState(directory: string, change: (state: MagiRun
     .then(async () => {
       await ensureDirectory(magiRuntimeDir(directory))
       const state = { ...change(await readMagiState(directory)), updatedAt: Date.now() }
-      const temporary = `${magiStatePath(directory)}.${crypto.randomUUID()}.tmp`
-      await Bun.write(temporary, JSON.stringify(state, null, 2))
-      await rename(temporary, magiStatePath(directory))
+      await atomicWriteFile(magiStatePath(directory), JSON.stringify(state, null, 2))
       return state
     })
   writes.set(key, pending)
@@ -225,7 +228,5 @@ export async function readMagiMemory(directory: string): Promise<MagiRuntimeMemo
 
 export async function writeMagiMemory(directory: string, memory: MagiRuntimeMemory) {
   await ensureDirectory(magiRuntimeDir(directory))
-  const temporary = `${magiMemoryPath(directory)}.${crypto.randomUUID()}.tmp`
-  await Bun.write(temporary, JSON.stringify(memory, null, 2))
-  await rename(temporary, magiMemoryPath(directory))
+  await atomicWriteFile(magiMemoryPath(directory), JSON.stringify(memory, null, 2))
 }

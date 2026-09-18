@@ -10,7 +10,7 @@ import { resolveExecutorAgent } from "./omo-bridge"
 import { createOmOMagi } from "./omo-runtime"
 import { queueSteering } from "./steering"
 import { publishReport, appendReport } from "./reporting"
-import { isWorkforceSession, workforceBusy } from "./workforce"
+import { isWorkforceSession } from "./workforce"
 import { readCouncilMemory } from "./memory"
 import { createWorkforceWatchdog, isRecoveryAbort } from "./watchdog"
 import { validateVerificationSetup } from "./verification"
@@ -85,7 +85,7 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       }
       return
     }
-    if (Date.now() - state.updatedAt < 60000) return
+    if (state.currentCycle > 0 && Date.now() - state.updatedAt < 60000) return
     await validateVerificationSetup(directory)
     const result = await runMagiCycle({ directory, sessionID: state.sessionID, client })
     const current = await readMagiState(directory)
@@ -102,10 +102,10 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
     if (response.error)
       await pauseMagi(directory, "Executor dispatch failed: " + JSON.stringify(response.error), state.runID)
   }
-  const timer = setInterval(() => {
+  const pump = async () => {
     if (reporting.ticking) return
     reporting.ticking = true
-    void tick()
+    await tick()
       .catch(async (error) => {
         const state = await readMagiState(directory)
         if (state.loopActive)
@@ -114,6 +114,9 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       .finally(() => {
         reporting.ticking = false
       })
+  }
+  const timer = setInterval(() => {
+    void pump()
   }, 15000)
   timer.unref()
   // Reporting must remain alive while council/provider requests are pending.
@@ -152,8 +155,6 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
         return
       }
       if (output.parts.some((part) => part.type === "text" && part.metadata?.magiOrigin)) return
-      const state = await readMagiState(directory)
-      if (!state.loopActive || state.sessionID !== input.sessionID) return
       const parts = output.parts
         .filter((part) => part.type === "text")
         .filter((part) => !part.synthetic && !part.ignored)
@@ -162,6 +163,26 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
         .join("\n\n")
         .trim()
       if (!text) return
+      const initial = await readMagiState(directory)
+      const selected = input.agent || output.message.agent
+      if (!initial.goal && !initial.loopActive && selected === "magi") {
+        const session = await client.session.get({ path: { id: input.sessionID }, query: { directory } })
+        if (session.error) throw new Error("Cannot check Magi session ownership")
+        if (session.data?.parentID) return
+        await validateVerificationSetup(directory)
+        if (!(await controller.acquire()))
+          throw new Error("Another OpenCode server owns this folder's Magi goal. Use its session.")
+        const model = input.model || output.message.model
+        await setAutonomousLoop(directory, true, {
+          sessionID: input.sessionID,
+          goal: text,
+          model: model ? model.providerID + "/" + model.modelID : undefined,
+        })
+        await appendReport(directory, "COUNCIL.md", "\n\n## Goal accepted from Magi conversation\n\n" + text + "\n")
+        await publishReport(directory, await readMagiState(directory), true)
+      }
+      const state = await readMagiState(directory)
+      if (!state.loopActive || state.sessionID !== input.sessionID) return
       const item = await queueSteering(directory, text, { sessionID: input.sessionID, messageID: output.message.id })
       if (!item) return
       output.parts.push({
@@ -173,6 +194,9 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
           "[Magi conversation receipt: " +
           item.id +
           "]\n" +
+          (!initial.goal
+            ? "The runtime has already saved this first message as the persistent goal and activated the council. Briefly acknowledge it; do not call magi_start or execute the goal yourself. The actual council starts after this reply. "
+            : "") +
           "The user's message above is already saved for the next council deliberation. Respond naturally in the user's language. " +
           "Answer questions as questions; do not treat them as authorization for changes. For guidance, briefly acknowledge receipt without claiming it has already been applied. " +
           "Do not call magi_steer again for this message or start a separate task. Preserve the existing goal and let the council schedule changes. " +
@@ -369,7 +393,7 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       if (event.type !== "session.status" || event.properties.status.type !== "idle") return
       const state = await readMagiState(directory)
       if (state.loopActive && event.properties.sessionID === state.sessionID && (await controller.acquire()))
-        await handleSessionIdleEvent({ directory, sessionID: state.sessionID!, client })
+        await pump()
     },
     "experimental.session.compacting": async (input, output) => {
       const state = await readMagiState(directory)

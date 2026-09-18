@@ -21,7 +21,7 @@ function memberLabel(member: string) {
 
 function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
   const theme = () => props.api.theme.current
-  const topic = createMemo(() => props.state().topic || "Magi is idle. Type /magi.")
+  const topic = createMemo(() => props.state().topic || "Select magi and describe your goal.")
   const events = createMemo(() => props.state().events.slice(-5).toReversed())
   const members = ["melchior", "balthasar", "casper"] as const
 
@@ -120,7 +120,7 @@ export const MagiTuiPlugin: TuiPlugin = async (api) => {
   const control = async (command: "resume" | "stop") => {
     const sessionID = api.route.current.name === "session" ? api.route.current.params?.sessionID : state().sessionID
     if (typeof sessionID !== "string" || !sessionID) {
-      api.ui.toast({ variant: "info", title: "Magi", message: "Use /magi start <goal> in a session first." })
+      api.ui.toast({ variant: "info", title: "Magi", message: "Select magi in a session and send your goal." })
       return
     }
     if (command === "stop") await api.client.session.abort({ sessionID, directory: api.state.path.directory })

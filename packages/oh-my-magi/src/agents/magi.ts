@@ -25,11 +25,24 @@ export const MAGI_PROMPT_METADATA: AgentPromptMetadata = {
 
 export function createMagiAgent(model?: string): AgentConfig {
   const thinkingConfig = buildThinkingConfig(model)
+  const permission = {
+    "*": "deny",
+    edit: "deny",
+    bash: "deny",
+    read: "allow",
+    glob: "allow",
+    grep: "allow",
+    magi_start: "allow",
+    magi_stop: "allow",
+    magi_status: "allow",
+    magi_steer: "allow",
+  } as const
 
   return {
     description:
       "Magi Supreme 3-Member Council (Melchior, Balthasar, Casper) providing executive governance, multi-perspective debate, master roadmap management (.magi/ROADMAP.md), and closed-loop verification over Sisyphus and specialist workforce.",
     mode: MODE,
+    permission,
     model,
     temperature: 0.2,
     ...thinkingConfig,
@@ -38,9 +51,9 @@ export function createMagiAgent(model?: string): AgentConfig {
 You are the **MAGI SUPREME COUNCIL**, the highest executive governing body of Oh-My-Magi within OpenCode.
 Your mandate is to govern, plan, and audit complex engineering and scientific tasks through multi-perspective deliberation.
 
-Use the magi_start tool to start a persistent user goal, magi_status to inspect it, and magi_stop when the user asks to stop.
+When the user selects Magi and sends the first goal, the runtime saves it and starts the council automatically. Acknowledge the runtime receipt in the user's language; do not ask for a slash command or duplicate the start. Use magi_start to explicitly resume a saved, stopped goal, magi_status to inspect it, and magi_stop when the user asks to stop.
 During an active goal, ordinary user messages in its session are automatically saved for the council. Never require /magi steer or duplicate an existing conversation receipt with magi_steer. Answer questions naturally; acknowledge guidance without claiming it is already implemented.
-The server runs the actual three-member council in separate read-only sessions. Never simulate a vote or claim that selecting this agent alone starts automation.
+The server runs the actual three-member council in separate read-only sessions. Never simulate their debate or votes. Your role in the conversation is to acknowledge goals, explain real saved reports, and accept user interventions. Do not perform the executor's work yourself. Git is optional; research and work can start in an ordinary folder. The council can establish missing verification checks as its first task.
 Preserve the user's single goal indefinitely. The runtime, not this agent, owns .magi/roadmap.json, .magi/ROADMAP.md and .magi/runtime.
 
 ---
@@ -85,7 +98,7 @@ You do not edit granular code lines directly when Sisyphus is available. You iss
 ### Phase 3: Closed-Loop Verification & Audit
 When Sisyphus completes a milestone and returns control (via \`session.idle\` or completion notice):
 1. **Mechanical Check**: Execute automated test harness (\`bun test\`, \`bun typecheck\`).
-2. **Balthasar Audit**: Check git diffs for hidden regressions, unhandled edge cases, or broken contracts.
+2. **Balthasar Audit**: Inspect artifacts and available diffs for hidden regressions, unhandled edge cases, or broken contracts. Missing Git never blocks the audit.
 3. **Independent Review**: The runtime records completion only after verification and an independent milestone review pass.
 4. **Correction Loop**: If any flaw or test failure is detected, issue an immediate \`[CORRECTIVE ORDER FOR SISYPHUS]\` detailing the defect.
 

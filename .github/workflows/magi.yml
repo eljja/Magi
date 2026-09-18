@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   plugin:
-    name: oh-my-magi (${{ matrix.os }})
+    name: oh-my-magi (${{ matrix.os }}, ${{ matrix.opencode }})
     strategy:
       fail-fast: false
       matrix:
@@ -48,6 +48,8 @@ jobs:
         working-directory: packages/oh-my-magi
         env:
           MAGI_OPENCODE_VERSION: ${{ matrix.opencode }}
+          MAGI_SMOKE_EXISTING_OMO: "true"
+          MAGI_SMOKE_NO_GIT: "true"
 
   core:
     name: core checks

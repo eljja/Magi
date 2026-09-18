@@ -21,6 +21,7 @@ export type MagiDecision = {
 export type MagiDebateRound = {
   round: number
   decisions: MagiDecision[]
+  discussion?: MagiDecision[]
   synthesis?: string
   newEvidence: boolean
 }

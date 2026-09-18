@@ -7,7 +7,7 @@ import { parseJsonc } from "./config"
 import { readMagiState } from "./state"
 import { detectOmO, containsOmOSpec, harmonizeOmOConfig, OMO_VERSION } from "./omo-bridge"
 import { formatCouncilObservationBulletin } from "./observer"
-import { migrateOmORegistrations } from "./migration"
+import { migrateOmORegistrations, openCodeConfigFiles } from "./migration"
 
 export type InstallOptions = { projectDirectory: string; pluginSpecifier?: string; migrationFiles?: string[] }
 export type DoctorReport = {
@@ -138,8 +138,11 @@ export async function doctorOhMyMagi(projectDirectory: string): Promise<DoctorRe
       )
   }
   const registered = async (name: string) => {
-    const files = [project, opencodeDir].flatMap((dir) =>
-      ["json", "jsonc"].map((ext) => path.join(dir, name + "." + ext)),
+    const files = openCodeConfigFiles(project).filter(
+      (file) =>
+        path.basename(file) === name + ".json" ||
+        path.basename(file) === name + ".jsonc" ||
+        (name === "opencode" && file === process.env.OPENCODE_CONFIG),
     )
     const found = await Promise.all(
       files.map(async (file) => {
@@ -163,8 +166,12 @@ export async function doctorOhMyMagi(projectDirectory: string): Promise<DoctorRe
     detectOmO(project),
   ])
   const recommendations: string[] = []
-  if (!pluginRegistered) issues.push("Server plugin not registered in project configuration")
-  if (!tuiRegistered) issues.push("Optional TUI panel not registered in project configuration")
+  if (!pluginRegistered)
+    issues.push(
+      "Server plugin not registered in effective global/project configuration. Run in a terminal: opencode plugin oh-my-magi --global. The npm package omm is unrelated.",
+    )
+  if (!tuiRegistered)
+    recommendations.push("Optional TUI panel is not registered; server agents still work in CLI, desktop and web.")
   if (!omoStatus.installed) {
     issues.push("Bundled OmO dependency missing; reinstall oh-my-magi.")
   } else if (!omoStatus.todoEnforcerDisabled) {

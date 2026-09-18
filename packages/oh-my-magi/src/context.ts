@@ -1,11 +1,8 @@
+import { optionalGit as git } from "./git"
+
 export type MagiContextPack = {
   text: string
   truncated: boolean
-}
-
-type CommandResult = {
-  code: number
-  stdout: string
 }
 
 export async function collectMagiContext(input: {
@@ -30,6 +27,7 @@ export async function collectMagiContext(input: {
     redact(
       [
         "Magi context pack:",
+        "Git is optional. Unavailable Git evidence does not block research or work in this folder. Inspect files directly; do not ask the user to install Git just to start Magi.",
         section("Git branch", branch.code === 0 ? branch.stdout.trim() || "(detached or unnamed)" : "unavailable"),
         section("Git status", status.code === 0 ? status.stdout.trim() || "clean" : "unavailable"),
         section("Changed files", changedFiles.code === 0 ? changedFiles.stdout.trim() || "none" : "unavailable"),
@@ -51,20 +49,6 @@ function truncate(text: string, maxChars: number): MagiContextPack {
     text: `${text.slice(0, Math.max(0, maxChars - 38)).trimEnd()}\n[context truncated by Magi runtime]`,
     truncated: true,
   }
-}
-
-async function git(directory: string, args: string[]): Promise<CommandResult> {
-  const proc = Bun.spawn(["git", ...args], {
-    cwd: directory,
-    stdout: "pipe",
-    stderr: "pipe",
-  })
-  const [stdout, _stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
-  return { code, stdout }
 }
 
 async function packageScripts(directory: string) {

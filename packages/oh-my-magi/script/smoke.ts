@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url"
 import { readMagiState } from "../src/state"
 import compatibility from "../compatibility.json"
 import { repairWindowsRuntime } from "../src/windows"
+import { existsSync } from "node:fs"
 
 const directory = await mkdtemp(path.join(process.env.MAGI_SMOKE_ROOT ?? os.tmpdir(), "magi-smoke-"))
 const project = path.join(directory, "project")
@@ -14,8 +15,10 @@ await mkdir(project, { recursive: true })
 await mkdir(path.join(project, ".opencode"), { recursive: true })
 await Bun.write(path.join(project, ".opencode", "opencode.json"), "{}\n")
 await Bun.write(path.join(project, "fixture.txt"), "MAGI_OMO_CHILD_EVIDENCE\n")
-const git = Bun.spawn(["git", "init", project], { stdout: "ignore", stderr: "pipe" })
-if (await git.exited) throw new Error("Cannot isolate smoke repository: " + (await new Response(git.stderr).text()))
+if (process.env.MAGI_SMOKE_GIT === "true") {
+  const git = Bun.spawn(["git", "init", project], { stdout: "ignore", stderr: "pipe" })
+  if (await git.exited) throw new Error("Cannot initialize optional smoke repository")
+}
 const provider = Bun.serve({
   port: 0,
   async fetch(request) {
@@ -114,7 +117,13 @@ const provider = Bun.serve({
   },
 })
 const env = {
-  PATH: process.env.PATH!,
+  PATH:
+    process.env.MAGI_SMOKE_NO_GIT === "true"
+      ? process.env
+          .PATH!.split(path.delimiter)
+          .filter((folder) => !existsSync(path.join(folder, process.platform === "win32" ? "git.exe" : "git")))
+          .join(path.delimiter)
+      : process.env.PATH!,
   SystemRoot: process.env.SystemRoot ?? "",
   COMSPEC: process.env.COMSPEC ?? "",
   TEMP: directory,
@@ -179,7 +188,7 @@ const run = async (args: string[]) => {
 }
 const packageDirectory = process.env.MAGI_PLUGIN_PACKAGE ?? path.resolve(import.meta.dirname, "..")
 await run(["--version"])
-await run(["plugin", process.env.MAGI_PLUGIN_SPECIFIER || packageDirectory])
+await run(["plugin", process.env.MAGI_PLUGIN_SPECIFIER || packageDirectory, "--global"])
 await Bun.write(
   path.join(env.OPENCODE_CONFIG_DIR, "opencode.json"),
   JSON.stringify({
@@ -248,8 +257,8 @@ try {
     const migrated = await Bun.file(path.join(env.OPENCODE_CONFIG_DIR, "opencode.json")).json()
     if (migrated.plugin.some((entry: unknown) => typeof entry === "string" && entry.startsWith("oh-my-opencode")))
       throw new Error("Existing global OmO registration was not migrated")
-    if (agents.some((agent) => agent.name === "magi"))
-      throw new Error("OMM initialized in the old OmO process instead of requesting restart")
+    if (!agents.some((agent) => agent.name === "magi") || agents.some((agent) => agent.name === "magi-reviewer"))
+      throw new Error("Migration must keep the Magi setup agent visible without starting another workforce")
     if (process.platform === "win32")
       await Bun.spawn(["taskkill", "/pid", String(proc.pid), "/t", "/f"], { stdout: "ignore", stderr: "ignore" }).exited
     if (process.platform !== "win32") proc.kill()
@@ -289,17 +298,22 @@ try {
     throw new Error("Magi agents were not registered")
   console.log("Latest OpenCode loaded Magi agents and plugin")
   const session = (await request("/session", { title: "Magi smoke" })) as { id: string }
-  await request("/session/" + session.id + "/command", {
-    command: "magi",
-    arguments: "start Verify the deterministic fixture repeatedly",
+  await request("/session/" + session.id + "/message", {
+    agent: "magi",
+    model: { providerID: "fixture", modelID: "fixture" },
+    parts: [{ type: "text", text: "Verify the deterministic fixture repeatedly" }],
   })
+  const started = await readMagiState(project)
+  if (!started.loopActive || started.goal !== "Verify the deterministic fixture repeatedly")
+    throw new Error("Selecting Magi and sending a goal did not activate the council")
+  console.log("Magi selection + ordinary goal message started autonomy, without a slash command")
   for (let attempt = 0; ; attempt++) {
     const state = await readMagiState(project)
     if (state.currentCycle >= 3) {
       console.log("Real OpenCode continued through cycle " + state.currentCycle)
       break
     }
-    if (attempt >= 180) throw new Error("Continuation timed out: " + JSON.stringify(state))
+    if (attempt >= 300) throw new Error("Continuation timed out: " + JSON.stringify(state))
     await Bun.sleep(500)
   }
   const evidence = (await request("/session/" + session.id + "/message")) as {
@@ -318,8 +332,15 @@ try {
     )
   if (!task) throw new Error("Real OmO task delegation did not return child evidence")
   const firstExecutor = evidence.find((message) => message.info.role === "assistant")
-  if (!firstExecutor?.info.agent?.toLowerCase().startsWith("sisyphus"))
-    throw new Error("First command did not execute through OmO: " + JSON.stringify(firstExecutor?.info))
+  if (firstExecutor?.info.agent !== "magi")
+    throw new Error("The user's selected Magi agent did not acknowledge the goal")
+  if (
+    !evidence.some(
+      (message) =>
+        message.info.agent?.toLowerCase().startsWith("sisyphus") && message.parts.some((part) => part.tool === "task"),
+    )
+  )
+    throw new Error("Approved work did not execute through real OmO")
   const childSessions = (await request("/session/" + session.id + "/children")) as { id: string }[]
   if (!childSessions.length) throw new Error("OmO did not create an actual child session")
   const childEvidence = await Promise.all(childSessions.map((child) => request("/session/" + child.id + "/message")))

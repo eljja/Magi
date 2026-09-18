@@ -76,6 +76,45 @@ test("ordinary conversation reaches the next council once, before upstream augme
   }
 })
 
+test("selecting Magi saves the first goal without Git, verification setup or a start tool", async () => {
+  const context = await setup()
+  try {
+    const output = message("새 연구 주제를 계속 조사하고 근거를 모아줘")
+    output.message.agent = "magi"
+    await context.plugin["chat.message"]!({ sessionID: "owner", agent: "magi" }, output)
+    const state = await readMagiState(context.directory)
+    expect(state.goal).toBe("새 연구 주제를 계속 조사하고 근거를 모아줘")
+    expect(state.loopActive).toBe(true)
+    expect(state.model).toBe("local/model")
+    expect(state.ignoredMessageIDs).toContain(output.message.id)
+    await context.plugin.event!({
+      event: { type: "session.status", properties: { sessionID: "owner", status: { type: "idle" } } },
+    })
+    expect(context.fixture.requests.some((request) => request.path.endsWith("/prompt_async"))).toBe(true)
+    const reviews = context.fixture.requests.filter(
+      (request) => request.path.endsWith("/message") && request.method === "POST",
+    )
+    expect(reviews).toHaveLength(7)
+    expect(
+      reviews.every(
+        (request) => JSON.stringify(request.body.model) === JSON.stringify({ providerID: "local", modelID: "model" }),
+      ),
+    ).toBe(true)
+    expect(JSON.stringify(reviews)).toContain("first approved step must establish meaningful checks")
+    expect(JSON.stringify(reviews)).toContain("Council cross-examination")
+    const ledger = await Bun.file(path.join(context.directory, ".magi/COUNCIL.md")).text()
+    expect(ledger).toContain("Opening arguments")
+    expect(ledger).toContain("Rebuttals and final votes")
+    await setAutonomousLoop(context.directory, false)
+    const stopped = message("상태가 어때?")
+    stopped.message.agent = "magi"
+    await context.plugin["chat.message"]!({ sessionID: "owner", agent: "magi" }, stopped)
+    expect((await readMagiState(context.directory)).loopActive).toBe(false)
+  } finally {
+    await context.close()
+  }
+})
+
 test("internal, child, unrelated, inactive and slash command messages are not steering", async () => {
   const context = await setup()
   try {

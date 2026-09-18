@@ -32,7 +32,7 @@ import {
   stopMarkers,
   acknowledgeStops,
 } from "./state"
-import { runIndependentJudge, runMechanicalVerification } from "./verification"
+import { runIndependentJudge, runMechanicalVerification, validateVerificationSetup } from "./verification"
 import { resolveExecutorAgent } from "./omo-bridge"
 import { recordCouncilDeliberation, recordCycleOutcome } from "./ledger"
 import { workforceBusy } from "./workforce"
@@ -60,7 +60,7 @@ const stopped: CycleResult = {
 export async function setAutonomousLoop(
   directory: string,
   active: boolean,
-  options?: { sessionID: string; goal?: string },
+  options?: { sessionID: string; goal?: string; model?: string },
 ) {
   if (!active) {
     await persistStop(directory)
@@ -93,6 +93,7 @@ export async function setAutonomousLoop(
     return {
       ...state,
       goal,
+      model: options.model || state.model,
       sessionID: options.sessionID,
       runID: crypto.randomUUID(),
       loopActive: true,
@@ -101,6 +102,8 @@ export async function setAutonomousLoop(
       status: "running",
       stopReason: undefined,
       error: undefined,
+      retryAt: undefined,
+      failureCount: 0,
       topic: goal,
     }
   })
@@ -150,6 +153,7 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
   const config = await loadMagiConfig(input.directory)
   const state = await readMagiState(input.directory)
   const roadmap = await readRoadmap(input.directory)
+  config.roles.council ||= state.model || ""
   if (!roadmap) throw new Error("Goal roadmap is missing; refusing unrelated work")
   if (isRoadmapCompleted(roadmap)) {
     if (config.selfImprovement.mode === "complete") {
@@ -201,6 +205,9 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
   const requirements = [
     "Immutable master goal: " + roadmap.goal,
     "Current milestone: " + milestone?.title + "\n" + milestone?.description,
+    (await validateVerificationSetup(input.directory))
+      ? "Use the project's reproducible verification checks."
+      : "This folder has no verification checks yet. The first approved step must establish meaningful checks for this goal in .magi/config.jsonc verification.commands (arrays of executable and arguments, cwd inside the folder). For research validate sources, experiment artifacts or reproducibility. Do not create always-passing checks or require the user to set up Git. No milestone is complete without evidence.",
     userSteering
       ? "USER CONVERSATION / GUIDANCE: Interpret each message in context. Questions and status requests are not authorization to change work. Apply explicit priorities and corrections to the existing goal; do not replace it.\n" +
         userSteering
@@ -260,7 +267,12 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
     })
     if (!(await active(input, runID))) return stopped
     const decisions = votes.map((item) => decisionFromJudgment(item.member, item.judgment))
-    rounds.push({ round, decisions, newEvidence: decisions.some((item) => item.newEvidence) })
+    rounds.push({
+      round,
+      decisions,
+      discussion: votes.map((item) => decisionFromJudgment(item.member, item.opening)),
+      newEvidence: decisions.some((item) => item.newEvidence),
+    })
     for (const decision of decisions)
       await updateMagiState(
         input.directory,
@@ -441,9 +453,8 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<void> {
     )
     const report = await runMechanicalVerification(input.directory)
     if (!(await active(input, state.runID))) return
-    // Missing verification is a configuration blocker; retrying it would spend tokens without new evidence.
-    if (!report.checks.length) throw new Error(report.summary)
     const config = await loadMagiConfig(input.directory)
+    config.roles.council ||= state.model || ""
     const roadmap = await readRoadmap(input.directory)
     const milestone = roadmap && getCurrentMilestone(roadmap)
     const verdict = await runIndependentJudge({

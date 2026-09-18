@@ -1,6 +1,6 @@
 {
   "name": "oh-my-magi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Autonomous multi-agent council plugin for OpenCode, featuring Melchior, Balthasar, and Casper.",
   "type": "module",
   "main": "./dist/server.js",
@@ -31,7 +31,7 @@
     "test": "bun test --timeout 30000"
   },
   "exports": {
-    ".": "./src/index.ts",
+    ".": "./dist/server.js",
     "./server": "./dist/server.js",
     "./council": "./src/council.ts",
     "./agents": "./src/agents/index.ts",
@@ -64,8 +64,8 @@
     "licenses"
   ],
   "dependencies": {
-    "@opencode-ai/plugin": "1.18.30",
-    "@opencode-ai/sdk": "1.18.30",
+    "@opencode-ai/plugin": "1.18.31",
+    "@opencode-ai/sdk": "1.18.31",
     "jsonc-parser": "3.3.1",
     "oh-my-opencode": "4.19.4"
   },
