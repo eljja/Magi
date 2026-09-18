@@ -118,6 +118,9 @@ async function active(input: CycleInput, runID: string) {
 
 export async function pauseMagi(directory: string, reason: string, runID?: string) {
   const state = await readMagiState(directory)
+  // The cycle and its caller can observe the same failure. Keep its existing
+  // backoff instead of counting propagation through another catch as a retry.
+  if (state.status === "error" && state.error === reason && (state.retryAt ?? 0) > Date.now()) return
   const failures = (state.failureCount ?? 0) + 1
   await updateMagiState(
     directory,
@@ -240,11 +243,18 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
     proposer,
     systemPrompt: buildSelfImprovementDraftPrompt({
       proposer,
-      recentWork: requirements,
+      recentWork: "The project evidence and persistent goal are supplied in the user message.",
       cycle,
       previousCompleted: memory.previousCompleted,
     }),
-    userPrompt: "Propose one concrete step toward this milestone. Preserve the original goal.\n" + requirements,
+    userPrompt: [
+      "Project evidence for the proposal (the goal is for the execution workforce after council approval):",
+      requirements,
+      "END OF PROJECT EVIDENCE.",
+      "CURRENT REQUEST: Return one proposal for the council to debate. Do not carry out the goal or verify completion in this request.",
+      "Read source files only if needed to identify the next step. You can propose running tests without running them yourself; report missing evidence honestly.",
+      "Return only a JSON object with title, prompt (the concrete executor task), rationale, terminal (boolean), and memory. Preserve the original goal and user constraints.",
+    ].join("\n\n"),
   })
   if (!(await active(input, runID))) return stopped
   const rounds: MagiDebateRound[] = [...(state.meeting?.rounds ?? [])]

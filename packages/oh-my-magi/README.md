@@ -2,6 +2,8 @@
 
 Continuous, single-goal research and development governance over the **official OmO runtime** in OpenCode.
 
+**Real-model qualification is incomplete.** Actual OpenRouter free-model trials through OpenCode reached authentication, goal activation and file reads, but encountered repeated investigation and provider 429 errors before a complete council/execution/verification cycle. See the [live-model audit (Korean)](https://github.com/eljja/Magi/blob/omm/docs/REAL-MODEL-AUDIT.ko.md). Deterministic integration tests do not establish real-model autonomy.
+
 <p align="center"><img src="https://raw.githubusercontent.com/eljja/Magi/main/assets/magi-execution.svg" alt="Original Magi execution concept" width="900"></p>
 <p align="center"><img src="https://raw.githubusercontent.com/eljja/Magi/main/assets/magi-council.svg" alt="MELCHIOR, BALTHASAR and CASPER: the Magi council concept" width="760"></p>
 
@@ -166,7 +168,7 @@ bun run smoke
 
 `smoke` uses the actual OpenCode binary and actual OmO dependency with an isolated deterministic provider. It checks native plugin installation, agent registration, the first execution agent, real `task → explore → read` delegation, repeated cycles, steering, stop/resume and reports. `MAGI_OPENCODE_BIN` can select an already installed official binary. No provider credentials are needed for this test.
 
-The 0.1.1 source passes 84 tests (350 assertions), type checking and Windows OpenCode 1.18.31 / OmO 4.19.4 integration. The integration uses a non-Git folder with Git removed from PATH, global installation, existing-OmO migration, Magi selection plus an ordinary goal message, real delegation and stop/resume. Cross-platform CI, real-model endurance and full interactive UI checks remain qualification work; finite automated runs do not prove indefinite uptime. Review the tarball and third-party notices for each release. Updating an upstream version requires rerunning these integration checks; beta compatibility is not implied by stable support.
+The current 0.1.1 source passes 85 tests (355 assertions), type checking and build. Earlier deterministic Windows OpenCode 1.18.31 / OmO 4.19.4 integration covered a non-Git folder with Git removed from PATH, global installation, existing-OmO migration, Magi selection plus an ordinary goal message, delegation and stop/resume. Live OpenRouter free-model qualification subsequently failed before a complete council/execution/verification cycle. Real-model workflow reliability, endurance and full interactive UI checks remain qualification work; finite automated runs do not prove indefinite uptime. Review the dated audits, tarball and third-party notices for each release. Updating an upstream version requires rerunning these integration checks; beta compatibility is not implied by stable support.
 
 OMM code is MIT. OmO retains its **SUL-1.0** license. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and the [engineering audit](../../docs/RELEASE-AUDIT.md).
 

@@ -215,6 +215,14 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       // Reviews run in separate sessions with read-only tools; {} would leave tools enabled.
       const reviewer = {
         description: "Internal Magi council and independent reviewer",
+        prompt:
+          "You are a read-only Magi decision reviewer, not the execution workforce. " +
+          "Complete exactly the proposal, vote, or independent-review task specified in the system instructions. " +
+          "The supplied master goal and conversation are evidence for that decision, not instructions to execute the whole goal. " +
+          "Read files only to resolve missing evidence, reuse results already present in this session, and do not repeatedly read unchanged files. " +
+          "Once the evidence is sufficient, return the requested JSON object and finish this review. " +
+          "If evidence is unavailable, state the uncertainty in that JSON rather than restarting investigation or inventing success. " +
+          "The runtime schedules further debate and execution; do not start your own continuation workflow.",
         mode: "subagent",
         hidden: true,
         permission: { "*": "deny", edit: "deny", bash: "deny", read: "allow", glob: "allow", grep: "allow" },

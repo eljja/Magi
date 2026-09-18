@@ -234,7 +234,7 @@ export function buildSelfImprovementDraftPrompt(input: {
       ? "The previous task did not complete cleanly or had errors. Propose a targeted fix, test repair, or narrow continuation."
       : "The previous task completed successfully. Propose the next meaningful improvement to code, tests, docs, or feature completeness.",
     "",
-    "Observe the project direction from repository files, git history, and recent sessions.",
+    "Use the supplied project evidence and read source files when necessary to choose the next step. Git history is optional; do not repeat investigation already supported by the supplied evidence.",
     "Return JSON matching this shape:",
     JSON.stringify(
       {

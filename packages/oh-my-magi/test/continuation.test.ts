@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { handleSessionIdleEvent, runMagiCycle, setAutonomousLoop } from "../src/continuation"
+import { handleSessionIdleEvent, pauseMagi, runMagiCycle, setAutonomousLoop } from "../src/continuation"
 import { mutateMagiState, readMagiState, writeMagiState } from "../src/state"
 import { readRoadmap } from "../src/roadmap"
 import { openCodeFixture } from "./fixture"
@@ -93,6 +93,20 @@ describe("Persistent goal controller", () => {
     expect(state.awaitingExecution).toBe(false)
     expect(state.loopActive).toBe(true)
     expect(state.status).toBe("error")
+  })
+
+  test("propagating one council failure preserves its backoff; a later failure counts again", async () => {
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
+    await expect(runMagiCycle({ directory, sessionID: "owner" })).rejects.toThrow("unavailable")
+    const failed = await readMagiState(directory)
+    await pauseMagi(directory, failed.error!, failed.runID)
+    const propagated = await readMagiState(directory)
+    expect(propagated.failureCount).toBe(1)
+    expect(propagated.retryAt).toBe(failed.retryAt)
+    expect(propagated.events.length).toBe(failed.events.length)
+    await mutateMagiState(directory, (state) => ({ ...state, retryAt: Date.now() - 1 }))
+    await pauseMagi(directory, failed.error!, failed.runID)
+    expect((await readMagiState(directory)).failureCount).toBe(2)
   })
 
   test("continues beyond previous cycle limits and completed roadmap without changing goal", async () => {

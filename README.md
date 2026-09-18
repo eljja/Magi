@@ -8,6 +8,8 @@
 
 [한국어](README.ko.md) · [Installation and configuration](packages/oh-my-magi/README.md) · [Engineering audit](docs/RELEASE-AUDIT.md) · [Contributing](CONTRIBUTING.md)
 
+**Real-model qualification:** live OpenRouter free-model trials through OpenCode exposed repeated investigation and provider 429 errors. A complete real-model debate → implementation → verification → next meeting has **not passed**. Read the [live-model audit (Korean)](docs/REAL-MODEL-AUDIT.ko.md) before relying on unattended operation.
+
 Oh-My-Magi (OMM) adds continuous research and development governance to [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) (OmO) on OpenCode. It loads the official `oh-my-opencode@4.19.4` server plugin as a dependency, including its agent factories, tools, skills, MCP integration and background task manager. These are upstream implementations, not recreated agent prompts.
 
 Magi maintains one goal, proposes the next step, obtains independent council votes, delegates approved work to the OmO workforce, and verifies the result. **There is no iteration limit.** Completing the initial roadmap leads to another research or improvement increment within the same goal.
@@ -104,9 +106,9 @@ Keep an OpenCode server running for unattended work. The saved goal recovers whe
 - **Compatibility:** minimum OpenCode `1.18.29`, current SDK/target `1.18.31`, official OmO npm stable `4.19.4`. CI checks the minimum and moving latest versions. See the [upgrade procedure](packages/oh-my-magi/README.md#updating-compatibility).
 - **Actual Windows integration (OpenCode 1.18.29 and 1.18.31):** global installation into a non-repository folder with Git absent from PATH, existing OmO migration/restart, selecting Magi and sending an ordinary goal, real `task → explore → read`, three consecutive cycles, conversational steering, stop/resume and reports passed with a deterministic local provider.
 - **Cross-platform CI:** all six minimum/latest OpenCode jobs on Linux, macOS and Windows, plus the core regression job, passed. [0.1.1 validation run](https://github.com/eljja/Magi/actions/runs/35353297752).
-- **Package validation:** 84 automated tests (350 assertions), typechecking and build passed; the release tarball also passed the integration smoke after production-only installation into a separate consumer project.
+- **Package validation:** the current source passes 85 automated tests (355 assertions), typechecking and build. The earlier release tarball passed deterministic integration after production-only installation into a separate consumer project; see the dated audits for its scope.
 - **CLI, desktop and web:** share the server-side agents, tools and commands. The optional TUI panel is specific to the terminal; the file-based monitor works separately in a browser.
-- **Remaining qualification checks:** real-provider endurance runs, full interactive desktop/TUI and reconnect QA. Short automated tests do not prove infinite uptime or every upstream feature/provider combination.
+- **Remaining qualification checks:** a complete real-provider workflow (the free-model trials failed), endurance runs, full interactive desktop/TUI and reconnect QA. Short automated tests do not prove infinite uptime or every upstream feature/provider combination.
 
 See the [0.1.1 user-flow audit (Korean)](docs/USER-FLOW-AUDIT.ko.md) and [historical 0.1.0 release audit](docs/RELEASE-AUDIT.md). The repository retains an older OpenCode fork and legacy Magi packages; the maintained plugin is `packages/oh-my-magi`.
 
