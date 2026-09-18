@@ -2,7 +2,7 @@
 
 Continuous, single-goal research and development governance over the **official OmO runtime** in OpenCode.
 
-**Real-model qualification is incomplete.** Actual free-model proposals, independent assessments, final votes and official OmO specialist delegation have been observed. Some models still repeat investigation without finishing implementation. See the [live-model audit (Korean)](https://github.com/eljja/Magi/blob/omm/docs/REAL-MODEL-AUDIT.ko.md) and [current autonomy design](https://github.com/eljja/Magi/blob/omm/docs/AUTONOMY-DESIGN.ko.md). Deterministic integration tests do not establish real-model autonomy.
+**Real-model qualification is incomplete.** Actual free-model proposals, independent assessments, final votes and official OmO specialist delegation have been observed. One run repaired the code and passed all three preserved original behavior tests, but did not finish Magi's independent milestone review and subsequent cycles within the test budget. Some specialists still repeat investigation. See the [live-model audit (Korean)](https://github.com/eljja/Magi/blob/omm/docs/REAL-MODEL-AUDIT.ko.md) and [current autonomy design](https://github.com/eljja/Magi/blob/omm/docs/AUTONOMY-DESIGN.ko.md). Deterministic integration tests do not establish real-model autonomy.
 
 Magi's three identities use separate decision sessions and persistent judgment histories. Opening arguments are independent; final votes follow peer review. OpenCode validates proposals and votes through native `StructuredOutput`, so council models must support tool calling. All three valid final votes are required before applying majority/unanimous policy. Missing votes never imply approval. Partial meetings resume after transient failures without repeating completed judgments.
 
@@ -14,6 +14,8 @@ The default roadmap for a new goal describes the user's requested outcome. Counc
 <p align="center"><img src="https://raw.githubusercontent.com/eljja/Magi/main/assets/magi-council.svg" alt="MELCHIOR, BALTHASAR and CASPER: the Magi council concept" width="760"></p>
 
 ## Installation
+
+**0.1.1 is not published to npm yet.** The public 0.1.0 does not include these fixes. Use the source build/local installation below until publication; the versioned npm command becomes available after that release.
 
 Requires Bun 1.3.13+ and OpenCode 1.18.29+. The SDK and current compatibility target are 1.18.31. The package includes an exact dependency on `oh-my-opencode@4.19.4` (the official oh-my-openagent stable distribution). Register **only OMM**.
 

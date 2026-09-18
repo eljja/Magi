@@ -8,7 +8,7 @@
 
 [English](README.md) · [설치·설정](packages/oh-my-magi/README.md) · [구현 감사](docs/RELEASE-AUDIT.md)
 
-**자율 개발 개선:** 세 인격의 분리된 판단·상호 반박·최종 투표, 인격별 기억, 중간 회의 복구, 사용자 대화와 OmO 실행 분리를 구현했습니다. 실제 무료 모델에서도 제안·세 명의 최종 투표·OmO 전문 에이전트 위임을 확인했습니다. 모델에 따라 반복 조사가 남아 있으며 전체 구현·검증의 신뢰성은 계속 검증해야 합니다. [설계와 해결 내용](docs/AUTONOMY-DESIGN.ko.md), [실제 모델 검증 결과](docs/REAL-MODEL-AUDIT.ko.md)를 확인하세요.
+**자율 개발 개선:** 세 인격의 분리된 판단·상호 반박·최종 투표, 인격별 기억, 중간 회의 복구, 사용자 대화와 OmO 실행 분리를 구현했습니다. 실제 무료 모델이 의회 승인 후 코드를 수정하고 보존한 원본 테스트 3개를 통과했습니다. 다만 시험 시간 안에 Magi 독립 완료 검토와 후속 회의까지 끝내지 못했고 일부 전문 에이전트의 반복 조사도 남아 있어, 전체 자율개발 검증은 미통과입니다. [설계와 해결 내용](docs/AUTONOMY-DESIGN.ko.md), [실제 모델 검증 결과](docs/REAL-MODEL-AUDIT.ko.md)를 확인하세요.
 
 Oh-My-Magi(OMM)는 OpenCode에서 [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent)(OmO) 위에 동작하는 연구·개발 상위 시스템입니다. 공식 `oh-my-opencode@4.19.4`를 의존성으로 설치하고 실제 서버 플러그인을 초기화합니다. OmO의 에이전트·도구·전문가 위임·백그라운드 작업 관리 기능을 그대로 사용합니다.
 
@@ -102,7 +102,7 @@ Windows의 실제 OpenCode **1.18.29·1.18.31**과 공식 OmO **4.19.4**에서 G
 
 실제 제공자 시험은 `bun run smoke:live`로 재현할 수 있습니다. 현재 가격이 0인 OpenRouter 무료 모델만 허용하며, 원본 행동 테스트를 작업 폴더 밖에 보존해 최종 결과를 별도로 확인합니다. 자세한 [시험 절차](docs/AUTONOMY-DESIGN.ko.md#검증과-재현)를 참고하세요.
 
-CLI·데스크톱·웹은 같은 서버 기능을 사용합니다. 터미널 패널은 TUI 전용이며, 모니터 페이지는 별도로 여는 로컬 문서입니다. **실제 모델 장기 실행과 데스크톱·TUI 전체 조작 및 재접속 검증은 아직 남아 있습니다.** 수정판의 Linux·macOS·Windows 최소/최신 OpenCode [6개 CI 조합과 코어 검증이 모두 통과했습니다](https://github.com/eljja/Magi/actions/runs/35383764757). [한글 사용 흐름 점검](docs/USER-FLOW-AUDIT.ko.md)을 확인하세요.
+CLI·데스크톱·웹은 같은 서버 기능을 사용합니다. 터미널 패널은 TUI 전용이며, 모니터 페이지는 별도로 여는 로컬 문서입니다. **실제 모델 장기 실행과 데스크톱·TUI 전체 조작 및 재접속 검증은 아직 남아 있습니다.** 수정판의 Linux·macOS·Windows 최소/최신 OpenCode [6개 CI 조합과 코어 검증이 모두 통과했습니다](https://github.com/eljja/Magi/actions/runs/35384954335). [한글 사용 흐름 점검](docs/USER-FLOW-AUDIT.ko.md)을 확인하세요.
 
 OMM 자체 코드는 MIT이며, **OmO 의존성은 SUL-1.0**입니다. [라이선스 고지](packages/oh-my-magi/THIRD-PARTY-NOTICES.md)를 확인하세요. 이 저장소는 OmO 공식 제품이 아닙니다.
 
