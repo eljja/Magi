@@ -231,12 +231,14 @@ let proc = boot()
 const stdout = [new Response(proc.stdout).text()]
 const stderr = [new Response(proc.stderr).text()]
 const base = "http://127.0.0.1:" + port
-const request = async (url: string, body?: unknown) => {
+const request = async (url: string, body?: unknown, timeout = 120000) => {
   const response = await fetch(base + url + "?directory=" + encodeURIComponent(project), {
     method: body === undefined ? "GET" : "POST",
     headers: { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
-    signal: AbortSignal.timeout(120000),
+    signal: AbortSignal.timeout(timeout),
+  }).catch((error) => {
+    throw new Error(url + " request failed after up to " + timeout + "ms: " + String(error))
   })
   if (!response.ok) throw new Error(url + ": " + response.status + " " + (await response.text()))
   return response.json()
@@ -252,7 +254,9 @@ try {
     if (attempt >= 120) throw new Error("OpenCode server startup timed out")
     await Bun.sleep(500)
   }
-  let agents = (await request("/agent")) as { name: string }[]
+  // Cold Windows runners may still be resolving the existing upstream plugin.
+  // Model execution keeps its shorter deadline; only first plugin loading gets this allowance.
+  let agents = (await request("/agent", undefined, 300000)) as { name: string }[]
   if (process.env.MAGI_SMOKE_EXISTING_OMO === "true") {
     const migrated = await Bun.file(path.join(env.OPENCODE_CONFIG_DIR, "opencode.json")).json()
     if (migrated.plugin.some((entry: unknown) => typeof entry === "string" && entry.startsWith("oh-my-opencode")))
@@ -277,7 +281,7 @@ try {
       if (attempt >= 120) throw new Error("Migrated OpenCode restart timed out")
       await Bun.sleep(500)
     }
-    agents = (await request("/agent")) as { name: string }[]
+    agents = (await request("/agent", undefined, 300000)) as { name: string }[]
     console.log("Existing OmO -> backed-up OMM migration and native restart verified")
   }
   for (const name of [
@@ -381,7 +385,9 @@ try {
   if (process.platform !== "win32") proc.kill()
   await proc.exited
   await Bun.write(path.join(directory, "stdout.log"), (await Promise.all(stdout)).join("\n"))
-  await Bun.write(path.join(directory, "stderr.log"), (await Promise.all(stderr)).join("\n"))
+  const logs = (await Promise.all(stderr)).join("\n")
+  await Bun.write(path.join(directory, "stderr.log"), logs)
+  console.log("OpenCode log tail:\n" + logs.split("\n").slice(-45).join("\n"))
   provider.stop(true)
   console.log("Smoke logs: " + directory)
 }

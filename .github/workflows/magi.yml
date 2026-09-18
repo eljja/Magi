@@ -19,6 +19,7 @@ permissions:
 jobs:
   plugin:
     name: oh-my-magi (${{ matrix.os }}, ${{ matrix.opencode }})
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -50,6 +51,17 @@ jobs:
           MAGI_OPENCODE_VERSION: ${{ matrix.opencode }}
           MAGI_SMOKE_EXISTING_OMO: "true"
           MAGI_SMOKE_NO_GIT: "true"
+          MAGI_SMOKE_ROOT: ${{ runner.temp }}
+      - name: Preserve smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-${{ matrix.os }}-${{ matrix.opencode }}
+          path: |
+            ${{ runner.temp }}/magi-smoke-*/stdout.log
+            ${{ runner.temp }}/magi-smoke-*/stderr.log
+            ${{ runner.temp }}/magi-smoke-*/execution-evidence.json
+          if-no-files-found: ignore
 
   core:
     name: core checks
