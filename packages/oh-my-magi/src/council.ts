@@ -253,6 +253,7 @@ export function buildSelfImprovementDraftPrompt(input: {
     "",
     "Use the supplied project evidence. When facts are missing, propose a narrow investigation or implementation-and-test task for the OmO workforce. You do not execute that task yourself. Git history is optional.",
     "Use the previous executor's real tool results and artifacts. Do not repeat an investigation that already established the needed facts. Failing behavior tests are evidence for an implementation repair, not a reason to keep collecting the same baseline. A verified milestone requires meaningful passing checks; a useful but incomplete task can still provide evidence for the next step within it.",
+    "Prefer the smallest concrete implementation or experiment that advances the goal, with observable acceptance criteria. Do not add prerequisite reports or extra approval gates without a user requirement or specific evidentiary need. The runtime already runs mechanical checks and a separate three-identity completion deliberation after the executor submits its result; request another specialist review only to answer a concrete unresolved question.",
     "Return JSON matching this shape:",
     JSON.stringify(
       {

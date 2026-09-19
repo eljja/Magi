@@ -6,6 +6,7 @@ import { isRecoveryAbort } from "./watchdog"
 import { isWorkforceSession } from "./workforce"
 import { repairWindowsRuntime } from "./windows"
 import { createMagiAgent } from "./agents/magi"
+import { redact } from "./context"
 
 export function createMagiSetupHooks(reason: string): Hooks {
   const permission = { "*": "deny", edit: "deny", bash: "deny" } as const
@@ -102,16 +103,17 @@ async function initializeOmOMagi(input: PluginInput, councilPlugin: Plugin): Pro
     await upstream["command.execute.before"]?.(
       { command: "stop-continuation", sessionID: state.sessionID, arguments: "" },
       { parts: [] },
-    ).catch((error) =>
-      input.client.app.log({
-        body: {
-          service: "oh-my-magi",
-          level: "warn",
-          message:
-            "Upstream stop hook failed; durable Magi stop and session abortion remain effective: " + String(error),
-        },
-      }),
-    )
+    ).catch(async (error) => {
+      const message = redact(
+        "Upstream stop hook failed; continuing durable stop and session abortion: " + String(error),
+      )
+      await input.client.app
+        .log({
+          body: { service: "oh-my-magi", level: "warn", message },
+          signal: AbortSignal.timeout(5000),
+        })
+        .catch(() => console.warn("Magi: " + message))
+    })
     const sessions = await input.client.session
       .status({ query: { directory: input.directory }, signal: AbortSignal.timeout(10000) })
       .catch(() => undefined)

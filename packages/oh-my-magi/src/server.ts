@@ -9,6 +9,7 @@ import { recordToolExecution } from "./observer"
 import { resolveExecutorAgent } from "./omo-bridge"
 import { createOmOMagi } from "./omo-runtime"
 import { queueSteering } from "./steering"
+import { redact } from "./context"
 import { publishReport, appendReport } from "./reporting"
 import { abortWorkforceExecution, isWorkforceSession } from "./workforce"
 import { readCouncilMemory } from "./memory"
@@ -21,7 +22,21 @@ import { dispatchExecution, submitExecution } from "./execution"
 export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
   const controller = createControllerLease(directory)
   const workforce = createWorkforceWatchdog(directory, client)
-  const reporting = { lastArchive: 0, ticking: false, publishing: false }
+  const reporting: {
+    lastArchive: number
+    disposed: boolean
+    pumping?: Promise<void>
+    publishing?: Promise<void>
+    closing?: Promise<void>
+  } = { lastArchive: 0, disposed: false }
+  const logFailure = (message: string) =>
+    client.app
+      .log({
+        body: { service: "oh-my-magi", level: "error", message: redact(message) },
+        signal: AbortSignal.timeout(5000),
+      })
+      .then(() => undefined)
+      .catch(() => console.warn("Magi: " + redact(message)))
   const status = () => getStatusReport(directory)
   const stop = async () => {
     const state = await readMagiState(directory)
@@ -34,14 +49,17 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
   }
   const tick = async () => {
     const state = await readMagiState(directory)
+    if (reporting.disposed) return
     if (!state.goal && !state.loopActive) return
     if (!(await controller.acquire())) return
     if (!state.loopActive || !state.sessionID) return
     if (state.retryAt && Date.now() < state.retryAt) return
     // An OpenCode server must stay running. Recover the saved session on reload without requiring a UI-specific event.
     if (await workforce(state.executionSessionID ?? state.sessionID)) return
+    if (reporting.disposed) return
     if (state.awaitingExecution) {
       if ((await handleSessionIdleEvent({ directory, sessionID: state.sessionID, client })) === "waiting") return
+      if (reporting.disposed) return
       const current = await readMagiState(directory)
       if (
         current.loopActive &&
@@ -65,7 +83,7 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
           state.runID,
         )
         const latest = await readMagiState(directory)
-        if (!latest.loopActive || latest.runID !== state.runID) return
+        if (reporting.disposed || !latest.loopActive || latest.runID !== state.runID) return
         await dispatchExecution({
           directory,
           client,
@@ -84,7 +102,7 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
     await validateVerificationSetup(directory)
     const result = await runMagiCycle({ directory, sessionID: state.sessionID, client })
     const current = await readMagiState(directory)
-    if (!result.injected || !current.loopActive || current.runID !== state.runID) return
+    if (reporting.disposed || !result.injected || !current.loopActive || current.runID !== state.runID) return
     await dispatchExecution({
       directory,
       client,
@@ -93,18 +111,20 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       prompt: result.prompt,
     })
   }
-  const pump = async () => {
-    if (reporting.ticking) return
-    reporting.ticking = true
-    await tick()
+  const pump = () => {
+    if (reporting.disposed || reporting.pumping) return
+    reporting.pumping = tick()
       .catch(async (error) => {
+        if (reporting.disposed) return
         const state = await readMagiState(directory)
         if (state.loopActive)
           await pauseMagi(directory, error instanceof Error ? error.message : String(error), state.runID)
       })
+      .catch((error) => logFailure("Controller update failed: " + String(error)))
       .finally(() => {
-        reporting.ticking = false
+        reporting.pumping = undefined
       })
+    return reporting.pumping
   }
   const timer = setInterval(() => {
     void pump()
@@ -112,9 +132,8 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
   timer.unref()
   // Reporting must remain alive while council/provider requests are pending.
   const reportTimer = setInterval(() => {
-    if (reporting.publishing) return
-    reporting.publishing = true
-    void (async () => {
+    if (reporting.disposed || reporting.publishing) return
+    reporting.publishing = (async () => {
       const state = await readMagiState(directory)
       if (!state.loopActive) abortMagiReviews(directory)
       if (!state.goal || !(await controller.acquire())) return
@@ -124,23 +143,27 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       await publishReport(directory, state, archive)
       if (archive) reporting.lastArchive = Date.now()
     })()
-      .catch((error) =>
-        client.app.log({
-          body: { service: "oh-my-magi", level: "error", message: "Report update failed: " + String(error) },
-        }),
-      )
+      .catch((error) => logFailure("Report update failed: " + String(error)))
       .finally(() => {
-        reporting.publishing = false
+        reporting.publishing = undefined
       })
   }, 15000)
   reportTimer.unref()
-  return {
-    dispose: async () => {
-      abortMagiReviews(directory)
+  const dispose = () => {
+    reporting.closing ??= (async () => {
+      reporting.disposed = true
       clearInterval(timer)
       clearInterval(reportTimer)
+      abortMagiReviews(directory)
+      // Drain in-flight I/O before releasing the lease or letting the host close
+      // its client. Clearing intervals alone leaves late reports and rejections.
+      await Promise.allSettled([reporting.pumping, reporting.publishing])
       await controller.release()
-    },
+    })()
+    return reporting.closing
+  }
+  return {
+    dispose,
     "chat.message": async (input, output) => {
       if (output.parts.some((part) => part.type === "text" && part.metadata?.magiOrigin === "control")) {
         await mutateMagiState(directory, (state) => ({
@@ -406,11 +429,10 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
     event: async ({ event }) => {
       if (event.type === "server.instance.disposed") {
         if (event.properties.directory !== directory) return
-        clearInterval(timer)
-        clearInterval(reportTimer)
-        await controller.release()
+        await dispose()
         return
       }
+      if (reporting.disposed) return
       if (event.type === "session.deleted") {
         const state = await readMagiState(directory)
         if (state.loopActive && event.properties.info.id === state.sessionID) await setAutonomousLoop(directory, false)

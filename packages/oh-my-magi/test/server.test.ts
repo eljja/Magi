@@ -13,7 +13,7 @@ test("an offline stop is enforced against active children without aborting the h
   const aborted: string[] = []
   const server = Bun.serve({
     port: 0,
-    fetch(request) {
+    async fetch(request) {
       const route = new URL(request.url).pathname
       if (route === "/session/status")
         return Response.json({
@@ -24,7 +24,10 @@ test("an offline stop is enforced against active children without aborting the h
         })
       if (route === "/session/worker" || route === "/session/unrelated") return Response.json({ parentID: "owner" })
       if (route === "/session/specialist") return Response.json({ parentID: "worker" })
-      if (route.endsWith("/abort")) aborted.push(route)
+      if (route.endsWith("/abort")) {
+        aborted.push(route)
+        await Bun.sleep(200)
+      }
       return Response.json({})
     },
   })
@@ -38,6 +41,9 @@ test("an offline stop is enforced against active children without aborting the h
     while (!aborted.length && Date.now() < deadline) await Bun.sleep(100)
     expect(aborted.sort()).toEqual(["/session/specialist/abort", "/session/worker/abort"])
     expect((await readMagiState(directory)).loopActive).toBe(false)
+    await plugin.dispose?.()
+    expect(await Bun.file(path.join(directory, ".magi", "STATUS.md")).exists()).toBe(true)
+    expect(await Bun.file(path.join(directory, ".magi", "runtime", "controller.json")).exists()).toBe(false)
   } finally {
     await plugin.dispose?.()
     server.stop(true)

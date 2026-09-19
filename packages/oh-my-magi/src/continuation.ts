@@ -290,7 +290,7 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
         "END OF PROJECT EVIDENCE.",
         "CURRENT REQUEST: Return one proposal for the council to debate. Do not carry out the goal or verify completion in this request.",
         "You can propose inspecting source files or running tests without doing it yourself; report missing evidence honestly and give the workforce a specific task to obtain it.",
-        "Return only a JSON object with title, prompt (the concrete executor task), rationale, terminal (boolean), and memory. Preserve the original goal and user constraints.",
+        "Return only a JSON object with title, prompt (the concrete executor task), rationale, acceptance (observable criteria for this increment), terminal (boolean), and memory. Preserve the original goal and user constraints.",
       ].join("\n\n"),
     }))
   if (!(await active(input, runID))) return stopped
