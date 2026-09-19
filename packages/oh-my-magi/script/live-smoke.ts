@@ -508,9 +508,11 @@ try {
     if (
       state.currentCycle >= 3 &&
       (state.telemetry?.toolCallCount || 0) >= 3 &&
-      ledger.includes("COMPLETED & VERIFIED")
+      state.progress?.verification.passed &&
+      state.progress.cycle < state.currentCycle &&
+      ledger.includes("PROGRESS RECORDED")
     ) {
-      verdict = "cycles-and-verified-milestone"
+      verdict = "continuous-cycles-and-checked-progress"
       break
     }
     if (await Bun.file(path.join(directory, "STOP-TEST")).exists()) {
@@ -581,7 +583,8 @@ try {
     "LIVE_FINISHED " +
       JSON.stringify({ verdict, requests: calls.length, verificationExit: verified[2], before, after, directory }),
   )
-  if (verdict !== "cycles-and-verified-milestone" || !workforceVerified || verified[2] !== 0) process.exitCode = 1
+  if (verdict !== "continuous-cycles-and-checked-progress" || !workforceVerified || verified[2] !== 0)
+    process.exitCode = 1
 }
 
 async function collectMessages(id: string): Promise<

@@ -87,13 +87,22 @@ const provider = Bun.serve({
             confidence: 0.9,
           })
         : prompt.includes("Round 1 deliberation")
-          ? JSON.stringify({ position: "approve", rationale: "Smoke fixture council vote", confidence: 0.9 })
+          ? JSON.stringify({
+              position: "approve",
+              rationale: "Smoke fixture council vote",
+              confidence: 0.9,
+              significantProgress: {
+                reason: "Native child evidence obtained",
+                evidence: ["MAGI_OMO_CHILD_EVIDENCE from the actual read tool"],
+              },
+            })
           : "MAGI_OMO_CHILD_EVIDENCE: Smoke fixture execution completed. The verification command validates the deterministic fixture."
     const submission =
       !reviewing &&
       prompt.includes("[OH-MY-MAGI COUNCIL TASK") &&
       recentTools.includes("MAGI_OMO_CHILD_EVIDENCE") &&
       !recentTools.includes("Result received for independent council review") &&
+      !recentTools.includes("Progress checkpoint received") &&
       body.tools?.some((tool) => tool.function.name === "magi_submit")
         ? {
             name: "magi_submit",
@@ -237,12 +246,16 @@ const run = async (args: string[]) => {
 const packageDirectory = process.env.MAGI_PLUGIN_PACKAGE ?? path.resolve(import.meta.dirname, "..")
 await run(["--version"])
 await run(["plugin", process.env.MAGI_PLUGIN_SPECIFIER || packageDirectory, "--global"])
+const installed = await Bun.file(path.join(env.OPENCODE_CONFIG_DIR, "opencode.json")).json()
+const installedTui = await Bun.file(path.join(env.OPENCODE_CONFIG_DIR, "tui.json")).json()
+if (!installed.plugin?.length || !installedTui.plugin?.length)
+  throw new Error("Native installation did not register both server and TUI")
 await Bun.write(
   path.join(env.OPENCODE_CONFIG_DIR, "opencode.json"),
   JSON.stringify({
     plugin: [
       ...(process.env.MAGI_SMOKE_EXISTING_OMO === "true" ? ["oh-my-opencode@" + compatibility.omoTested] : []),
-      process.env.MAGI_PLUGIN_SPECIFIER || pathToFileURL(path.join(packageDirectory, "dist", "server.js")).href,
+      ...installed.plugin,
     ],
     model: "fixture/fixture",
     small_model: "fixture/fixture",
@@ -455,11 +468,23 @@ try {
   if (beforeStop.steeringQueue.some((item) => item.text.includes("[OH-MY-MAGI COUNCIL TASK")))
     throw new Error("Internal council execution was incorrectly captured as user steering")
   const conversationLedger = await Bun.file(path.join(project, ".magi", "COUNCIL.md")).text()
-  for (const member of ["MELCHIOR", "BALTHASAR", "CASPER"]) {
-    if (!conversationLedger.includes(member + " · completion-votes"))
-      throw new Error("Missing independent completion vote: " + member)
+  if (conversationLedger.includes(" · completion-votes"))
+    throw new Error("Continuous mode unexpectedly required completion votes")
+  if (!beforeStop.progress || !beforeStop.loopActive)
+    throw new Error("Progress checkpoint did not preserve continuous work")
+  for (let attempt = 0; !(await readMagiState(project)).reporting?.latest?.notified; attempt++) {
+    if (attempt >= 80) throw new Error("Unanimous significant-progress report was not delivered")
+    await Bun.sleep(500)
   }
-  console.log("All three independent completion votes and native artifact submission verified")
+  const reported = await readMagiState(project)
+  const ownerMessages = await request("/session/" + session.id + "/message")
+  if (!JSON.stringify(ownerMessages).includes(reported.reporting!.latest!.id))
+    throw new Error("Report missing from native OpenCode conversation")
+  if (reported.steeringQueue?.some((item) => item.text.includes("Magi 자동 진행 보고")))
+    throw new Error("Runtime report was incorrectly captured as user guidance")
+  console.log(
+    "Continuous checkpoints, no completion votes, unanimous progress report and native conversation delivery verified",
+  )
   if (!conversationLedger.includes("Conversation message:") || !conversationLedger.includes(guidance))
     throw new Error("Conversation receipt was not archived")
   await request("/session/" + session.id + "/command", { command: "magi", arguments: "stop" }).catch(() => undefined)
@@ -498,7 +523,7 @@ try {
   console.log("Natural conversational steering, stop/resume, meeting archive and live monitor verified. PASS")
   if (process.env.MAGI_SMOKE_KEEP_ALIVE === "true") {
     console.log("Web QA URL: " + base + "; project: " + project)
-    await new Promise(() => {})
+    while (!(await Bun.file(path.join(directory, "STOP-QA")).exists())) await Bun.sleep(1000)
   }
 } finally {
   if (process.platform === "win32")

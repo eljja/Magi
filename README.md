@@ -8,7 +8,7 @@
 
 [한국어](README.ko.md) · [Installation and configuration](packages/oh-my-magi/README.md) · [Engineering audit](docs/RELEASE-AUDIT.md) · [Contributing](CONTRIBUTING.md)
 
-**Real-model qualification:** a 40-minute free-model run produced real council decisions, OmO specialist reads, implementation repairs, added tests and documentation. All 14 worker tests and all three independently preserved original tests passed. **Full qualification remains incomplete:** the executor did not submit its result and reach Magi's completion vote and subsequent meeting within that run. Read the [live-model audit (Korean)](docs/REAL-MODEL-AUDIT.ko.md) and [autonomy design](docs/AUTONOMY-DESIGN.ko.md).
+**Continuous operation:** the default loop no longer requires a separate completion vote. Progress and checks feed the next planning meeting. User reports arrive after about four active hours or when all three identities flag significant observed progress, without stopping work. See the [current operation guide (Korean)](docs/CONTINUOUS-OPERATION.ko.md). Earlier free-model tests repaired code and passed preserved original tests; they do not qualify long-running operation of this revised loop. The [historical live-model audit](docs/REAL-MODEL-AUDIT.ko.md) remains available.
 
 Oh-My-Magi (OMM) adds continuous research and development governance to [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) (OmO) on OpenCode. It loads the official `oh-my-opencode@4.19.4` server plugin as a dependency, including its agent factories, tools, skills, MCP integration and background task manager. These are upstream implementations, not recreated agent prompts.
 
@@ -18,7 +18,7 @@ The three council perspectives are **Melchior** (architecture and scientific rea
 
 Each identity has an isolated decision session and a persistent judgment history. They assess the proposal independently, then read one another's arguments and cast validated final votes. All three votes are required before applying the voting policy. Approved work runs in a fresh official OmO child session, keeping the human conversation available for guidance. An unavailable council member or reviewer resumes from saved evidence instead of discarding completed work. These are separate agent identities; they can share one model or use different models.
 
-**All three identities also review completion.** The OmO executor submits its results and artifacts with `magi_submit`; the controller runs checks and provides fresh file contents, hashes and tool evidence to another independent assessment, peer review and final vote. Submission is not acceptance. Files changed during review invalidate that review. The monitor and TUI distinguish execution authorization from completion votes.
+**Progress feeds the next decision.** At a natural workforce handoff, actual execution evidence and mechanical checks feed the next planning meeting. `magi_submit` is optional. Continuous mode has no separate completion vote; passing tests do not declare the lifelong goal complete. Explicit legacy `selfImprovement.mode: "complete"` retains milestone completion review.
 
 New goals use the requested outcome as the default milestone. The council chooses the investigation, implementation and experiment increments; a baseline report cannot complete a development request. Existing roadmaps are preserved. Repeated identical tool results trigger recovery after the configured stall interval, without limiting goal or meeting iterations.
 
@@ -70,6 +70,8 @@ Local OpenCode-compatible LLM providers are supported; Magi uses OpenCode's exis
 
 ## Observe and intervene
 
+Reports are delivered to the original OpenCode conversation without extra model calls, and saved in `.magi/LATEST-REPORT.md` and `.magi/reports/msg_*.md`. Paused/offline time is excluded from the four-hour clock. Failed delivery retries while development continues. Use `oh-my-magi monitor --project <folder>` or **Open Magi Live Monitor** in the TUI palette to open the local page. It shows independent arguments and final reasons as they arrive, with up to 15–30 seconds of browser display latency; the TUI reads every two seconds.
+
 Open **`.magi/index.html`** in a browser for the goal monitor. It refreshes every 15 seconds and shows the current goal, phase, council votes, recent decisions, tool activity and pending guidance. Talk normally in the OpenCode session running your goal to guide Magi, just as you would talk to Sisyphus. No steering command is required.
 
 | Artifact                        | Purpose                                                                                                                     |
@@ -96,10 +98,11 @@ flowchart TD
   Proposal --> Opening[Three isolated opening assessments]
   Opening --> Council[Peer objections, revisions and three final votes]
   Council -->|Approved| OmO[Fresh official OmO execution session and specialists]
-  OmO --> Submit[Submit artifacts and unresolved issues]
-  Submit --> Verify[Mechanical checks and fresh file evidence]
-  Verify --> Completion[Three independent completion opinions and final votes]
-  Completion -->|Verified milestone or repair needed| Council
+  OmO --> Progress[Progress checkpoint at a natural handoff]
+  Progress --> Verify[Mechanical checks and actual tool evidence]
+  Verify -->|Continue from progress and failures| Council
+  Council -->|All three flag significant observed progress| Report[User report without stopping work]
+  Timer[Four active hours] --> Report
   Council -->|Revise, reject or transient error| Retry[Wait and reconsider the same goal]
   Retry --> Council
   Council --> Records[Minutes, progress reports and monitor]

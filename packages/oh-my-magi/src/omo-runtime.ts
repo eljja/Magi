@@ -195,6 +195,7 @@ async function initializeOmOMagi(input: PluginInput, councilPlugin: Plugin): Pro
     },
     config: configure,
     "chat.message": async (request, output) => {
+      if (output.parts.some((part) => part.type === "text" && part.metadata?.magiOrigin === "report")) return
       const before = await readMagiState(input.directory)
       await council["chat.message"]?.(request, output)
       const after = await readMagiState(input.directory)

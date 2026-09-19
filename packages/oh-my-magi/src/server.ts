@@ -18,6 +18,7 @@ import { validateVerificationSetup } from "./verification"
 import { MagiCouncilMembers, MagiPrompts } from "./council"
 import { abortMagiReviews } from "./resilience"
 import { dispatchExecution, submitExecution } from "./execution"
+import { tickProgressReports } from "./progress"
 
 export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
   const controller = createControllerLease(directory)
@@ -98,7 +99,6 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       }
       return
     }
-    if (state.currentCycle > 0 && Date.now() - state.updatedAt < 60000) return
     await validateVerificationSetup(directory)
     const result = await runMagiCycle({ directory, sessionID: state.sessionID, client })
     const current = await readMagiState(directory)
@@ -141,6 +141,7 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
         await abortWorkforceExecution(client, directory, state.executionSessionID)
       const archive = state.loopActive && Date.now() - reporting.lastArchive >= 60000
       await publishReport(directory, state, archive)
+      await tickProgressReports(directory, client)
       if (archive) reporting.lastArchive = Date.now()
     })()
       .catch((error) => logFailure("Report update failed: " + String(error)))
@@ -281,7 +282,7 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
     tool: {
       magi_submit: tool({
         description:
-          "Hand the current approved OmO task back to Magi for verification and three-identity review. Only the current execution owner may submit; this never approves work or stops the persistent goal.",
+          "Optionally record a meaningful progress checkpoint, artifacts and unresolved issues for the next planning meeting. Only the current execution owner may submit. Continuous mode has no completion vote; this never stops the goal.",
         args: {
           summary: tool.schema
             .string()

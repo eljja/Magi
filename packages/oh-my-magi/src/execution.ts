@@ -2,6 +2,7 @@ import type { OpencodeClientInstance } from "./bridge"
 import { resolveExecutorAgent } from "./omo-bridge"
 import { mutateMagiState, readMagiState } from "./state"
 import { collectArtifactEvidence } from "./artifacts"
+import { loadMagiConfig } from "./config"
 
 export async function submitExecution(input: {
   directory: string
@@ -36,7 +37,9 @@ export async function submitExecution(input: {
   )
   if (!saved.loopActive || saved.runID !== state.runID || saved.executionSubmission?.sessionID !== input.sessionID)
     throw new Error("Execution changed or stopped before submission")
-  return "Result received for independent council review, not approved or marked complete. Collect any outstanding background results, then end this response. Magi will run verification and all three identities will review the evidence and vote. Do not start another improvement in this execution session."
+  return (await loadMagiConfig(input.directory)).selfImprovement.mode === "continuous"
+    ? "Progress checkpoint received. Collect outstanding background results, then end this response for the next planning meeting. The same goal continues automatically, without completion approval."
+    : "Result received for independent council review, not approved or marked complete. Collect any outstanding background results, then end this response. Magi will run verification and all three identities will review the evidence and vote. Do not start another improvement in this execution session."
 }
 
 // A fresh child retains OpenCode ancestry and the full OmO harness without

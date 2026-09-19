@@ -1,6 +1,7 @@
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { createMemo, createSignal, For, Show } from "solid-js"
 import { emptyMagiState, readMagiState, type MagiRuntimeState } from "./state"
+import { openMagiMonitor } from "./monitor"
 
 const id = "oh-my-magi-tui"
 
@@ -29,6 +30,7 @@ function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
       .slice(-4),
   )
   const members = ["melchior", "balthasar", "casper"] as const
+  const votes = () => props.state().councilOpinions?.votes
 
   return (
     <box flexDirection="column" gap={1}>
@@ -58,12 +60,30 @@ function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
       <box flexDirection="row" gap={1}>
         <For each={members}>
           {(member) => (
-            <text fg={dotColor(props.api, props.state().votes[member])}>
-              ● {member.toUpperCase()}: {props.state().votes[member] ?? "pending"}
+            <text fg={dotColor(props.api, votes()?.[member]?.position ?? props.state().votes[member])}>
+              ● {member.toUpperCase()}: {votes()?.[member]?.position ?? props.state().votes[member] ?? "pending"}
             </text>
           )}
         </For>
       </box>
+      <For each={members}>
+        {(member) => (
+          <Show when={votes()?.[member] ?? props.state().councilOpinions?.opening?.[member]}>
+            {(opinion) => (
+              <text fg={theme().textMuted}>
+                [{member.toUpperCase()}] {opinion().rationale}
+              </text>
+            )}
+          </Show>
+        )}
+      </For>
+      <text fg={theme().textMuted}>
+        진행 보고: 기본 4시간 / 주요 변화 3인 합의 · 가동 {Math.floor((props.state().reporting?.activeMs ?? 0) / 60000)}
+        분
+      </text>
+      <Show when={props.state().reporting?.latest}>
+        <text fg={theme().success}>최근 보고: .magi/LATEST-REPORT.md</text>
+      </Show>
       <Show when={props.state().pendingVerification?.review}>
         <text fg={theme().textMuted}>Completion review #{props.state().pendingVerification?.review?.cycle ?? "?"}</text>
         <box flexDirection="row" gap={1}>
@@ -167,6 +187,21 @@ export const MagiTuiPlugin: TuiPlugin = async (api) => {
   }
   api.keymap.registerLayer({
     commands: [
+      {
+        name: "magi.monitor",
+        namespace: "palette",
+        title: "Open Magi Live Monitor",
+        category: "Magi",
+        async run() {
+          await openMagiMonitor(api.state.path.directory || process.cwd()).catch((error) => {
+            api.ui.toast({
+              variant: "error",
+              title: "Magi",
+              message: "Open .magi/index.html in a browser: " + String(error),
+            })
+          })
+        },
+      },
       {
         name: "magi.status",
         namespace: "palette",

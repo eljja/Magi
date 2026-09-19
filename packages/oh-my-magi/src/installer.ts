@@ -3,7 +3,7 @@ import { stat, rename } from "node:fs/promises"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 import { applyEdits, modify } from "jsonc-parser"
-import { parseJsonc } from "./config"
+import { loadMagiConfig, parseJsonc } from "./config"
 import { readMagiState } from "./state"
 import { detectOmO, containsOmOSpec, harmonizeOmOConfig, OMO_VERSION } from "./omo-bridge"
 import { formatCouncilObservationBulletin } from "./observer"
@@ -194,6 +194,7 @@ export async function doctorOhMyMagi(projectDirectory: string): Promise<DoctorRe
 
 export async function getStatusReport(projectDirectory: string) {
   const state = await readMagiState(projectDirectory)
+  const config = await loadMagiConfig(projectDirectory)
   const lines = [
     "=== Oh-My-Magi Status ===",
     "Directory: " + projectDirectory,
@@ -212,6 +213,14 @@ export async function getStatusReport(projectDirectory: string) {
         .join(", "),
     state.pendingUserSteering ? "Pending User Steering: " + state.pendingUserSteering : "",
     "Minutes & Ledger: .magi/COUNCIL.md",
+    "감시 페이지: " + path.join(projectDirectory, ".magi", "index.html"),
+    `진행 보고: ${config.reporting.intervalMs / 3600000}시간 가동 또는 세 인격의 주요 변화 합의 · 지난 보고 이후 ${Math.floor((state.reporting?.activeMs ?? 0) / 60000)}분`,
+    `운영: ${config.selfImprovement.mode === "continuous" ? "완료 표결 없이 같은 목표로 계속 진행" : "완료 검토 후 로드맵 종료"}`,
+    state.reporting?.latest ? "최근 보고: " + path.join(projectDirectory, ".magi", "LATEST-REPORT.md") : "",
+    ...Object.entries(state.councilOpinions?.votes ?? {}).map(
+      ([member, judgment]) => `${member}: ${judgment.position} — ${judgment.rationale}`,
+    ),
+    state.reporting?.deliveryError ?? "",
     ...Object.entries(state.councilActivity ?? {}).map(
       ([stage, activity]) =>
         `Council ${stage}: ${activity.status} · ${activity.model ?? "selected model"} · attempt ${activity.attempt} · ${activity.detail}`,

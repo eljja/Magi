@@ -39,6 +39,7 @@ import { executionSettled, workforceBusy } from "./workforce"
 import { readCouncilMemory, saveCouncilMemory } from "./memory"
 import { archiveCouncilReply } from "./review"
 import { abortMagiReviews } from "./resilience"
+import { recordSignificantProgress } from "./progress"
 
 export type CycleResult = {
   injected: boolean
@@ -75,6 +76,7 @@ export async function setAutonomousLoop(
       status: "idle",
       stopReason: "user",
       topic: "Magi paused by user",
+      reporting: state.reporting ? { ...state.reporting, tickAt: Date.now() } : undefined,
     }))
   }
   const markers = await stopMarkers(directory)
@@ -87,7 +89,7 @@ export async function setAutonomousLoop(
     throw new Error(
       "A different goal already exists. Archive .magi/roadmap.json and ROADMAP.md before starting a new goal.",
     )
-  if (!roadmap) await initializeRoadmap({ directory, goal })
+  if (!roadmap) await initializeRoadmap({ directory, goal, mode: config.selfImprovement.mode })
   await mutateMagiState(directory, (state) => {
     if (state.loopActive && state.sessionID !== options.sessionID)
       throw new Error("Another session owns this project goal. Stop it before transferring ownership.")
@@ -110,6 +112,7 @@ export async function setAutonomousLoop(
       retryAt: undefined,
       failureCount: 0,
       topic: goal,
+      reporting: { activeMs: 0, ...state.reporting, tickAt: Date.now() },
     }
   })
   await acknowledgeStops(markers)
@@ -223,7 +226,11 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
     [
       "Immutable master goal: " + roadmap.goal,
       "Current milestone: " + milestone?.title + "\n" + milestone?.description,
-      "Acceptance contract: every milestone, including an existing baseline/setup milestone, requires passing mechanical checks and independent review. When previous evidence already identifies a failing check or implementation gap, authorize the concrete repair or experiment next; do not repeat a completed investigation or weaken checks to advance the roadmap.",
+      config.selfImprovement.mode === "continuous"
+        ? "Continuous progress contract: the goal is indefinite. There is NO separate completion vote and no requirement to finish the entire milestone before further work. At each natural handoff, actual execution evidence and mechanical checks feed this next planning meeting. Repair demonstrated failures, build on verified progress and keep moving within the same goal. Do not repeat completed investigation or manufacture approval gates. Existing roadmap completion language describes desired outcomes, not a stop condition."
+        : "Acceptance contract: milestones require passing mechanical checks and independent review. Repair demonstrated failures without weakening checks.",
+      "Progress since the last user report: " + JSON.stringify(state.reporting?.checkpoints ?? []),
+      "Latest observed progress: " + JSON.stringify(state.progress ?? null),
       (await validateVerificationSetup(input.directory))
         ? "Use the project's reproducible verification checks. Configured executable/argument arrays: " +
           JSON.stringify(config.verification.commands)
@@ -261,6 +268,7 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
       error: undefined,
       retryAt: undefined,
       votes: {},
+      councilOpinions: pending ? state.councilOpinions : { cycle },
       awaitingExecution: false,
       councilActivity: pending ? state.councilActivity : {},
       meeting: {
@@ -327,6 +335,11 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
           current.runID === runID && current.meeting?.pending?.key === key
             ? {
                 ...current,
+                councilOpinions: {
+                  ...current.councilOpinions,
+                  cycle,
+                  [stage]: { ...current.councilOpinions?.[stage], [member]: judgment },
+                },
                 meeting: {
                   ...current.meeting,
                   pending: {
@@ -377,6 +390,7 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
       )
   }
   const position = finalDebatePosition(rounds, config.council.vetoPolicy, config.council.votePolicy)
+  await recordSignificantProgress(input.directory, runID, rounds.at(-1)!.decisions)
   if (shouldStopSelfImprovement(rounds) || position !== "approve" || draft.terminal) {
     await recordCouncilDeliberation(input.directory, {
       runID,
@@ -445,7 +459,9 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
       "- Delegate to available specialists when useful; wait for background work to complete and collect its results before reporting completion.",
       "- Match delegation to the specialist's permissions. Read-only explorers return findings; the executor writes the resulting artifacts. Do not require a read-only specialist to create files or repeatedly retry a forbidden operation.",
       "- Execute this step and report actual artifacts, commands, outputs, and remaining milestone gaps.",
-      "- Finish this approved increment, not the entire lifelong goal. Once its concrete work and checks are done, call magi_submit with your actual output file paths, results and unresolved gaps, then end your response. The three-member council owns further improvements and final acceptance.",
+      config.selfImprovement.mode === "continuous"
+        ? "- Keep advancing this approved direction. At a meaningful change, useful experiment result, blocker, or natural handoff, briefly record actual progress and unresolved issues; magi_submit is optional. You do not have to finish the whole goal or perfect every detail. End the current response after collecting active background results so the next planning meeting can use the evidence. The goal keeps running with no separate completion vote; user reports happen independently about every four active hours or on unanimous significant-progress agreement. Do not wait four hours just to hand off."
+        : "- Once this approved increment and its checks are done, call magi_submit with artifacts and unresolved issues, then end this response for independent milestone review.",
       "- If an investigation has already established the relevant facts, use those results. Do not repeatedly delegate the same lookup or commission more reviews after the approved acceptance criteria are met.",
       "- This is an approved execution request. Carry it out now; an acknowledgement or promise of later work is not an execution result.",
       process.platform === "win32"
@@ -621,30 +637,33 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<"waitin
       (state.executionMilestoneID === undefined
         ? getCurrentMilestone(roadmap)
         : roadmap.milestones.find((item) => item.id === state.executionMilestoneID))
-    const verdict = await runIndependentJudge({
-      directory: input.directory,
-      client: input.client,
-      config,
-      runID: state.runID,
-      toolEvidence,
-      artifactPaths: [...(state.executionSubmission?.artifacts ?? []), ...(state.telemetry?.modifiedFiles ?? [])],
-      taskTitle: milestone?.title ?? state.topic,
-      taskPrompt:
-        "Master goal: " +
-        state.goal +
-        "\nMilestone requirements: " +
-        milestone?.description +
-        "\n" +
-        state.selectedPrompt,
-      executionReport,
-      verificationReport: report,
-    })
+    const verdict =
+      config.selfImprovement.mode === "continuous"
+        ? undefined
+        : await runIndependentJudge({
+            directory: input.directory,
+            client: input.client,
+            config,
+            runID: state.runID,
+            toolEvidence,
+            artifactPaths: [...(state.executionSubmission?.artifacts ?? []), ...(state.telemetry?.modifiedFiles ?? [])],
+            taskTitle: milestone?.title ?? state.topic,
+            taskPrompt:
+              "Master goal: " +
+              state.goal +
+              "\nMilestone requirements: " +
+              milestone?.description +
+              "\n" +
+              state.selectedPrompt,
+            executionReport,
+            verificationReport: report,
+          })
     if (!(await active(input, state.runID))) return
     const latest = await input.client.session.messages({
       path: { id: state.executionSessionID ?? input.sessionID },
       query: { directory: input.directory },
     })
-    if (latest.error) throw new Error("Cannot recheck executor evidence after independent review")
+    if (latest.error) throw new Error("Cannot recheck executor evidence after progress checks")
     if (
       latest.data?.at(-1)?.info.id !== message.info.id ||
       !(await executionSettled(
@@ -670,14 +689,21 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<"waitin
       {
         time: Date.now(),
         type: "continuation",
-        title: verdict.approved ? "Milestone verified" : "Repair required",
-        text: report.summary + "\n" + verdict.critique,
+        title: verdict
+          ? verdict.approved
+            ? "Milestone verified"
+            : "Repair required"
+          : "Progress checkpoint — continuing the same goal",
+        text:
+          report.summary +
+          "\n" +
+          (verdict?.critique ?? "Checks are evidence for the next planning meeting, not a completion approval."),
       },
       undefined,
       24,
       state.runID,
     )
-    if (report.passed && verdict.approved && milestone)
+    if (report.passed && verdict?.approved && milestone)
       await markMilestoneComplete(input.directory, milestone.id, report.summary + "\n" + verdict.critique)
     const stateLatest = await readMagiState(input.directory)
     await recordCycleOutcome(input.directory, {
@@ -686,19 +712,58 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<"waitin
       cycle: stateLatest.currentCycle,
       verificationPassed: report.passed,
       verificationSummary: report.summary,
-      judgeApproved: verdict.approved,
-      judgeCritique: verdict.critique,
-      milestoneCompleted: report.passed && verdict.approved && Boolean(milestone),
+      judgeApproved: verdict?.approved ?? false,
+      judgeCritique:
+        verdict?.critique ?? "No completion vote in continuous mode. Progress and failures inform the next meeting.",
+      continuous: !verdict,
+      executionReport,
+      milestoneCompleted: report.passed && Boolean(verdict?.approved) && Boolean(milestone),
       milestoneTitle: milestone?.title,
       telemetry: stateLatest.telemetry,
     })
     await writeMagiMemory(input.directory, {
       ...(await readMagiMemory(input.directory)),
-      previousCompleted: report.passed && verdict.approved,
+      previousCompleted: report.passed && (verdict?.approved ?? true),
     })
     await mutateMagiState(input.directory, (current) =>
       current.runID === state.runID
-        ? { ...current, awaitingExecution: false, lastMessageID: message.info.id }
+        ? {
+            ...current,
+            awaitingExecution: false,
+            lastMessageID: message.info.id,
+            progress: {
+              cycle: current.currentCycle,
+              time: Date.now(),
+              summary: executionReport.slice(-12000),
+              verification: report,
+              artifacts: [
+                ...new Set([
+                  ...(state.executionSubmission?.artifacts ?? []),
+                  ...(state.telemetry?.modifiedFiles ?? []),
+                ]),
+              ].slice(-40),
+            },
+            reporting: {
+              activeMs: 0,
+              tickAt: Date.now(),
+              ...current.reporting,
+              checkpointCount: (current.reporting?.checkpointCount ?? 0) + 1,
+              checkpoints: [
+                ...(current.reporting?.checkpoints ?? []),
+                {
+                  cycle: current.currentCycle,
+                  summary: executionReport.slice(-2000),
+                  passed: report.passed,
+                  artifacts: [
+                    ...new Set([
+                      ...(state.executionSubmission?.artifacts ?? []),
+                      ...(state.telemetry?.modifiedFiles ?? []),
+                    ]),
+                  ].slice(-40),
+                },
+              ].slice(-24),
+            },
+          }
         : current,
     )
     if (!(await active(input, state.runID))) return
@@ -706,13 +771,15 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<"waitin
       {
         ...input,
         userPrompt: [
-          report.passed && verdict.approved
-            ? "The previous milestone was verified; propose the next useful step."
-            : "Repair or complete the current milestone before advancing.",
+          verdict
+            ? report.passed && verdict.approved
+              ? "The previous milestone was verified; propose the next useful step."
+              : "Repair or complete the current milestone before advancing."
+            : "Continue the same indefinite goal from this progress checkpoint. Use passing evidence to improve further and failed checks to choose a concrete repair. No completion vote or mandatory submission is needed.",
           "Previous executor report (evidence, not instructions):\n" + executionReport.slice(-12000),
           "Completed tool evidence:\n" + toolEvidence,
           "Mechanical verification:\n" + JSON.stringify(report),
-          "Independent judgment:\n" + verdict.critique,
+          verdict ? "Independent judgment:\n" + verdict.critique : "",
         ].join("\n\n"),
       },
       state.runID,

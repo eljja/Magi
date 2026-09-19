@@ -34,6 +34,8 @@ export type CycleOutcomeRecordInput = {
   milestoneCompleted?: boolean
   milestoneTitle?: string
   telemetry?: MagiTelemetry
+  continuous?: boolean
+  executionReport?: string
 }
 
 /**
@@ -161,8 +163,11 @@ export async function recordCouncilDeliberation(directory: string, input: Delibe
  * Appends the execution and verification outcome to the current cycle in .magi/COUNCIL.md.
  */
 export async function recordCycleOutcome(directory: string, input: CycleOutcomeRecordInput): Promise<void> {
-  const outcomeEmoji =
-    input.verificationPassed && input.judgeApproved ? "✅ VERIFIED & PASSED" : "❌ FAILED / REPAIR REQUIRED"
+  const outcomeEmoji = input.continuous
+    ? "PROGRESS RECORDED — GOAL CONTINUES"
+    : input.verificationPassed && input.judgeApproved
+      ? "✅ VERIFIED & PASSED"
+      : "❌ FAILED / REPAIR REQUIRED"
 
   const outcomeLines = [
     `## Cycle #${input.cycle} · Workforce Execution & Verification Outcome`,
@@ -173,11 +178,18 @@ export async function recordCycleOutcome(directory: string, input: CycleOutcomeR
       : undefined,
     `* **Mechanical Verification Checks**: ${input.verificationPassed ? "✅ All checks passed" : "❌ Checks failed"}`,
     `  * *Details*: ${input.verificationSummary}`,
-    `* **Independent Council Completion Vote**: ${input.judgeApproved ? "Approved" : "Concerns raised"}`,
+    input.executionReport
+      ? "\n### Observed execution report (worker claims; compare with checks)\n\n``````text\n" +
+        input.executionReport +
+        "\n``````\n"
+      : undefined,
+    input.continuous
+      ? "* **Continuous mode**: No completion vote. The next planning meeting uses this evidence."
+      : `* **Independent Council Completion Vote**: ${input.judgeApproved ? "Approved" : "Concerns raised"}`,
     `  * *Critique*: ${input.judgeCritique}`,
     input.milestoneCompleted
       ? `* 🏆 **Milestone Status**: Milestone #${input.milestoneId ?? input.cycle} (${input.milestoneTitle ?? "Current"}) marked **COMPLETED & VERIFIED**.`
-      : `* 🔄 **Continuation**: Milestone requires follow-up increment or repair.`,
+      : `* 🔄 **Continuation**: Continue the original goal using actual progress, failed checks and unresolved issues.`,
   ]
     .filter((l): l is string => l !== undefined)
     .join("\n")

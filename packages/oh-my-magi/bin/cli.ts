@@ -3,6 +3,7 @@ import path from "node:path"
 import { doctorOhMyMagi, getStatusReport, installOhMyMagi } from "../src/installer"
 import { setAutonomousLoop } from "../src/continuation"
 import { repairWindowsRuntime } from "../src/windows"
+import { openMagiMonitor } from "../src/monitor"
 
 const args = process.argv.slice(2)
 const command = args[0] ?? "status"
@@ -29,6 +30,7 @@ if (args.includes("--help") || args.includes("-h") || command === "help") {
       "  oh-my-magi install [<dir>] [--project <dir>] [--local]",
       "  oh-my-magi doctor  [<dir>] [--project <dir>]",
       "  oh-my-magi status  [<dir>] [--project <dir>]",
+      "  oh-my-magi monitor [<dir>] [--project <dir>] [--no-open]",
       "  oh-my-magi stop    [<dir>] [--project <dir>]",
       "",
       "Options:",
@@ -40,9 +42,17 @@ if (args.includes("--help") || args.includes("-h") || command === "help") {
       "  install   Registers oh-my-magi and migrates recognized legacy Magi files",
       "  doctor    Checks installation health and configuration",
       "  status    Displays current council debate status and active cycle",
+      "  monitor   Opens the local live council, vote and progress-report page",
       "  stop      Disables continuation without requiring a running server",
     ].join("\n"),
   )
+  process.exit(0)
+}
+
+if (command === "monitor") {
+  const url = await openMagiMonitor(targetDir, !args.includes("--no-open"))
+  console.log("Magi 실시간 감시: " + url)
+  console.log("OpenCode가 실행 중이면 자동 갱신됩니다. 갱신 시각이 멈추면 호스트 상태를 확인하세요.")
   process.exit(0)
 }
 
@@ -64,7 +74,9 @@ if (command === "install") {
 
 if (command === "doctor") {
   if (args.includes("--repair-windows"))
-    console.log("Runtime directories prepared: " + (await repairWindowsRuntime(targetDir, process.env, true)).join(", "))
+    console.log(
+      "Runtime directories prepared: " + (await repairWindowsRuntime(targetDir, process.env, true)).join(", "),
+    )
   console.log(`Checking oh-my-magi health for: ${targetDir}...`)
   const report = await doctorOhMyMagi(targetDir)
   for (const recommendation of report.recommendations) console.log("  - " + recommendation)

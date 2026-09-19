@@ -2,15 +2,15 @@
 
 Continuous, single-goal research and development governance over the **official OmO runtime** in OpenCode.
 
-**Real-model qualification is incomplete.** Actual free-model proposals, independent assessments, final votes and official OmO specialist delegation have been observed. One run repaired the code and passed all three preserved original behavior tests, but did not finish Magi's independent milestone review and subsequent cycles within the test budget. Some specialists still repeat investigation. See the [live-model audit (Korean)](https://github.com/eljja/Magi/blob/omm/docs/REAL-MODEL-AUDIT.ko.md) and [current autonomy design](https://github.com/eljja/Magi/blob/omm/docs/AUTONOMY-DESIGN.ko.md). Deterministic integration tests do not establish real-model autonomy.
+**Real-model endurance qualification is incomplete.** Earlier free-model runs produced real council decisions, specialist reads, code repairs and preserved original test passes, but did not finish the then-required completion review. The current default removes that review and uses continuous progress checkpoints with four-hour/unanimous-significance reports. See the [current operation guide](https://github.com/eljja/Magi/blob/omm/docs/CONTINUOUS-OPERATION.ko.md) and [historical live-model audit](https://github.com/eljja/Magi/blob/omm/docs/REAL-MODEL-AUDIT.ko.md). Deterministic integration does not establish real-model endurance.
 
 Magi's three identities use separate decision sessions and persistent judgment histories. Opening arguments are independent; final votes follow peer review. OpenCode validates proposals and votes through native `StructuredOutput`, so council models must support tool calling. All three valid final votes are required before applying majority/unanimous policy. Missing votes never imply approval. Partial meetings resume after transient failures without repeating completed judgments.
 
 The user talks to Magi; a fresh official OmO child session executes each approved task. The executor can submit results, real artifact paths and unresolved issues through `magi_submit`, then end its response. Only the current approved executor may submit; submission never accepts a milestone or stops the goal. Existing workers that finish without this tool still undergo verification from their response and actual tool evidence.
 
-After checks pass, **all three identities independently assess the completed work, exchange objections and cast final completion votes**. They receive fresh file excerpts and full-file hashes alongside tool evidence and test results. File changes during review invalidate acceptance. Partial completion opinions resume only for unchanged evidence and settings. Workers cannot use the user-control tools to stop or steer the goal. `.magi/members/*.md` preserves each identity's authorization and completion judgments; the monitor and TUI distinguish these two votes.
+**Continuous mode has no separate completion vote.** At a natural handoff, actual execution evidence and mechanical checks feed the next planning meeting, even when work remains or checks fail. `magi_submit` is optional. All three still debate and vote on the next action. They may include an evidence-backed `significantProgress` assessment in their final opinions; three such assessments about observed progress trigger an early user report. Approval of planned work alone does not trigger it. Explicit legacy `mode: "complete"` retains milestone completion review and file-snapshot validation.
 
-The default roadmap for a new goal describes the user's requested outcome. Council-approved increments determine how to get there; a fixed setup/research phase does not hold implementation back. Existing or explicitly supplied roadmaps are preserved. Every milestone still requires passing checks and independent review.
+The default roadmap describes the user's continuing goal. Council-approved increments determine how to advance it; a fixed setup/research phase does not hold implementation back. Existing roadmaps are preserved. Continuous mode records progress without marking milestones complete or waiting for a completion ceremony.
 
 <p align="center"><img src="https://raw.githubusercontent.com/eljja/Magi/main/assets/magi-execution.svg" alt="Original Magi execution concept" width="900"></p>
 <p align="center"><img src="https://raw.githubusercontent.com/eljja/Magi/main/assets/magi-council.svg" alt="MELCHIOR, BALTHASAR and CASPER: the Magi council concept" width="760"></p>
@@ -102,6 +102,7 @@ Magi's `.magi/config.jsonc` controls its council and verification:
 {
   "roles": { "council": "your-provider/your-model" },
   "selfImprovement": { "mode": "continuous" },
+  "reporting": { "intervalMs": 14400000, "notifySession": true },
   "resilience": { "timeoutMs": 180000, "maxRetries": 2, "fallbackChain": [] },
   "verification": {
     "commands": [
@@ -115,7 +116,7 @@ Magi's `.magi/config.jsonc` controls its council and verification:
 
 Git and Git repositories are optional; ordinary folders can run Magi. For research, supply commands that validate experiment artifacts, metrics, data integrity or reproducibility. Missing checks never count as success. Automatic script detection is deliberately conservative and does not run tests from a monorepo root. A working directory must remain inside the project.
 
-Council members may use separate `council.melchiorModel`, `balthasarModel` and `casperModel` settings. They run through real OpenCode requests in isolated decision sessions. After mechanical checks, all three review execution evidence against the current full milestone using the same voting and safety-veto policy. No operational tools are available to council requests. Proposals can include concrete `acceptance` criteria for the approved increment; optional future improvements do not invalidate satisfied criteria.
+Council members may use separate `council.melchiorModel`, `balthasarModel` and `casperModel` settings. They run through real OpenCode requests in isolated decision sessions. After mechanical checks, the next planning meeting uses observed progress and failures to choose useful work. No operational tools are available to council requests. Proposals can include concrete progress criteria; these do not require the entire goal to finish before another meeting.
 
 Artifact snapshots work without Git and resolve paths inside the project. The shared evidence includes up to 20 files, their SHA-256 hashes and the first 4 KiB of each file, explicitly marking truncation. Files over 16 MiB require separate reproducible verification evidence. These are evidence-packing limits, not goal or meeting iteration limits.
 
@@ -124,6 +125,10 @@ Artifact snapshots work without Git and resolve paths inside the project. The sh
 `resilience.stallTimeoutMs` defaults to 1800000 (30 minutes without message/tool progress). The watchdog examines the owner and active descendants, waits for live progress, and aborts stalled attempts before recovering the approved task. Increase this interval for legitimately silent long-running work. Transient failures back off up to 30 minutes between retries, with no retry-count ceiling on the goal. Authentication/model configuration errors are reported explicitly; fix the configuration and resume. A folder without checks can start: the council asks the executor to establish meaningful reproducible checks first. Missing checks still never count as completion.
 
 ## Reports and meeting records
+
+Use `oh-my-magi monitor --project <folder>` or the TUI palette's **Open Magi Live Monitor** to open the monitor. `--no-open` prints the local URL. Each opening argument and final vote appears as it arrives; with the server's 15-second publisher, browser display can lag by 15–30 seconds. The TUI reads every two seconds. Desktop/web users share the server and conversation reports; the TUI panel is not embedded in those clients.
+
+User reports default to **four hours of observed active host time**, excluding paused/offline time. A unanimous significant-progress signal in an ordinary planning meeting can report earlier without a completion meeting or stopping execution. Reports are archived as `.magi/reports/msg_*.md`, copied to `.magi/LATEST-REPORT.md`, and delivered to the owner conversation as a labeled runtime record with `noReply`. No extra model call is needed, and the record is excluded from user steering. OpenCode may display it as a user-style conversation entry, not an assistant answer. Failed delivery retries from a durable outbox while work continues. Set `reporting.notifySession: false` to keep only local reports.
 
 Open `.magi/index.html` directly in a local browser. It needs no external service or JavaScript framework. The page refreshes every 15 seconds; inspect the timestamp to tell whether the server is alive. It is a read-only monitor; issue control commands through OpenCode.
 

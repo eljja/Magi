@@ -16,6 +16,7 @@ export type MagiDecision = {
   position?: MagiPosition
   newEvidence?: boolean
   safetyCritical?: boolean
+  significantProgress?: { reason: string; evidence: string[] }
 }
 
 export type MagiDebateRound = {
@@ -44,6 +45,7 @@ export type MagiCouncilJudgment = {
   requiredChange?: string
   newEvidence: boolean
   safetyCritical: boolean
+  significantProgress?: { reason: string; evidence: string[] }
 }
 
 export type MagiCouncilResult = {
@@ -226,7 +228,8 @@ export function buildDebateRoundPrompt(input: {
     "- If your position changes from prior round, identify the new evidence that persuaded you.",
     "- If there is no new evidence, state so directly and set newEvidence: false.",
     "- Set safetyCritical: true ONLY if this proposal threatens data loss, security compromise, or breaking regressions.",
-    "- Set requiredChange to 'STOP_SELF_IMPROVEMENT' and position to 'reject' ONLY if you judge the project is completely finished with zero further improvements needed.",
+    "- Preserve the indefinite goal. Never reject merely because the goal seems finished; propose a useful next experiment, validation, or maintenance step within its scope.",
+    "- Separately assess progress ALREADY OBSERVED since the last user report. If it is a substantial user-relevant change, include significantProgress: {reason, evidence: [specific observed results]}. Omit it for planned work, routine activity, or insufficient evidence. This is a reporting signal, not a completion vote. All three final votes must independently flag significant progress for an early report. Write public explanations in the user's language.",
   ]
     .filter((line): line is string => line !== undefined)
     .join("\n")
@@ -253,7 +256,7 @@ export function buildSelfImprovementDraftPrompt(input: {
     "",
     "Use the supplied project evidence. When facts are missing, propose a narrow investigation or implementation-and-test task for the OmO workforce. You do not execute that task yourself. Git history is optional.",
     "Use the previous executor's real tool results and artifacts. Do not repeat an investigation that already established the needed facts. Failing behavior tests are evidence for an implementation repair, not a reason to keep collecting the same baseline. A verified milestone requires meaningful passing checks; a useful but incomplete task can still provide evidence for the next step within it.",
-    "Prefer the smallest concrete implementation or experiment that advances the goal, with observable acceptance criteria. Do not add prerequisite reports or extra approval gates without a user requirement or specific evidentiary need. The runtime already runs mechanical checks and a separate three-identity completion deliberation after the executor submits its result; request another specialist review only to answer a concrete unresolved question.",
+    "Prefer a concrete implementation or experiment that advances the goal, with observable progress criteria. Do not add prerequisite reports, completion ceremonies or extra approval gates without a user requirement or specific evidentiary need. In continuous mode the runtime records checks and progress at a natural handoff and brings that evidence to the NEXT planning meeting, with no separate completion vote. Request a specialist review only to answer a concrete unresolved question. Write public explanations in the user's language.",
     "Return JSON matching this shape:",
     JSON.stringify(
       {
@@ -272,7 +275,7 @@ export function buildSelfImprovementDraftPrompt(input: {
       2,
     ),
     "",
-    `Only set terminal: true and prompt: '${STOP_SELF_IMPROVEMENT}' if the project has achieved complete perfection with no further worthwhile work.`,
+    "Keep terminal false. Preserve the indefinite goal and select the next useful experiment, improvement or maintenance step; never manufacture work outside the user's scope just to stay busy.",
     input.memory ? `\nMemory:\n${input.memory}` : undefined,
     "",
     "Recent work / repository context:",
@@ -324,6 +327,19 @@ export function normalizeCouncilJudgment(input: unknown): MagiCouncilJudgment {
       typeof item.requiredChange === "string" && item.requiredChange.trim() ? item.requiredChange.trim() : undefined,
     newEvidence: item.newEvidence === true,
     safetyCritical: item.safetyCritical === true,
+    significantProgress:
+      isRecord(item.significantProgress) &&
+      typeof item.significantProgress.reason === "string" &&
+      item.significantProgress.reason.trim() &&
+      Array.isArray(item.significantProgress.evidence) &&
+      item.significantProgress.evidence.some((value) => typeof value === "string" && value.trim())
+        ? {
+            reason: item.significantProgress.reason.trim(),
+            evidence: item.significantProgress.evidence.filter(
+              (value): value is string => typeof value === "string" && Boolean(value.trim()),
+            ),
+          }
+        : undefined,
   }
 }
 
@@ -338,6 +354,7 @@ export function decisionFromJudgment(member: MagiCouncilMember, judgment: MagiCo
     requiredChange: judgment.requiredChange,
     newEvidence: judgment.newEvidence,
     safetyCritical: judgment.safetyCritical,
+    significantProgress: judgment.significantProgress,
   }
 }
 

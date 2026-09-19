@@ -103,6 +103,27 @@ export type MagiRuntimeState = {
   >
   failureCount?: number
   retryAt?: number
+  progress?: {
+    cycle: number
+    time: number
+    summary: string
+    verification: VerificationReport
+    artifacts: string[]
+  }
+  reporting?: {
+    activeMs: number
+    intervalMs?: number
+    tickAt: number
+    lastReportAt?: number
+    lastReportedProgressAt?: number
+    lastToolCount?: number
+    checkpoints?: { cycle: number; summary: string; passed: boolean; artifacts: string[] }[]
+    checkpointCount?: number
+    significant?: { progressAt: number; votes: Record<MagiCouncilMember, { reason: string; evidence: string[] }> }
+    latest?: { id: string; time: number; reason: "periodic" | "significant"; text: string; notified?: boolean }
+    deliveryError?: string
+  }
+  councilOpinions?: { cycle: number; opening?: PendingCouncilRound["opening"]; votes?: PendingCouncilRound["votes"] }
 }
 
 export type MagiRuntimeMemory = {

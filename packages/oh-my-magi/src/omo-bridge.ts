@@ -65,6 +65,7 @@ export async function harmonizeOmOConfig(directory: string) {
     "/events/",
     "/index.html",
     "/STATUS.md",
+    "/LATEST-REPORT.md",
     "/COUNCIL.md",
     "/members/",
     "/MEMORY.md",

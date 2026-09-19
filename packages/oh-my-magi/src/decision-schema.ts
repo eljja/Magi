@@ -37,6 +37,17 @@ export const judgmentSchema = {
     requiredChange: { type: "string" },
     newEvidence: { type: "boolean" },
     safetyCritical: { type: "boolean" },
+    significantProgress: {
+      type: "object",
+      additionalProperties: false,
+      required: ["reason", "evidence"],
+      properties: {
+        reason: { type: "string", minLength: 1 },
+        evidence: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },
+      },
+      description:
+        "Optional early user-report signal for substantial ALREADY OBSERVED progress, never planned work or goal completion",
+    },
   },
 }
 

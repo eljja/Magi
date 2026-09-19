@@ -4,7 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import { handleSessionIdleEvent, pauseMagi, runMagiCycle, setAutonomousLoop } from "../src/continuation"
 import { mutateMagiState, readMagiState, writeMagiState } from "../src/state"
-import { readRoadmap } from "../src/roadmap"
+import { initializeRoadmap, readRoadmap } from "../src/roadmap"
 import { openCodeFixture } from "./fixture"
 import { queueSteering } from "../src/steering"
 import { dispatchExecution } from "../src/execution"
@@ -31,6 +31,18 @@ describe("Persistent goal controller", () => {
     await rm(directory, { recursive: true, force: true })
   })
   const input = () => ({ directory, sessionID: "owner", client: fixture.client })
+  const completeMode = async () => {
+    const file = Bun.file(path.join(directory, ".magi", "config.jsonc"))
+    await Bun.write(file, JSON.stringify({ ...(await file.json()), selfImprovement: { mode: "complete" } }))
+    await initializeRoadmap({
+      directory,
+      goal: "Research one goal",
+      milestones: [
+        { title: "First result", description: "Produce evidence" },
+        { title: "Next result", description: "Extend evidence" },
+      ],
+    })
+  }
 
   test("approved work uses an isolated OmO child and ignores conversation acknowledgements", async () => {
     await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
@@ -55,6 +67,7 @@ describe("Persistent goal controller", () => {
   })
 
   test("a failed independent judge retries saved execution evidence without rerunning the workforce", async () => {
+    await completeMode()
     fixture.stop()
     let reviews = 0
     fixture = openCodeFixture({
@@ -85,6 +98,7 @@ describe("Persistent goal controller", () => {
   })
 
   test("a late workforce reply invalidates review instead of completing a stale milestone", async () => {
+    await completeMode()
     fixture.stop()
     let reviews = 0
     fixture = openCodeFixture({
@@ -246,7 +260,7 @@ describe("Persistent goal controller", () => {
     expect((await readMagiState(directory)).failureCount).toBe(2)
   })
 
-  test("continues beyond previous cycle limits and completed roadmap without changing goal", async () => {
+  test("continuous mode advances beyond old limits without submission or completion votes", async () => {
     await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Research one goal" })
     expect((await runMagiCycle(input())).injected).toBe(true)
     for (let index = 0; index < 7; index++) {
@@ -258,8 +272,38 @@ describe("Persistent goal controller", () => {
     expect(state.loopActive).toBe(true)
     expect(state.goal).toBe("Research one goal")
     expect(state.maxCycles).toBe(0)
-    expect((await readRoadmap(directory))?.milestones.length).toBeGreaterThan(5)
+    expect((await readRoadmap(directory))?.milestones).toHaveLength(1)
+    expect((await readRoadmap(directory))?.milestones[0]?.completed).toBe(false)
+    expect(state.progress?.cycle).toBe(7)
+    expect(state.reporting?.checkpointCount).toBe(7)
+    expect(
+      fixture.requests.some((request) => String(request.body.system).includes("independent milestone reviewer")),
+    ).toBe(false)
+    expect(await Bun.file(path.join(directory, ".magi", "COUNCIL.md")).text()).toContain("No completion vote")
     expect(fixture.requests.filter((item) => item.path.endsWith("/prompt_async")).length).toBe(7)
+  })
+
+  test("failed checks become next-meeting evidence without pretending completion or blocking the loop", async () => {
+    await Bun.write(
+      path.join(directory, ".magi", "config.jsonc"),
+      JSON.stringify({
+        verification: { commands: [{ name: "behavior", command: [process.execPath, "-e", "process.exit(1)"] }] },
+      }),
+    )
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Repair observed failures" })
+    await runMagiCycle(input())
+    fixture.complete("Partial change; failing behavior still needs repair")
+    await handleSessionIdleEvent(input())
+    const state = await readMagiState(directory)
+    expect(state.loopActive).toBe(true)
+    expect(state.currentCycle).toBe(2)
+    expect(state.progress?.verification.passed).toBe(false)
+    expect((await readRoadmap(directory))?.milestones[0]?.completed).toBe(false)
+    expect(
+      JSON.stringify(
+        fixture.requests.filter((request) => String(request.body.system).includes("proposal owner")).at(-1)?.body,
+      ),
+    ).toContain("failing behavior")
   })
 
   test("ignores other sessions and duplicate idle events", async () => {

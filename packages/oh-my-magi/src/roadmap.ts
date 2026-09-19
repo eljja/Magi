@@ -13,6 +13,7 @@ export type ProjectRoadmap = {
   goal: string
   milestones: Milestone[]
   updatedAt: number
+  mode?: "continuous" | "complete"
 }
 
 export function magiRoadmapPath(directory: string) {
@@ -40,11 +41,13 @@ export async function initializeRoadmap(input: {
   directory: string
   goal: string
   milestones?: { title: string; description: string }[]
+  mode?: "continuous" | "complete"
 }): Promise<ProjectRoadmap> {
   const defaultMilestones: { title: string; description: string }[] = input.milestones ?? [
     {
-      title: "Deliver and verify the user's goal",
-      description: `Deliver the requested result with reproducible evidence: ${input.goal}. The council chooses concrete increments toward this outcome. Inspect only what is needed, then implement or experiment and verify; a baseline report alone does not satisfy a request to fix or develop something. Preserve existing checks, repair failures, document results and limitations. Completion requires evidence for the user's requested outcome, not merely one successful subtask.`,
+      title:
+        input.mode === "continuous" ? "Continuously advance the user's goal" : "Deliver and verify the user's goal",
+      description: `Advance the requested outcome with reproducible evidence: ${input.goal}. The council chooses concrete increments toward this outcome. Inspect only what is needed, then implement or experiment and verify; a baseline report alone does not satisfy a request to fix or develop something. Preserve existing checks, repair failures, document results and limitations. ${input.mode === "continuous" ? "Keep improving this same goal at natural progress checkpoints. No separate completion vote is required." : "Completion requires evidence for the user's requested outcome, not merely one successful subtask."}`,
     },
   ]
 
@@ -57,6 +60,7 @@ export async function initializeRoadmap(input: {
       completed: false,
     })),
     updatedAt: Date.now(),
+    mode: input.mode,
   }
 
   await writeRoadmap(input.directory, roadmap)
@@ -101,7 +105,9 @@ export function formatRoadmapMarkdown(roadmap: ProjectRoadmap): string {
   return [
     `# Project Master Roadmap: ${roadmap.goal}`,
     "",
-    `**Progress**: ${completedCount}/${totalCount} milestones completed (${percent}%)`,
+    roadmap.mode === "continuous"
+      ? "**운영**: 지속 모드 · 완료율 대신 .magi/COUNCIL.md와 LATEST-REPORT.md에서 실제 진행을 확인하세요."
+      : `**Progress**: ${completedCount}/${totalCount} milestones completed (${percent}%)`,
     `**Last Updated**: ${new Date(roadmap.updatedAt).toISOString()}`,
     "",
     "## Milestones",

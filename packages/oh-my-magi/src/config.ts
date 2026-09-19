@@ -39,6 +39,10 @@ export type MagiConfig = {
   display: {
     transcriptLimit: number
   }
+  reporting: {
+    intervalMs: number
+    notifySession: boolean
+  }
 }
 
 export const MagiConfigDefault: MagiConfig = {
@@ -66,6 +70,7 @@ export const MagiConfigDefault: MagiConfig = {
   display: {
     transcriptLimit: 24,
   },
+  reporting: { intervalMs: 4 * 60 * 60 * 1000, notifySession: true },
 }
 
 export function magiConfigPath(directory: string) {
@@ -109,6 +114,10 @@ export async function loadMagiConfig(directory: string): Promise<MagiConfig> {
     },
     display: {
       transcriptLimit: positiveInt(local.display?.transcriptLimit, MagiConfigDefault.display.transcriptLimit),
+    },
+    reporting: {
+      intervalMs: positiveInt(local.reporting?.intervalMs, MagiConfigDefault.reporting.intervalMs),
+      notifySession: local.reporting?.notifySession !== false,
     },
   }
 }
