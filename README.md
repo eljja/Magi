@@ -1,6 +1,6 @@
 # Oh-My-Magi
 
-See the [installation, CLI and GUI evaluation](docs/END-TO-END-AUDIT.ko.md) for measured results, fixes found with a real free model, and remaining release limitations. Public npm 0.1.1 and subsequent source fixes are tracked separately.
+**Unattended continuity qualification has not passed.** A real free model repaired code, passed protected original tests and entered the next meeting, but repeated decision tool calls recurred. Windows desktop usage also remains unverified. See the [installation, CLI and GUI evaluation](docs/END-TO-END-AUDIT.ko.md); public npm 0.1.1 and subsequent source fixes are tracked separately.
 
 **One persistent goal. The real OmO workforce. A council you can observe and guide.**
 
