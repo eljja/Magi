@@ -8,7 +8,7 @@
 
 [한국어](README.ko.md) · [Installation and configuration](packages/oh-my-magi/README.md) · [Engineering audit](docs/RELEASE-AUDIT.md) · [Contributing](CONTRIBUTING.md)
 
-**Real-model qualification:** real free-model proposals, three independent assessments, peer review, final votes and actual OmO delegation have been observed. A free-model run also repaired the code and passed all three preserved original behavior tests. Full qualification remains incomplete: that run did not finish Magi's independent milestone review and subsequent cycles within the test budget, and some specialists still repeated investigation. Read the [live-model audit (Korean)](docs/REAL-MODEL-AUDIT.ko.md) and [autonomy design](docs/AUTONOMY-DESIGN.ko.md).
+**Real-model qualification:** a 40-minute free-model run produced real council decisions, OmO specialist reads, implementation repairs, added tests and documentation. All 14 worker tests and all three independently preserved original tests passed. **Full qualification remains incomplete:** the executor did not submit its result and reach Magi's completion vote and subsequent meeting within that run. Read the [live-model audit (Korean)](docs/REAL-MODEL-AUDIT.ko.md) and [autonomy design](docs/AUTONOMY-DESIGN.ko.md).
 
 Oh-My-Magi (OMM) adds continuous research and development governance to [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) (OmO) on OpenCode. It loads the official `oh-my-opencode@4.19.4` server plugin as a dependency, including its agent factories, tools, skills, MCP integration and background task manager. These are upstream implementations, not recreated agent prompts.
 
@@ -52,6 +52,8 @@ bun bin/cli.ts install --local --project /absolute/path/to/your/project
 ```
 
 Alternatively, run `opencode plugin /absolute/path/to/Magi/packages/oh-my-magi` in the target project after building. OpenCode detects the server and optional TUI targets. The OMM installer additionally backs up and migrates recognized legacy registrations.
+
+Without Git, download and extract the [omm source ZIP](https://github.com/eljja/Magi/archive/refs/heads/omm.zip), then start at `bun install --ignore-scripts` in the extracted folder. Git is optional for source installation as well as execution.
 
 Connect a model in OpenCode, select **magi**, and send your goal. The runtime starts automatically; Git is optional and missing verification checks can be established by the first approved task:
 
@@ -118,7 +120,7 @@ Keep an OpenCode server running for unattended work. The saved goal recovers whe
 
 - **Compatibility:** minimum OpenCode `1.18.29`, current SDK/target `1.18.31`, official OmO npm stable `4.19.4`. CI checks the minimum and moving latest versions. See the [upgrade procedure](packages/oh-my-magi/README.md#updating-compatibility).
 - **Actual Windows integration (OpenCode 1.18.29 and 1.18.31):** global installation into a non-repository folder with Git absent from PATH, existing OmO migration/restart, selecting Magi and sending an ordinary goal, real `task → explore → read`, three consecutive cycles, conversational steering, stop/resume and reports passed with a deterministic local provider.
-- **Cross-platform CI:** all six minimum/latest OpenCode jobs on Linux, macOS and Windows, plus the core regression job, passed. [0.1.1 validation run](https://github.com/eljja/Magi/actions/runs/35384954335).
+- **Cross-platform CI:** all six minimum/latest OpenCode jobs on Linux, macOS and Windows, plus the core regression job, passed. [0.1.1 validation run](https://github.com/eljja/Magi/actions/runs/35415094451).
 - **Package validation:** regression coverage includes partial-vote recovery, isolated execution, reviewer outages, control ownership and repeated-evidence stalls. See the [dated audit](docs/AUTONOMY-DESIGN.ko.md) for commands and scope.
 - **CLI, desktop and web:** share the server-side agents, tools and commands. The optional TUI panel is specific to the terminal; the file-based monitor works separately in a browser.
 - **Actual-provider testing:** `bun run smoke:live` uses a selected zero-price OpenRouter model, real OpenCode and official OmO in an isolated folder. It checks protected original behavior tests and preserves public evidence. See the [reproduction guide](docs/AUTONOMY-DESIGN.ko.md#검증과-재현).
