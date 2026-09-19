@@ -64,6 +64,7 @@ if (process.env.MAGI_LIVE_PREFLIGHT === "true") {
   process.exit(0)
 }
 const soak = process.env.MAGI_LIVE_SOAK === "true"
+const interactive = process.env.MAGI_LIVE_INTERACTIVE === "true"
 const directory = await mkdtemp(path.join(process.env.MAGI_LIVE_ROOT ?? os.tmpdir(), "magi-openrouter-live-"))
 const project = path.join(directory, "project")
 await mkdir(project, { recursive: true })
@@ -90,6 +91,7 @@ await write("environment.json", {
   git: "removed from child PATH",
   started: new Date().toISOString(),
   soak,
+  interactive,
 })
 console.log("LIVE_ARTIFACTS " + directory)
 
@@ -151,6 +153,8 @@ const gateway = Bun.serve({
     await write("request-" + index + ".json", {
       model: body.model,
       tool_choice: body.tool_choice,
+      parallel_tool_calls: body.parallel_tool_calls,
+      parallelToolCalls: body.parallelToolCalls,
       tools: body.tools?.map((tool: { function?: { name?: string } }) => tool.function?.name),
       messages: body.messages.map(({ reasoning, reasoning_details, ...message }: Record<string, unknown>) => message),
     })
@@ -482,11 +486,16 @@ try {
   await write("connection.json", { port, project, sessionID, model, connected: providers.connected })
   const goal =
     "이 폴더의 REQUIREMENTS.md에 맞게 sumPositiveIntegers 함수를 개발하고 테스트와 문서를 지속적으로 개선해줘. 기존 테스트를 약화하지 말고 sum.ts의 실제 버그를 고쳐줘. 첫 승인 작업은 실제 OmO task 도구로 explore에게 요구사항·테스트를 읽게 한 뒤 구현을 진행해줘. Git 설치나 저장소 초기화는 필요 없어. 이 작은 로컬 과제만 수행하고, 외부 검색·패키지 설치·환경변수 읽기는 하지 마. 사용자 승인을 다시 요구하지 말고 의회의 실제 토론과 투표로 진행해. 각 작업에서 실제 파일 또는 검증 증거를 남기고 같은 목표를 계속 개선해줘."
-  await request("/session/" + sessionID + "/prompt_async", {
-    agent: "magi",
-    model: { providerID: "openrouter", modelID: model },
-    parts: [{ type: "text", text: goal }],
-  })
+  if (interactive)
+    console.log(
+      "INTERACTIVE_READY: enter the goal in the native OpenCode GUI or TUI; pause/resume will not terminate this fixture.",
+    )
+  if (!interactive || process.env.MAGI_LIVE_AUTOSTART === "true")
+    await request("/session/" + sessionID + "/prompt_async", {
+      agent: "magi",
+      model: { providerID: "openrouter", modelID: model },
+      parts: [{ type: "text", text: goal }],
+    })
   const started = Date.now()
   liveStarted = started
   let observedAt = started
@@ -548,7 +557,7 @@ try {
       verdict = "model-configuration-error"
       break
     }
-    if (!guided && state.currentCycle >= 2 && !state.awaitingExecution) {
+    if (!interactive && !guided && state.currentCycle >= 2 && !state.awaitingExecution) {
       await request("/session/" + sessionID + "/prompt_async", {
         agent: "magi",
         model: { providerID: "openrouter", modelID: model },
@@ -573,21 +582,21 @@ try {
     ) {
       verdict = "continuous-cycles-and-checked-progress"
       if (!qualifiedAt) qualifiedAt = Date.now()
-      if (!soak) break
+      if (!soak && !interactive) break
     }
     if (await Bun.file(path.join(directory, "STOP-TEST")).exists()) {
       verdict = "stopped-for-inspection"
       break
     }
     if (quotaBlocked || calls.length >= maximum) {
-      verdict = "free-request-allowance-reached"
+      verdict = quotaBlocked ? "provider-free-quota-reached" : "test-request-budget-reached"
       break
     }
     if (state.error && /configuration required|authentication|model.*unavailable/i.test(state.error)) {
       verdict = "configuration-error"
       break
     }
-    if (!state.loopActive) {
+    if (!state.loopActive && !interactive) {
       verdict = "loop-stopped-unexpectedly"
       break
     }

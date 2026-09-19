@@ -198,15 +198,17 @@ export function buildDebateRoundPrompt(input: {
   const previous = input.previousRounds?.length
     ? [
         "Previous debate rounds:",
-        ...input.previousRounds.map((round) =>
-          [
-            `Round ${round.round}${round.synthesis ? ` synthesis: ${round.synthesis}` : ""}`,
-            ...round.decisions.map(
-              (decision) =>
-                `${decision.member}: ${decision.position ?? voteToPosition(decision.vote)} (${decision.confidence ?? 0}) - ${decision.rationale}${decision.requiredChange ? ` [Required change: ${decision.requiredChange}]` : ""}`,
-            ),
-          ].join("\n"),
-        ),
+        ...input.previousRounds
+          .slice(-3)
+          .map((round) =>
+            [
+              `Round ${round.round}${round.synthesis ? ` synthesis: ${round.synthesis}` : ""}`,
+              ...round.decisions.map(
+                (decision) =>
+                  `${decision.member}: ${decision.position ?? voteToPosition(decision.vote)} (${decision.confidence ?? 0}) - ${decision.rationale}${decision.requiredChange ? ` [Required change: ${decision.requiredChange}]` : ""}`,
+              ),
+            ].join("\n"),
+          ),
       ].join("\n")
     : undefined
 

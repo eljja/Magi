@@ -171,19 +171,24 @@ async function initializeOmOMagi(input: PluginInput, councilPlugin: Plugin): Pro
     ...composed,
     tool: {
       ...composed.tool,
-      magi_start: {
-        ...council.tool!.magi_start!,
-        execute: async (args, context) => {
-          const result = await council.tool!.magi_start!.execute(args, context)
-          try {
-            await resumeWorkforce(context.sessionID)
-          } catch (error) {
-            await council.tool!.magi_stop!.execute({}, context)
-            throw error
-          }
-          return result
-        },
-      },
+      ...Object.fromEntries(
+        ["magi_start", "magi_resume"].map((name) => [
+          name,
+          {
+            ...council.tool![name]!,
+            execute: async (...args: Parameters<NonNullable<Hooks["tool"]>[string]["execute"]>) => {
+              const result = await council.tool![name]!.execute(...args)
+              try {
+                await resumeWorkforce(args[1].sessionID)
+              } catch (error) {
+                await council.tool!.magi_stop!.execute({}, args[1])
+                throw error
+              }
+              return result
+            },
+          },
+        ]),
+      ),
       magi_stop: {
         ...council.tool!.magi_stop!,
         execute: async (args, context) => {

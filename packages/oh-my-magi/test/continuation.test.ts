@@ -162,6 +162,38 @@ describe("Persistent goal controller", () => {
     expect(ledger).toContain("Evidence insufficient")
   })
 
+  test("rejected drafts rotate through the three identities while executable details stay with the workforce", async () => {
+    fixture.stop()
+    fixture = openCodeFixture({
+      reply: async (body) =>
+        String(body.system).includes("proposal owner")
+          ? JSON.stringify({
+              title: "Investigate",
+              prompt: "Inspect the failing behavior",
+              rationale: "Collect evidence",
+            })
+          : JSON.stringify({
+              position: "revise",
+              rationale: "Narrow this investigation",
+              requiredChange: "Inspect one case",
+            }),
+    })
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "Repair observed behavior" })
+    for (let round = 0; round < 4; round++) await runMagiCycle(input())
+    const drafts = fixture.requests.filter((request) => String(request.body.system).includes("proposal owner"))
+    expect(drafts.map((request) => request.body.agent)).toEqual([
+      "magi-melchior",
+      "magi-balthasar",
+      "magi-casper",
+      "magi-melchior",
+    ])
+    expect(JSON.stringify(drafts[0]?.body)).toContain("artifact")
+    expect(JSON.stringify(drafts[0]?.body)).not.toContain(process.execPath.replaceAll("\\", "\\\\"))
+    expect((await readMagiState(directory)).meeting?.round).toBe(4)
+    expect((await readMagiState(directory)).loopActive).toBe(true)
+    expect(await Bun.file(path.join(directory, ".magi", "COUNCIL.md")).text()).toContain("Round 1")
+  })
+
   test("partial independent opinions survive a failed member and resume without repeating completed votes", async () => {
     fixture.stop()
     const calls: { agent: string; stage: string; prompt: string }[] = []

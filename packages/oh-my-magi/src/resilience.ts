@@ -126,7 +126,11 @@ async function attemptSinglePrompt(options: ResilientExecutionOptions & { client
     // /session/:id/message endpoint supports this SDK v2 format field.
     const body = {
       agent: options.agent ?? "magi-reviewer",
-      system: options.system,
+      system:
+        options.system +
+        (options.schema
+          ? "\nSubmit exactly one StructuredOutput tool call with your final decision, then stop. Do not emit multiple or parallel copies of the decision."
+          : ""),
       model: parseModel(options.primaryModel),
       parts: [{ type: "text" as const, text: options.prompt }],
       ...(options.schema
@@ -164,6 +168,10 @@ async function attemptSinglePrompt(options: ResilientExecutionOptions & { client
         )
       if (/429|rate.limit|quota/i.test(detail))
         throw new ReviewRequestError("Provider rate limit or free-model quota reached (HTTP 429); waiting before retry")
+      if (/doom_loop|PermissionDenied|RejectedError|prevents you from using/i.test(detail))
+        throw new ReviewRequestError(
+          "OpenCode blocked a repeated or disallowed decision tool call. No vote was accepted; retrying a single structured decision with permissions unchanged.",
+        )
       if (/StructuredOutput|schema/i.test(detail))
         throw new ReviewRequestError("Model did not return a valid structured decision; no vote or task was authorized")
       throw new ReviewRequestError("OpenCode or the provider rejected the review request; inspect provider logs")

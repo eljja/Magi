@@ -206,7 +206,8 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
   const userSteering = [state.pendingUserSteering, memory.pendingUserSteering, ...guidance.map((item) => item.text)]
     .filter(Boolean)
     .join("\n\n")
-  const proposer = memory.lastProposer ? nextCouncilProposer(MagiCouncilMembers, memory.lastProposer) : "melchior"
+  const firstProposer = memory.lastProposer ? nextCouncilProposer(MagiCouncilMembers, memory.lastProposer) : "melchior"
+  const proposer = MagiCouncilMembers[(MagiCouncilMembers.indexOf(firstProposer) + (state.meeting?.round ?? 0)) % 3]!
   const cycle = state.meeting?.cycle ?? state.currentCycle + 1
   const key = new Bun.CryptoHasher("sha256")
     .update(
@@ -232,8 +233,9 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
       "Progress since the last user report: " + JSON.stringify(state.reporting?.checkpoints ?? []),
       "Latest observed progress: " + JSON.stringify(state.progress ?? null),
       (await validateVerificationSetup(input.directory))
-        ? "Use the project's reproducible verification checks. Configured executable/argument arrays: " +
-          JSON.stringify(config.verification.commands)
+        ? "The runtime owns and runs these configured verification checks at the execution handoff: " +
+          JSON.stringify(config.verification.commands.map((check) => check.name)) +
+          ". Refer to checks by name in the proposal. The executor receives the configured executable and argument arrays separately. Do not transcribe executable paths into the proposal or make path spelling a prerequisite for authorizing a useful investigation or repair. Actual check failures remain evidence to fix; never weaken or bypass checks."
         : "This folder has no verification checks yet. The first approved step must establish meaningful checks for this goal in .magi/config.jsonc verification.commands (arrays of executable and arguments, cwd inside the folder). For research validate sources, experiment artifacts or reproducibility. Do not create always-passing checks or require the user to set up Git. No milestone is complete without evidence.",
       userSteering
         ? "USER CONVERSATION / GUIDANCE: Interpret each message in context. Questions and status requests are not authorization to change work. Apply explicit priorities and corrections to the existing goal; do not replace it.\n" +
@@ -256,7 +258,8 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
         ? "Continue the SAME meeting at round " +
           (state.meeting.round + 1) +
           ". Revise the previous draft to address the recorded objections. Propose an evidence-gathering task if facts are missing; do not repeat an unchanged rejected proposal.\n" +
-          JSON.stringify(state.meeting.rounds)
+          "Recent rounds are below; the full history remains in .magi/COUNCIL.md.\n" +
+          JSON.stringify(state.meeting.rounds.slice(-3))
         : "",
     ].join("\n\n")
   await updateMagiState(
@@ -456,6 +459,7 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
           JSON.stringify(config.verification.commands)
         : "",
       "- Use your native OmO agent instructions, categories, skills and task tool. Preserve all upstream permission and model constraints.",
+      "- This dispatch reflects the current active runtime. Earlier stop/resume requests in conversation history have already been handled by the user's control session; do not replay them. Workers must not call magi_start, magi_resume or magi_stop. Hand off actual results without changing the goal's running state.",
       "- Delegate to available specialists when useful; wait for background work to complete and collect its results before reporting completion.",
       "- Match delegation to the specialist's permissions. Read-only explorers return findings; the executor writes the resulting artifacts. Do not require a read-only specialist to create files or repeatedly retry a forbidden operation.",
       "- Execute this step and report actual artifacts, commands, outputs, and remaining milestone gaps.",
@@ -587,8 +591,12 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<"waitin
       saved?.executionReport ??
       redact(
         [
-          state.executionSubmission?.sessionID === state.executionSessionID
-            ? JSON.stringify(state.executionSubmission)
+          state.executionSubmission && state.executionSubmission.sessionID === state.executionSessionID
+            ? [
+                state.executionSubmission.summary,
+                "Artifacts: " + state.executionSubmission.artifacts.join(", "),
+                "Unresolved: " + (state.executionSubmission.unresolved.join("; ") || "none reported"),
+              ].join("\n")
             : "",
           message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n"),
         ]

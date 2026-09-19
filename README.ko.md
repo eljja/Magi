@@ -8,6 +8,8 @@
 
 [English](README.md) · [설치·설정](packages/oh-my-magi/README.md) · [구현 감사](docs/RELEASE-AUDIT.md)
 
+**최초 설치·CLI·GUI 실측:** [2026-09-20 전체 평가](docs/END-TO-END-AUDIT.ko.md)에 공개 패키지 설치, 실제 무료 모델, 화면 조작 결과와 미통과 항목을 구분했습니다. 설치 성공이 무인 장기 개발의 성공을 뜻하지는 않습니다.
+
 **지속 운영 개선:** 기본 모드에서 별도의 완료 표결을 없앴습니다. 진행 내용과 검사 결과를 다음 회의로 넘기며 같은 목표를 계속 개선합니다. **약 4시간의 실제 가동마다, 또는 세 인격이 이미 발생한 큰 변화에 합의할 때** 보고합니다. 보고 때문에 작업을 중지하지 않습니다. [현재 운영 방식과 검증 범위](docs/CONTINUOUS-OPERATION.ko.md)를 확인하세요. 이전 무료 모델 시험에서는 실제 코드·테스트·문서 수정과 원본 테스트 통과를 확인했지만 새 방식의 장기 실제 모델 운전까지 입증한 것은 아닙니다. [과거 실제 모델 기록](docs/REAL-MODEL-AUDIT.ko.md)도 보존합니다.
 
 Oh-My-Magi(OMM)는 OpenCode에서 [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent)(OmO) 위에 동작하는 연구·개발 상위 시스템입니다. 공식 `oh-my-opencode@4.19.4`를 의존성으로 설치하고 실제 서버 플러그인을 초기화합니다. OmO의 에이전트·도구·전문가 위임·백그라운드 작업 관리 기능을 그대로 사용합니다.

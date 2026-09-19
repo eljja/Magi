@@ -31,6 +31,41 @@ describe("Resilience using the real OpenCode SDK over HTTP", () => {
       ).rejects.toThrow("no validated structured decision")
       expect(bodies[0]?.format).toEqual({ type: "json_schema", schema: { type: "object" }, retryCount: 0 })
       expect(bodies[0]?.tools).toEqual({ "*": false, StructuredOutput: true })
+      expect(bodies[0]?.system).toContain("exactly one StructuredOutput")
+    } finally {
+      server.stop(true)
+    }
+  })
+  test("permission-blocked repeated decisions remain failures with an actionable diagnosis", async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const route = new URL(request.url).pathname
+        if (route === "/session") return Response.json({ id: "review" })
+        if (route.endsWith("/message"))
+          return Response.json({
+            info: {
+              error: {
+                name: "UnknownError",
+                data: { message: "doom_loop: rule prevents you from using this specific tool call" },
+              },
+            },
+            parts: [],
+          })
+        return Response.json(true)
+      },
+    })
+    try {
+      await expect(
+        executeResilientPrompt({
+          client: createOpencodeClient({ baseUrl: server.url.toString() }),
+          directory: "/project",
+          system: "Vote",
+          prompt: "Evidence",
+          schema: { type: "object" },
+          maxRetries: 0,
+        }),
+      ).rejects.toThrow("No vote was accepted")
     } finally {
       server.stop(true)
     }

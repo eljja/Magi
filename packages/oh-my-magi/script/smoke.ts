@@ -26,6 +26,7 @@ const provider = Bun.serve({
       model?: string
       messages?: { role: string; content: unknown }[]
       stream?: boolean
+      parallel_tool_calls?: boolean
       tools?: { function: { name: string } }[]
     }
     if (body.model !== "fixture")
@@ -45,6 +46,11 @@ const provider = Bun.serve({
       "You are BALTHASAR",
       "You are CASPER",
     ].some((role) => system.includes(role))
+    if (reviewing && body.parallel_tool_calls !== false)
+      return Response.json(
+        { error: { message: "Council provider request did not disable parallel decisions" } },
+        { status: 400 },
+      )
     const backgroundTask = lastUser.includes("BACKGROUND TASK") ? lastUser.match(/bg_[a-f0-9]+/)?.[0] : undefined
     const workforceCall =
       !reviewing && !hasToolResult && backgroundTask
@@ -116,7 +122,9 @@ const provider = Bun.serve({
     const call =
       reviewing && body.tools?.some((tool) => tool.function.name === "StructuredOutput")
         ? { name: "StructuredOutput", arguments: text }
-        : (workforceCall ?? submission)
+        : !reviewing && !hasToolResult && lastUser.includes("magi-smoke-resume-saved-goal")
+          ? { name: "magi_resume", arguments: "{}" }
+          : (workforceCall ?? submission)
     const id = "chatcmpl-" + crypto.randomUUID()
     const toolCalls = call
       ? [{ index: 0, id: "call-" + crypto.randomUUID(), type: "function", function: call }]
@@ -491,7 +499,17 @@ try {
   if ((await readMagiState(project)).loopActive) throw new Error("Stop did not persist")
   console.log("Stop persisted. Checking resume. Artifacts: " + directory)
   const resumeTime = Date.now()
-  await request("/session/" + session.id + "/command", { command: "magi", arguments: "resume" })
+  await request("/session/" + session.id + "/message", {
+    agent: "magi",
+    parts: [{ type: "text", text: "magi-smoke-resume-saved-goal: 저장한 같은 목표를 이어서 진행해줘." }],
+  })
+  const resumeMessages = await request("/session/" + session.id + "/message")
+  if (
+    !resumeMessages.some((message: { parts: { tool?: string; state?: { status: string } }[] }) =>
+      message.parts.some((part) => part.tool === "magi_resume" && part.state?.status === "completed"),
+    )
+  )
+    throw new Error("Saved-goal resume tool did not complete through native OpenCode")
   const resumed = await readMagiState(project)
   // Resuming a partially recorded meeting continues that cycle instead of
   // incrementing a counter and abandoning its decisions. Require real work.

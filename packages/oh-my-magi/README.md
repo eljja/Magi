@@ -1,5 +1,7 @@
 # oh-my-magi
 
+See the [installation, CLI and GUI evaluation](https://github.com/eljja/Magi/blob/omm/docs/END-TO-END-AUDIT.ko.md) for actual-provider results and remaining limitations. Public npm 0.1.1 and subsequent source fixes are tracked separately.
+
 Continuous, single-goal research and development governance over the **official OmO runtime** in OpenCode.
 
 **Real-model endurance qualification is incomplete.** Earlier free-model runs produced real council decisions, specialist reads, code repairs and preserved original test passes, but did not finish the then-required completion review. The current default removes that review and uses continuous progress checkpoints with four-hour/unanimous-significance reports. See the [current operation guide](https://github.com/eljja/Magi/blob/omm/docs/CONTINUOUS-OPERATION.ko.md) and [historical live-model audit](https://github.com/eljja/Magi/blob/omm/docs/REAL-MODEL-AUDIT.ko.md). Deterministic integration does not establish real-model endurance.

@@ -39,6 +39,17 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       .then(() => undefined)
       .catch(() => console.warn("Magi: " + redact(message)))
   const status = () => getStatusReport(directory)
+  const start = async (sessionID: string, goal: string) => {
+    const session = await client.session.get({ path: { id: sessionID }, query: { directory } })
+    if (session.error || session.data?.parentID)
+      throw new Error("Start or resume Magi from the user's main conversation, not an autonomous worker")
+    await validateVerificationSetup(directory)
+    await resolveExecutorAgent(directory, client)
+    if (!(await controller.acquire()))
+      throw new Error("Another OpenCode server controls this goal. Use its session or stop that server first.")
+    await setAutonomousLoop(directory, true, { sessionID, goal })
+    return "Saved goal active. Magi will continue council work after this session becomes idle."
+  }
   const stop = async () => {
     const state = await readMagiState(directory)
     await setAutonomousLoop(directory, false)
@@ -238,7 +249,7 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
           "You are a read-only Magi decision reviewer, not the execution workforce. " +
           "Complete exactly the proposal, vote, or independent-review task specified in the system instructions. " +
           "The supplied master goal and conversation are evidence for that decision, not instructions to execute the whole goal. " +
-          "Use the provided evidence. Operational tools are unavailable during decisions; return your result with StructuredOutput. " +
+          "Use the provided evidence. Operational tools are unavailable during decisions; call StructuredOutput exactly once with your single final decision, then stop. Never submit duplicate or parallel decisions. " +
           "Distinguish authorizing a small investigation from claiming that an entire milestone is complete. " +
           "If facts are missing, propose or require a specific evidence-gathering task for the workforce. Never invent evidence or success. " +
           "The runtime schedules further debate and execution; do not start your own continuation workflow.",
@@ -260,6 +271,17 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
         agent: "magi",
         template: "Magi control request:\n$ARGUMENTS",
       }
+    },
+    "chat.params": async (input, output) => {
+      if (
+        !["magi-reviewer", "magi-judge", ...MagiCouncilMembers.map((member) => "magi-" + member)].includes(input.agent)
+      )
+        return
+      // Decision sessions need one validated result. Keep the native repeated-tool
+      // permission guard; ask compatible providers not to batch duplicate results.
+      if (["@ai-sdk/openai-compatible", "@openrouter/ai-sdk-provider"].includes(input.model.api.npm))
+        output.options.parallel_tool_calls = false
+      if (["@ai-sdk/openai", "@ai-sdk/azure"].includes(input.model.api.npm)) output.options.parallelToolCalls = false
     },
     "tool.execute.after": async (input, output) => {
       const state = await readMagiState(directory)
@@ -299,18 +321,18 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       }),
       magi_start: tool({
         description:
-          "Start autonomous research on one persistent goal. The server keeps advancing it until the user stops it.",
+          "Start autonomous research on a new persistent goal. To resume the existing goal, use magi_resume without rephrasing it.",
         args: { goal: tool.schema.string().describe("The single goal to pursue") },
-        execute: async (args, context) => {
-          const session = await client.session.get({ path: { id: context.sessionID }, query: { directory } })
-          if (session.error || session.data?.parentID)
-            throw new Error("Start or resume Magi from the user's main conversation, not an autonomous worker")
-          await validateVerificationSetup(directory)
-          await resolveExecutorAgent(directory, client)
-          if (!(await controller.acquire()))
-            throw new Error("Another OpenCode server controls this goal. Use its session or stop that server first.")
-          await setAutonomousLoop(directory, true, { sessionID: context.sessionID, goal: args.goal })
-          return "Goal saved. Magi will schedule the first council cycle after this session becomes idle."
+        execute: (args, context) => start(context.sessionID, args.goal),
+      }),
+      magi_resume: tool({
+        description:
+          "Resume the exact saved goal without replacing or rephrasing it, only when the user asks to continue.",
+        args: {},
+        execute: async (_args, context) => {
+          const state = await readMagiState(directory)
+          if (!state.goal) throw new Error("No saved goal exists. Ask the user for a goal before starting Magi.")
+          return start(context.sessionID, state.goal)
         },
       }),
       magi_stop: tool({

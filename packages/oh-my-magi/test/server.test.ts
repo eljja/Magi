@@ -95,6 +95,29 @@ test("native OpenCode user abort stops the persisted goal", async () => {
   }
 })
 
+test("resume uses the exact saved goal and cannot be invoked by a worker", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "magi-resume-"))
+  const fixture = openCodeFixture({ parents: { worker: "owner" } })
+  const plugin = await MagiServerPlugin({ directory, client: fixture.client } as Parameters<typeof MagiServerPlugin>[0])
+  const context = { sessionID: "owner" } as Parameters<NonNullable<typeof plugin.tool>[string]["execute"]>[1]
+  try {
+    await expect(plugin.tool!.magi_resume!.execute({}, context)).rejects.toThrow("No saved goal")
+    await setAutonomousLoop(directory, true, { sessionID: "owner", goal: "원본 목표 — 정확히 보존" })
+    await setAutonomousLoop(directory, false)
+    await expect(plugin.tool!.magi_resume!.execute({}, { ...context, sessionID: "worker" })).rejects.toThrow(
+      "not an autonomous worker",
+    )
+    expect((await readMagiState(directory)).loopActive).toBe(false)
+    await plugin.tool!.magi_resume!.execute({}, context)
+    expect((await readMagiState(directory)).loopActive).toBe(true)
+    expect((await readMagiState(directory)).goal).toBe("원본 목표 — 정확히 보존")
+  } finally {
+    await plugin.dispose?.()
+    fixture.stop()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 test("server polling recovers an approved task persisted before a lost dispatch", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "magi-recovery-"))
   const fixture = openCodeFixture()

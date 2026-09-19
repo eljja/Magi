@@ -1,7 +1,10 @@
 import { createOpencodeClient } from "@opencode-ai/sdk"
 
 export function openCodeFixture(
-  options: { reply?: (body: Record<string, unknown>) => Promise<string | undefined> } = {},
+  options: {
+    reply?: (body: Record<string, unknown>) => Promise<string | undefined>
+    parents?: Record<string, string>
+  } = {},
 ) {
   const requests: { method: string; path: string; directory: string | null; body: Record<string, unknown> }[] = []
   const messages: { info: Record<string, unknown>; parts: { type: string; text: string }[] }[] = []
@@ -13,6 +16,8 @@ export function openCodeFixture(
         request.method === "POST" ? ((await request.json().catch(() => ({}))) as Record<string, unknown>) : {}
       requests.push({ method: request.method, path: url.pathname, directory: url.searchParams.get("directory"), body })
       if (url.pathname === "/agent") return Response.json([{ name: "sisyphus", mode: "primary" }])
+      if (/^\/session\/[^/]+$/.test(url.pathname) && request.method === "GET")
+        return Response.json({ parentID: options.parents?.[url.pathname.split("/").at(-1)!] })
       if (url.pathname === "/provider")
         return Response.json({
           all: [
