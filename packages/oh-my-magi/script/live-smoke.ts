@@ -59,7 +59,12 @@ if (
   !entry.supported_parameters.includes("tools")
 )
   throw new Error("Selected model is not a verified zero-price tool model")
-const directory = await mkdtemp(path.join(os.tmpdir(), "magi-openrouter-live-"))
+if (process.env.MAGI_LIVE_PREFLIGHT === "true") {
+  console.log("LIVE_PREFLIGHT " + JSON.stringify({ model, prices: entry.pricing, account: before }))
+  process.exit(0)
+}
+const soak = process.env.MAGI_LIVE_SOAK === "true"
+const directory = await mkdtemp(path.join(process.env.MAGI_LIVE_ROOT ?? os.tmpdir(), "magi-openrouter-live-"))
 const project = path.join(directory, "project")
 await mkdir(project, { recursive: true })
 const write = async (name: string, value: unknown) =>
@@ -84,16 +89,18 @@ await write("environment.json", {
   before,
   git: "removed from child PATH",
   started: new Date().toISOString(),
+  soak,
 })
 console.log("LIVE_ARTIFACTS " + directory)
 
 const calls: { started: number; model: string; role: string; status?: number; response?: unknown }[] = []
 const audits: Promise<unknown>[] = []
 // Limits belong to this test only, never the persistent Magi goal.
-const requestBudget = Number(process.env.MAGI_LIVE_MAX_REQUESTS ?? 80)
-const minutes = Number(process.env.MAGI_LIVE_MINUTES ?? 20)
+const requestBudget = Number(process.env.MAGI_LIVE_MAX_REQUESTS ?? (soak ? 1000 : 80))
+const minutes = Number(process.env.MAGI_LIVE_MINUTES ?? (soak ? 270 : 20))
 if (!Number.isSafeInteger(requestBudget) || requestBudget < 12 || !Number.isFinite(minutes) || minutes <= 0)
   throw new Error("Provide a positive test duration and an integer request budget of at least 12")
+if (soak && minutes < 240) throw new Error("A soak test must observe at least four actual hours")
 const maximum = Math.min(requestBudget, Math.max(0, (before.free?.remaining ?? requestBudget) - 1))
 if (maximum < 12) throw new Error("Insufficient remaining free requests for a council integration run")
 let nextRequest = 0
@@ -269,7 +276,7 @@ if (preflightResult[2] || !Bun.which("bun", { PATH: env.PATH }) || Bun.which("gi
   throw new Error("Isolated tool preflight failed: Bun must be available and Git absent")
 const binary = process.env.MAGI_OPENCODE_BIN || Bun.which("opencode")
 if (!binary) throw new Error("Install OpenCode or set MAGI_OPENCODE_BIN to its executable")
-const packageDirectory = path.resolve(import.meta.dir, "..")
+const packageDirectory = path.resolve(process.env.MAGI_PLUGIN_PACKAGE ?? path.join(import.meta.dir, ".."))
 await Bun.write(path.join(project, ".opencode", "opencode.json"), "{}")
 await Bun.write(
   path.join(project, "package.json"),
@@ -343,7 +350,7 @@ await Bun.write(
   }),
 )
 await repairWindowsRuntime(project, env, true)
-const install = Bun.spawn([binary, "plugin", packageDirectory, "--global"], {
+const install = Bun.spawn([binary, "plugin", process.env.MAGI_PLUGIN_SPECIFIER ?? packageDirectory, "--global"], {
   cwd: project,
   env,
   stdout: "pipe",
@@ -356,10 +363,14 @@ const installed = await Promise.all([
 ])
 await write("install.log", installed.slice(0, 2).join("\n"))
 if (installed[2]) throw new Error("Native plugin installation failed")
+const installedConfig = await Bun.file(path.join(env.OPENCODE_CONFIG_DIR, "opencode.json")).json()
+const installedTui = await Bun.file(path.join(env.OPENCODE_CONFIG_DIR, "tui.json")).json()
+if (!installedConfig.plugin?.length || !installedTui.plugin?.length)
+  throw new Error("Native installation did not register server and TUI targets")
 await Bun.write(
   path.join(env.OPENCODE_CONFIG_DIR, "opencode.json"),
   JSON.stringify({
-    plugin: [pathToFileURL(path.join(packageDirectory, "dist", "server.js")).href],
+    ...installedConfig,
     model: modelID,
     small_model: modelID,
     enabled_providers: ["openrouter"],
@@ -404,6 +415,10 @@ const request = async (url: string, body?: unknown, method = body === undefined 
 let sessionID = ""
 let verdict = "incomplete"
 let workforceVerified = false
+let liveStarted = 0
+let observedActiveMs = 0
+let qualifiedAt = 0
+const reports: { id: string; reason: string; time: number; cycle: number; continuedAt?: number }[] = []
 try {
   for (let i = 0; ; i++) {
     if (
@@ -465,11 +480,41 @@ try {
     parts: [{ type: "text", text: goal }],
   })
   const started = Date.now()
+  liveStarted = started
+  let observedAt = started
   let last = ""
   let guided = false
   while (Date.now() - started < minutes * 60 * 1000) {
     await Bun.sleep(5000)
     const state = await readMagiState(project)
+    const now = Date.now()
+    if (state.loopActive && now - state.updatedAt <= 60000 && now - observedAt <= 60000)
+      observedActiveMs += now - observedAt
+    observedAt = now
+    const report = state.reporting?.latest
+    if (report?.notified && !reports.some((item) => item.id === report.id))
+      reports.push({ id: report.id, reason: report.reason, time: report.time, cycle: state.currentCycle })
+    for (const item of reports) {
+      if (
+        !item.continuedAt &&
+        state.loopActive &&
+        state.progress &&
+        state.progress.time > item.time &&
+        state.currentCycle > item.cycle
+      )
+        item.continuedAt = now
+    }
+    await write("soak-observation.json", {
+      started,
+      observedAt: now,
+      elapsedMs: now - started,
+      observedActiveMs,
+      requiredMinutes: minutes,
+      qualifiedAt: qualifiedAt || undefined,
+      reports,
+      active: state.loopActive,
+      cycle: state.currentCycle,
+    })
     const summary = JSON.stringify({
       cycle: state.currentCycle,
       status: state.status,
@@ -479,12 +524,18 @@ try {
       round: state.meeting?.round,
       error: state.error,
       calls: calls.length,
+      reports: reports.length,
+      continuedAfterReport: reports.filter((item) => item.continuedAt).length,
     })
     if (summary !== last) {
       console.log("LIVE_STATE " + clean(summary))
       last = summary
     }
     await write("progress.json", state)
+    if (soak && now - state.updatedAt > 90000) {
+      verdict = "runtime-heartbeat-lost"
+      break
+    }
     if (deniedModels.size) {
       verdict = "model-configuration-error"
       break
@@ -513,7 +564,8 @@ try {
       ledger.includes("PROGRESS RECORDED")
     ) {
       verdict = "continuous-cycles-and-checked-progress"
-      break
+      if (!qualifiedAt) qualifiedAt = Date.now()
+      if (!soak) break
     }
     if (await Bun.file(path.join(directory, "STOP-TEST")).exists()) {
       verdict = "stopped-for-inspection"
@@ -527,7 +579,18 @@ try {
       verdict = "configuration-error"
       break
     }
+    if (!state.loopActive) {
+      verdict = "loop-stopped-unexpectedly"
+      break
+    }
   }
+  if (soak && verdict === "continuous-cycles-and-checked-progress")
+    verdict =
+      Date.now() - started >= minutes * 60000 &&
+      observedActiveMs >= 240 * 60000 &&
+      reports.some((item) => item.continuedAt)
+        ? "four-hour-continuity-and-post-report-progress"
+        : "soak-incomplete"
   const evidence = await collectMessages(sessionID)
   workforceVerified =
     evidence.some((message) =>
@@ -569,6 +632,11 @@ try {
   await write("verification.log", verified.slice(0, 2).join("\n"))
   await write("result.json", {
     verdict,
+    soak,
+    elapsedMs: liveStarted ? Date.now() - liveStarted : 0,
+    observedActiveMs,
+    qualifiedAt: qualifiedAt || undefined,
+    reports,
     model,
     requests: calls.length,
     before,
@@ -583,7 +651,11 @@ try {
     "LIVE_FINISHED " +
       JSON.stringify({ verdict, requests: calls.length, verificationExit: verified[2], before, after, directory }),
   )
-  if (verdict !== "continuous-cycles-and-checked-progress" || !workforceVerified || verified[2] !== 0)
+  if (
+    !["continuous-cycles-and-checked-progress", "four-hour-continuity-and-post-report-progress"].includes(verdict) ||
+    !workforceVerified ||
+    verified[2] !== 0
+  )
     process.exitCode = 1
 }
 
