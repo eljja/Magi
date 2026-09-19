@@ -76,5 +76,5 @@ export async function archiveCouncilReply(input: {
     "A single opinion is not council authorization. All three final votes are required before applying the voting policy.",
   ].join("\n")
   await appendReport(input.directory, "COUNCIL.md", record)
-  if (input.stage === "votes") await appendReport(input.directory, "members/" + input.member + ".md", record)
+  if (input.stage.endsWith("votes")) await appendReport(input.directory, "members/" + input.member + ".md", record)
 }

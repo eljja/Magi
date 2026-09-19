@@ -343,7 +343,12 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
           member,
           round,
           proposal: draft.prompt,
-          evidence: requirements + "\n" + draft.rationale,
+          evidence:
+            requirements +
+            "\n" +
+            draft.rationale +
+            "\nProposed increment acceptance criteria: " +
+            JSON.stringify(draft.acceptance ?? []),
           previousRounds: rounds,
         }),
     })
@@ -425,6 +430,9 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
           userSteering
         : "",
       draft.prompt,
+      draft.acceptance?.length
+        ? "This increment is ready to submit when:\n" + draft.acceptance.map((item) => "- " + item).join("\n")
+        : "",
       ...rounds
         .at(-1)!
         .decisions.flatMap((item) => (item.requiredChange ? ["Required council change: " + item.requiredChange] : [])),
@@ -435,7 +443,10 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
         : "",
       "- Use your native OmO agent instructions, categories, skills and task tool. Preserve all upstream permission and model constraints.",
       "- Delegate to available specialists when useful; wait for background work to complete and collect its results before reporting completion.",
+      "- Match delegation to the specialist's permissions. Read-only explorers return findings; the executor writes the resulting artifacts. Do not require a read-only specialist to create files or repeatedly retry a forbidden operation.",
       "- Execute this step and report actual artifacts, commands, outputs, and remaining milestone gaps.",
+      "- Finish this approved increment, not the entire lifelong goal. Once its concrete work and checks are done, call magi_submit with your actual output file paths, results and unresolved gaps, then end your response. The three-member council owns further improvements and final acceptance.",
+      "- If an investigation has already established the relevant facts, use those results. Do not repeatedly delegate the same lookup or commission more reviews after the approved acceptance criteria are met.",
       "- This is an approved execution request. Carry it out now; an acknowledgement or promise of later work is not an execution result.",
       process.platform === "win32"
         ? "- This host is Windows. Check the configured shell before using shell syntax; PowerShell does not support Unix ls -la, /dev/null or heredocs. Prefer native read/glob/edit tools and shell-appropriate test commands."
@@ -486,6 +497,7 @@ async function propose(input: CycleInput, runID: string): Promise<CycleResult> {
       executionSessionID: undefined,
       executionMilestoneID: milestone?.id,
       executionRecovery: undefined,
+      executionSubmission: undefined,
       pendingVerification: undefined,
       error: undefined,
       stopReason: undefined,
@@ -557,7 +569,16 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<"waitin
     const saved = state.pendingVerification?.messageID === message.info.id ? state.pendingVerification : undefined
     const executionReport =
       saved?.executionReport ??
-      redact(message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n"))
+      redact(
+        [
+          state.executionSubmission?.sessionID === state.executionSessionID
+            ? JSON.stringify(state.executionSubmission)
+            : "",
+          message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n"),
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+      )
     const toolEvidence =
       saved?.toolEvidence ??
       redact(
@@ -606,6 +627,7 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<"waitin
       config,
       runID: state.runID,
       toolEvidence,
+      artifactPaths: [...(state.executionSubmission?.artifacts ?? []), ...(state.telemetry?.modifiedFiles ?? [])],
       taskTitle: milestone?.title ?? state.topic,
       taskPrompt:
         "Master goal: " +
@@ -640,7 +662,7 @@ export async function handleSessionIdleEvent(input: CycleInput): Promise<"waitin
     }
     await mutateMagiState(input.directory, (current) =>
       current.runID === state.runID
-        ? { ...current, pendingVerification: { ...pendingVerification, report, verdict } }
+        ? { ...current, pendingVerification: { ...current.pendingVerification!, report, verdict } }
         : current,
     )
     await updateMagiState(

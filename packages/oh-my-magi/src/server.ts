@@ -16,7 +16,7 @@ import { createWorkforceWatchdog, isRecoveryAbort } from "./watchdog"
 import { validateVerificationSetup } from "./verification"
 import { MagiCouncilMembers, MagiPrompts } from "./council"
 import { abortMagiReviews } from "./resilience"
-import { dispatchExecution } from "./execution"
+import { dispatchExecution, submitExecution } from "./execution"
 
 export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
   const controller = createControllerLease(directory)
@@ -256,6 +256,23 @@ export const MagiServerPlugin: Plugin = async ({ directory, client }) => {
       }
     },
     tool: {
+      magi_submit: tool({
+        description:
+          "Hand the current approved OmO task back to Magi for verification and three-identity review. Only the current execution owner may submit; this never approves work or stops the persistent goal.",
+        args: {
+          summary: tool.schema
+            .string()
+            .describe("Work actually performed and verification results; do not claim unperformed work"),
+          artifacts: tool.schema
+            .array(tool.schema.string())
+            .max(20)
+            .describe("Paths to actual output files inside this project"),
+          unresolved: tool.schema
+            .array(tool.schema.string())
+            .describe("Remaining gaps, failures or questions; empty only if none are known"),
+        },
+        execute: (args, context) => submitExecution({ ...args, directory, sessionID: context.sessionID }),
+      }),
       magi_start: tool({
         description:
           "Start autonomous research on one persistent goal. The server keeps advancing it until the user stops it.",

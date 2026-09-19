@@ -18,11 +18,44 @@ test("concurrent report appends and interventions lose no entries", async () => 
 
 test("monitor escapes untrusted content and archives timestamped reports", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "magi-report-"))
-  await publishReport(dir, { ...emptyMagiState(), goal: '<script>alert("x")</script>' }, true)
+  await publishReport(
+    dir,
+    {
+      ...emptyMagiState(),
+      goal: '<script>alert("x")</script>',
+      loopActive: true,
+      awaitingExecution: true,
+      votes: { melchior: "approve" },
+      pendingVerification: {
+        messageID: "result",
+        executionReport: "A worker claim",
+        toolEvidence: "",
+        review: {
+          key: "snapshot",
+          cycle: 1,
+          votes: {
+            melchior: {
+              position: "reject",
+              rationale: "<script>Unsafe output</script>",
+              confidence: 1,
+              newEvidence: true,
+              evidence: ["Observed unsafe output"],
+              safetyCritical: true,
+            },
+          },
+        },
+      },
+    },
+    true,
+  )
   const page = await Bun.file(path.join(dir, ".magi", "index.html")).text()
   expect(page).not.toContain("<script>")
   expect(page).toContain("&lt;script&gt;")
   expect(page).toContain('http-equiv="refresh"')
+  expect(page).toContain("Execution authorization votes")
+  expect(page).toContain("Completion review · cycle 1")
+  expect(page).toContain("Verification")
+  expect(page).toContain("reject")
   expect(
     await Bun.file(path.join(dir, ".magi", "reports", new Date().toISOString().slice(0, 10) + ".md")).exists(),
   ).toBe(true)

@@ -18,6 +18,8 @@ The three council perspectives are **Melchior** (architecture and scientific rea
 
 Each identity has an isolated decision session and a persistent judgment history. They assess the proposal independently, then read one another's arguments and cast validated final votes. All three votes are required before applying the voting policy. Approved work runs in a fresh official OmO child session, keeping the human conversation available for guidance. An unavailable council member or reviewer resumes from saved evidence instead of discarding completed work. These are separate agent identities; they can share one model or use different models.
 
+**All three identities also review completion.** The OmO executor submits its results and artifacts with `magi_submit`; the controller runs checks and provides fresh file contents, hashes and tool evidence to another independent assessment, peer review and final vote. Submission is not acceptance. Files changed during review invalidate that review. The monitor and TUI distinguish execution authorization from completion votes.
+
 New goals use the requested outcome as the default milestone. The council chooses the investigation, implementation and experiment increments; a baseline report cannot complete a development request. Existing roadmaps are preserved. Repeated identical tool results trigger recovery after the configured stall interval, without limiting goal or meeting iterations.
 
 <p align="center">
@@ -92,8 +94,10 @@ flowchart TD
   Proposal --> Opening[Three isolated opening assessments]
   Opening --> Council[Peer objections, revisions and three final votes]
   Council -->|Approved| OmO[Fresh official OmO execution session and specialists]
-  OmO --> Verify[Mechanical checks and independent review]
-  Verify -->|Verified milestone or repair needed| Council
+  OmO --> Submit[Submit artifacts and unresolved issues]
+  Submit --> Verify[Mechanical checks and fresh file evidence]
+  Verify --> Completion[Three independent completion opinions and final votes]
+  Completion -->|Verified milestone or repair needed| Council
   Council -->|Revise, reject or transient error| Retry[Wait and reconsider the same goal]
   Retry --> Council
   Council --> Records[Minutes, progress reports and monitor]

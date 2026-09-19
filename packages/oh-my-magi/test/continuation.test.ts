@@ -61,11 +61,11 @@ describe("Persistent goal controller", () => {
       reply: async (body) => {
         if (String(body.system).includes("proposal owner"))
           return JSON.stringify({ title: "Step", prompt: "Produce an artifact", rationale: "Goal evidence" })
-        if (body.agent === "magi-judge") {
+        if (String(body.system).includes("independent milestone reviewer")) {
           reviews++
           if (reviews === 1) return undefined
           expect(JSON.stringify(body.parts)).toContain("Actual execution survived the reviewer outage")
-          return JSON.stringify({ approved: true, critique: "Checks and evidence support this milestone" })
+          return JSON.stringify({ position: "approve", rationale: "Checks and evidence support this milestone" })
         }
         return JSON.stringify({ position: "approve", rationale: "Reviewed" })
       },
@@ -79,7 +79,7 @@ describe("Persistent goal controller", () => {
     expect(failed.pendingVerification?.executionReport).toContain("survived")
     expect(fixture.requests.filter((request) => request.path.endsWith("/prompt_async"))).toHaveLength(0)
     await handleSessionIdleEvent(input())
-    expect(reviews).toBe(2)
+    expect(reviews).toBe(7)
     expect((await readMagiState(directory)).currentCycle).toBe(2)
     expect(fixture.requests.filter((request) => request.path.endsWith("/prompt_async"))).toHaveLength(1)
   })
@@ -91,9 +91,9 @@ describe("Persistent goal controller", () => {
       reply: async (body) => {
         if (String(body.system).includes("proposal owner"))
           return JSON.stringify({ title: "Step", prompt: "Produce an artifact", rationale: "Goal evidence" })
-        if (body.agent === "magi-judge") {
+        if (String(body.system).includes("independent milestone reviewer")) {
           if (++reviews === 1) fixture.complete("Background task woke the worker during review")
-          return JSON.stringify({ approved: true, critique: "Reviewed the submitted evidence" })
+          return JSON.stringify({ position: "approve", rationale: "Reviewed the submitted evidence" })
         }
         return JSON.stringify({ position: "approve", rationale: "Reviewed" })
       },
@@ -109,7 +109,7 @@ describe("Persistent goal controller", () => {
     expect((await readRoadmap(directory))?.milestones[0]?.completed).toBe(false)
     expect(fixture.requests.filter((request) => request.path.endsWith("/prompt_async"))).toHaveLength(0)
     await handleSessionIdleEvent(input())
-    expect(reviews).toBe(2)
+    expect(reviews).toBe(12)
     expect((await readMagiState(directory)).currentCycle).toBe(2)
   })
 

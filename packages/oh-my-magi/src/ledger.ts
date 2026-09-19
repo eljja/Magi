@@ -173,7 +173,7 @@ export async function recordCycleOutcome(directory: string, input: CycleOutcomeR
       : undefined,
     `* **Mechanical Verification Checks**: ${input.verificationPassed ? "✅ All checks passed" : "❌ Checks failed"}`,
     `  * *Details*: ${input.verificationSummary}`,
-    `* **Independent Judge Verdict**: ${input.judgeApproved ? "Approved" : "Concerns raised"}`,
+    `* **Independent Council Completion Vote**: ${input.judgeApproved ? "Approved" : "Concerns raised"}`,
     `  * *Critique*: ${input.judgeCritique}`,
     input.milestoneCompleted
       ? `* 🏆 **Milestone Status**: Milestone #${input.milestoneId ?? input.cycle} (${input.milestoneTitle ?? "Current"}) marked **COMPLETED & VERIFIED**.`

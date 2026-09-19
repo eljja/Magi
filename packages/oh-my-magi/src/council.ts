@@ -33,6 +33,7 @@ export type MagiProposalDraft = {
   rationale: string
   terminal: boolean
   memory?: string
+  acceptance?: string[]
 }
 
 export type MagiCouncilJudgment = {
@@ -261,6 +262,10 @@ export function buildSelfImprovementDraftPrompt(input: {
         terminal: false,
         memory:
           "Updated durable working memory: retain all enduring user constraints, approved decisions, unresolved questions and rejected approaches. Supersede a user instruction only with explicit later user guidance. Do not present this draft as approved.",
+        acceptance: [
+          "Observable result required to finish this increment",
+          "Reproducible check or artifact proving that result",
+        ],
       },
       null,
       2,
@@ -282,6 +287,9 @@ export function normalizeProposalDraft(proposer: MagiCouncilMember, input: unkno
   return {
     proposer,
     memory: typeof item.memory === "string" ? item.memory : undefined,
+    acceptance: Array.isArray(item.acceptance)
+      ? item.acceptance.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+      : undefined,
     title:
       typeof item.title === "string" && item.title.trim()
         ? item.title.trim()

@@ -89,7 +89,12 @@ console.log("LIVE_ARTIFACTS " + directory)
 
 const calls: { started: number; model: string; role: string; status?: number; response?: unknown }[] = []
 const audits: Promise<unknown>[] = []
-const maximum = Math.min(80, Math.max(0, (before.free?.remaining ?? 80) - 1))
+// Limits belong to this test only, never the persistent Magi goal.
+const requestBudget = Number(process.env.MAGI_LIVE_MAX_REQUESTS ?? 80)
+const minutes = Number(process.env.MAGI_LIVE_MINUTES ?? 20)
+if (!Number.isSafeInteger(requestBudget) || requestBudget < 12 || !Number.isFinite(minutes) || minutes <= 0)
+  throw new Error("Provide a positive test duration and an integer request budget of at least 12")
+const maximum = Math.min(requestBudget, Math.max(0, (before.free?.remaining ?? requestBudget) - 1))
 if (maximum < 12) throw new Error("Insufficient remaining free requests for a council integration run")
 let nextRequest = 0
 let quotaBlocked = false
@@ -462,7 +467,7 @@ try {
   const started = Date.now()
   let last = ""
   let guided = false
-  while (Date.now() - started < 20 * 60 * 1000) {
+  while (Date.now() - started < minutes * 60 * 1000) {
     await Bun.sleep(5000)
     const state = await readMagiState(project)
     const summary = JSON.stringify({
@@ -549,6 +554,7 @@ try {
   await server.exited
   gateway.stop(true)
   await Promise.race([Promise.allSettled(audits), Bun.sleep(3000)])
+  await write("provider-calls.json", calls)
   await write("stdout.log", await stdout)
   await write("stderr.log", await stderr)
   const after = await account().catch(() => undefined)

@@ -16,6 +16,12 @@ export const proposalSchema = {
     rationale: { type: "string", minLength: 1 },
     terminal: { type: "boolean" },
     memory: { type: "string" },
+    acceptance: {
+      type: "array",
+      items: { type: "string", minLength: 1 },
+      description:
+        "Concrete observable exit criteria for this increment, not endless research or perfection of the entire lifelong goal",
+    },
   },
 }
 

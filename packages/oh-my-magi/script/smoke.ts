@@ -34,6 +34,9 @@ const provider = Bun.serve({
     const lastUserIndex = body.messages?.findLastIndex((message) => message.role === "user") ?? -1
     const lastUser = JSON.stringify(body.messages?.[lastUserIndex]?.content ?? "")
     const hasToolResult = body.messages?.slice(lastUserIndex + 1).some((message) => message.role === "tool")
+    const recentTools = JSON.stringify(
+      body.messages?.slice(lastUserIndex + 1).filter((message) => message.role === "tool"),
+    )
     const system = JSON.stringify(body.messages?.filter((message) => message.role === "system"))
     const reviewing = [
       "proposal owner",
@@ -78,14 +81,33 @@ const provider = Bun.serve({
           rationale: "Advance the original smoke goal",
         })
       : prompt.includes("independent milestone reviewer")
-        ? JSON.stringify({ approved: true, critique: "Smoke fixture verification evidence received", confidence: 0.9 })
+        ? JSON.stringify({
+            position: "approve",
+            rationale: "Smoke fixture verification evidence received",
+            confidence: 0.9,
+          })
         : prompt.includes("Round 1 deliberation")
           ? JSON.stringify({ position: "approve", rationale: "Smoke fixture council vote", confidence: 0.9 })
           : "MAGI_OMO_CHILD_EVIDENCE: Smoke fixture execution completed. The verification command validates the deterministic fixture."
+    const submission =
+      !reviewing &&
+      prompt.includes("[OH-MY-MAGI COUNCIL TASK") &&
+      recentTools.includes("MAGI_OMO_CHILD_EVIDENCE") &&
+      !recentTools.includes("Result received for independent council review") &&
+      body.tools?.some((tool) => tool.function.name === "magi_submit")
+        ? {
+            name: "magi_submit",
+            arguments: JSON.stringify({
+              summary: "Collected native OmO child evidence",
+              artifacts: ["fixture.txt"],
+              unresolved: [],
+            }),
+          }
+        : undefined
     const call =
       reviewing && body.tools?.some((tool) => tool.function.name === "StructuredOutput")
         ? { name: "StructuredOutput", arguments: text }
-        : workforceCall
+        : (workforceCall ?? submission)
     const id = "chatcmpl-" + crypto.randomUUID()
     const toolCalls = call
       ? [{ index: 0, id: "call-" + crypto.randomUUID(), type: "function", function: call }]
@@ -378,6 +400,12 @@ try {
         part.state.output?.includes("MAGI_OMO_CHILD_EVIDENCE"),
     )
   if (!task) throw new Error("Real OmO task delegation did not return child evidence")
+  if (
+    !evidence.some((message) =>
+      message.parts.some((part) => part.tool === "magi_submit" && part.state?.status === "completed"),
+    )
+  )
+    throw new Error("Native OmO worker did not submit its artifacts for council review")
   const firstExecutor = evidence.find((message) => message.info.role === "assistant")
   if (firstExecutor?.info.agent !== "magi")
     throw new Error("The user's selected Magi agent did not acknowledge the goal")
@@ -427,11 +455,16 @@ try {
   if (beforeStop.steeringQueue.some((item) => item.text.includes("[OH-MY-MAGI COUNCIL TASK")))
     throw new Error("Internal council execution was incorrectly captured as user steering")
   const conversationLedger = await Bun.file(path.join(project, ".magi", "COUNCIL.md")).text()
+  for (const member of ["MELCHIOR", "BALTHASAR", "CASPER"]) {
+    if (!conversationLedger.includes(member + " · completion-votes"))
+      throw new Error("Missing independent completion vote: " + member)
+  }
+  console.log("All three independent completion votes and native artifact submission verified")
   if (!conversationLedger.includes("Conversation message:") || !conversationLedger.includes(guidance))
     throw new Error("Conversation receipt was not archived")
   await request("/session/" + session.id + "/command", { command: "magi", arguments: "stop" }).catch(() => undefined)
   if ((await readMagiState(project)).loopActive) throw new Error("Stop did not persist")
-  console.log("Stop persisted. PASS. Artifacts: " + directory)
+  console.log("Stop persisted. Checking resume. Artifacts: " + directory)
   const resumeTime = Date.now()
   await request("/session/" + session.id + "/command", { command: "magi", arguments: "resume" })
   const resumed = await readMagiState(project)
@@ -462,7 +495,7 @@ try {
   for (const file of ["COUNCIL.md", "STATUS.md", "index.html"]) {
     if (!(await Bun.file(path.join(project, ".magi", file)).exists())) throw new Error("Missing report: " + file)
   }
-  console.log("Natural conversational steering, stop/resume, meeting archive and live monitor verified")
+  console.log("Natural conversational steering, stop/resume, meeting archive and live monitor verified. PASS")
   if (process.env.MAGI_SMOKE_KEEP_ALIVE === "true") {
     console.log("Web QA URL: " + base + "; project: " + project)
     await new Promise(() => {})

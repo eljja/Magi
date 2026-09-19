@@ -54,6 +54,7 @@ function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
         )}
       </For>
       <text fg={theme().textMuted}>{topic()}</text>
+      <text fg={theme().textMuted}>Execution authorization</text>
       <box flexDirection="row" gap={1}>
         <For each={members}>
           {(member) => (
@@ -63,6 +64,19 @@ function View(props: { api: TuiPluginApi; state: () => MagiRuntimeState }) {
           )}
         </For>
       </box>
+      <Show when={props.state().pendingVerification?.review}>
+        <text fg={theme().textMuted}>Completion review #{props.state().pendingVerification?.review?.cycle ?? "?"}</text>
+        <box flexDirection="row" gap={1}>
+          <For each={members}>
+            {(member) => (
+              <text fg={dotColor(props.api, props.state().pendingVerification?.review?.votes?.[member]?.position)}>
+                ● {member.toUpperCase()}:{" "}
+                {props.state().pendingVerification?.review?.votes?.[member]?.position ?? "pending"}
+              </text>
+            )}
+          </For>
+        </box>
+      </Show>
       <Show when={props.state().telemetry && (props.state().telemetry?.toolCallCount ?? 0) > 0}>
         <text fg={theme().textMuted}>
           Workforce: {props.state().telemetry?.toolCallCount} ops | Last: {props.state().telemetry?.lastTool ?? "none"}

@@ -42,8 +42,8 @@ export function openCodeFixture(
               })
             : system.includes("independent milestone reviewer")
               ? JSON.stringify({
-                  approved: true,
-                  critique: "Fixture artifact and command evidence match the milestone",
+                  position: "approve",
+                  rationale: "Fixture artifact and command evidence match the milestone",
                   confidence: 0.9,
                 })
               : JSON.stringify({ position: "approve", rationale: "Fixture evidence supports this step" })

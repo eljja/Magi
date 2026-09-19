@@ -29,6 +29,15 @@ const escape = (text: string) =>
 
 export async function publishReport(directory: string, state: MagiRuntimeState, archive = false) {
   const timestamp = new Date().toISOString()
+  const members = ["melchior", "balthasar", "casper"] as const
+  const completion = state.pendingVerification?.review
+  const phase = !state.loopActive
+    ? state.status
+    : state.awaitingExecution
+      ? state.pendingVerification
+        ? "Verification"
+        : "Execution"
+      : "Council"
   const summary = redact(
     [
       "# Magi progress report",
@@ -37,6 +46,7 @@ export async function publishReport(directory: string, state: MagiRuntimeState, 
       "Goal: " + (state.goal ?? "No goal started"),
       `State: ${state.loopActive ? "active" : "stopped"} / ${state.status} · Cycle ${state.currentCycle} · No iteration limit`,
       "Current work: " + state.topic,
+      "Current phase: " + phase,
       "Owner session: " + (state.sessionID ?? "none"),
       "OmO execution session: " + (state.executionSessionID ?? "none"),
       "Tool operations (cumulative): " + (state.telemetry?.toolCallCount ?? 0),
@@ -45,6 +55,17 @@ export async function publishReport(directory: string, state: MagiRuntimeState, 
       state.error ? "Runtime issue (will retry while active): " + state.error : "",
       state.meeting ? "Completed debate rounds: " + state.meeting.round + " (no round limit)" : "",
       state.retryAt ? "Next retry: " + new Date(state.retryAt).toISOString() : "",
+      "## Execution authorization votes",
+      ...members.map((member) => `${member.toUpperCase()}: ${state.votes[member] ?? "pending"}`),
+      ...(completion
+        ? [
+            "## Completion review" + (completion.cycle ? " · cycle " + completion.cycle : ""),
+            ...members.map((member) => {
+              const vote = completion.votes?.[member]
+              return `${member.toUpperCase()}: ${vote?.position ?? "pending"}${vote ? " — " + vote.rationale : ""}`
+            }),
+          ]
+        : []),
       "",
       "## Live council requests (independent from workforce tools)",
       ...Object.entries(state.councilActivity ?? {}).map(
@@ -77,9 +98,10 @@ export async function publishReport(directory: string, state: MagiRuntimeState, 
 <header><small>OH-MY-MAGI / OMO WORKFORCE</small><h1>One goal. Continuous progress.</h1><span class="badge">${state.loopActive ? "● Active" : "○ Stopped"}</span> · Updated ${timestamp}</header>
 <nav><a href="COUNCIL.md">Council minutes</a><a href="ROADMAP.md">Roadmap</a><a href="STATUS.md">Full status</a><a href="reports/">Report archive</a></nav>
 <section class="hero"><small>PERSISTENT GOAL</small><h2>${clean(state.goal ?? "No goal started")}</h2><p>${clean(state.topic)}</p></section>
-<div class="grid"><div class="card"><small>CYCLE</small><div class="number">${state.currentCycle}</div>No iteration limit</div><div class="card"><small>WORKFORCE OPERATIONS</small><div class="number">${state.telemetry?.toolCallCount ?? 0}</div>Cumulative tool activity</div><div class="card"><small>CURRENT PHASE</small><div class="number">${state.awaitingExecution ? "Execution" : clean(state.status)}</div>${state.awaitingExecution ? "Awaiting independent verification" : "Council and goal management"}</div></div>
+<div class="grid"><div class="card"><small>CYCLE</small><div class="number">${state.currentCycle}</div>No iteration limit</div><div class="card"><small>WORKFORCE OPERATIONS</small><div class="number">${state.telemetry?.toolCallCount ?? 0}</div>Cumulative tool activity</div><div class="card"><small>CURRENT PHASE</small><div class="number">${clean(phase)}</div>${state.awaitingExecution ? "Awaiting independently accepted results" : "Council and goal management"}</div></div>
 ${state.error ? `<div class="card error"><h2>Needs attention</h2><p>${clean(state.error)}</p><small>${state.loopActive ? "The controller will retry. You can provide guidance below." : "Resume when ready."}</small></div>` : ""}
-<h2>Council votes</h2><div class="grid">${["melchior", "balthasar", "casper"].map((member) => `<div class="card"><small>${member.toUpperCase()}</small><div class="number">${clean(state.votes[member as keyof typeof state.votes] ?? "Pending")}</div></div>`).join("")}</div>
+<h2>Execution authorization votes</h2><div class="grid">${members.map((member) => `<div class="card"><small>${member.toUpperCase()}</small><div class="number">${clean(state.votes[member] ?? "Pending")}</div></div>`).join("")}</div>
+${completion ? `<h2>Completion review${completion.cycle ? " · cycle " + completion.cycle : ""}</h2><div class="grid">${members.map((member) => `<div class="card"><small>${member.toUpperCase()}</small><div class="number">${clean(completion.votes?.[member]?.position ?? "Pending")}</div><p>${clean(completion.votes?.[member]?.rationale ?? "Awaiting independent final vote")}</p></div>`).join("")}</div>` : ""}
 <h2>Live council requests</h2><div class="grid">${
     Object.entries(state.councilActivity ?? {})
       .map(

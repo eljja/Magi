@@ -69,12 +69,25 @@ export type MagiRuntimeState = {
   executionSessionID?: string
   executionMilestoneID?: number
   executionRecovery?: string
+  executionSubmission?: {
+    sessionID: string
+    submittedAt: number
+    summary: string
+    artifacts: string[]
+    unresolved: string[]
+  }
   pendingVerification?: {
     messageID: string
     executionReport: string
     toolEvidence: string
     report?: VerificationReport
     verdict?: JudgeVerdict
+    review?: {
+      key: string
+      cycle?: number
+      opening?: PendingCouncilRound["opening"]
+      votes?: PendingCouncilRound["votes"]
+    }
   }
   lastMessageID?: string
   stopReason?: "user" | "completed" | "max_cycles" | "error" | "council"

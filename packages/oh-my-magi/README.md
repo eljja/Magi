@@ -6,7 +6,9 @@ Continuous, single-goal research and development governance over the **official 
 
 Magi's three identities use separate decision sessions and persistent judgment histories. Opening arguments are independent; final votes follow peer review. OpenCode validates proposals and votes through native `StructuredOutput`, so council models must support tool calling. All three valid final votes are required before applying majority/unanimous policy. Missing votes never imply approval. Partial meetings resume after transient failures without repeating completed judgments.
 
-The user talks to Magi; a fresh official OmO child session executes each approved task. Execution reports and actual tool evidence feed the next meeting. Failed independent review preserves that evidence and rechecks current files before completing a milestone. Workers cannot use the user-control tools to stop or steer the goal. `.magi/members/*.md` preserves each identity's own prior decisions; the monitor separately shows live council requests and workforce activity.
+The user talks to Magi; a fresh official OmO child session executes each approved task. The executor can submit results, real artifact paths and unresolved issues through `magi_submit`, then end its response. Only the current approved executor may submit; submission never accepts a milestone or stops the goal. Existing workers that finish without this tool still undergo verification from their response and actual tool evidence.
+
+After checks pass, **all three identities independently assess the completed work, exchange objections and cast final completion votes**. They receive fresh file excerpts and full-file hashes alongside tool evidence and test results. File changes during review invalidate acceptance. Partial completion opinions resume only for unchanged evidence and settings. Workers cannot use the user-control tools to stop or steer the goal. `.magi/members/*.md` preserves each identity's authorization and completion judgments; the monitor and TUI distinguish these two votes.
 
 The default roadmap for a new goal describes the user's requested outcome. Council-approved increments determine how to get there; a fixed setup/research phase does not hold implementation back. Existing or explicitly supplied roadmaps are preserved. Every milestone still requires passing checks and independent review.
 
@@ -113,7 +115,9 @@ Magi's `.magi/config.jsonc` controls its council and verification:
 
 Git and Git repositories are optional; ordinary folders can run Magi. For research, supply commands that validate experiment artifacts, metrics, data integrity or reproducibility. Missing checks never count as success. Automatic script detection is deliberately conservative and does not run tests from a monorepo root. A working directory must remain inside the project.
 
-Council members may use separate `council.melchiorModel`, `balthasarModel` and `casperModel` settings. They run through real OpenCode requests in read-only sessions. An independent reviewer evaluates execution evidence against the full milestone after mechanical checks.
+Council members may use separate `council.melchiorModel`, `balthasarModel` and `casperModel` settings. They run through real OpenCode requests in isolated decision sessions. After mechanical checks, all three review execution evidence against the current full milestone using the same voting and safety-veto policy. No operational tools are available to council requests. Proposals can include concrete `acceptance` criteria for the approved increment; optional future improvements do not invalidate satisfied criteria.
+
+Artifact snapshots work without Git and resolve paths inside the project. The shared evidence includes up to 20 files, their SHA-256 hashes and the first 4 KiB of each file, explicitly marking truncation. Files over 16 MiB require separate reproducible verification evidence. These are evidence-packing limits, not goal or meeting iteration limits.
 
 `maxCycles` and `maxDebateRounds` are ignored, including in old configurations. Each round shares three opening assessments, then collects rebuttals and three final votes; both phases are archived. Meetings have no round ceiling: each scheduler turn saves one round, and an unapproved meeting resumes with its objections and a revised proposal. Recent rounds stay in prompt context while the full meeting archive remains on disk. Request retry limits and timeout intervals apply to individual operations, not the lifelong goal loop. Continuous mode adds another increment when the initial roadmap completes. Optional `mode: "complete"` stops after verified roadmap completion; use continuous mode for indefinite work.
 
@@ -125,7 +129,7 @@ Open `.magi/index.html` directly in a local browser. It needs no external servic
 
 - `COUNCIL.md`: append-only human-readable proposals, all council decisions (including withheld authorization), directives, outcomes and user interventions. Outcomes identify their cycle/run instead of replacing an earlier meeting's text.
 - `USER-GUIDANCE.md`: persistent chronological conversation source, retained after pending messages are consumed.
-- `MEMORY.md`: model-maintained working memory saved with approved council proposals. New deliberations and session compaction read this memory, user guidance and the meeting ledger; original records take precedence over summaries. The reviewer can read full files when excerpts omit older history.
+- `MEMORY.md`: model-maintained working memory saved with approved council proposals. New deliberations and session compaction read this memory, user guidance and the meeting ledger; original records take precedence over summaries. When excerpts are insufficient, the council must request a concrete workforce investigation; decision sessions cannot read additional files themselves.
 - `STATUS.md`: latest status snapshot.
 - `reports/YYYY-MM-DD.md`: cumulative one-minute snapshots while active.
 - `events/YYYY-MM-DD.jsonl`: durable intermediate controller events, votes and errors, beyond the bounded TUI history.

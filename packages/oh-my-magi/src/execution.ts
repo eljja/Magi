@@ -1,6 +1,43 @@
 import type { OpencodeClientInstance } from "./bridge"
 import { resolveExecutorAgent } from "./omo-bridge"
 import { mutateMagiState, readMagiState } from "./state"
+import { collectArtifactEvidence } from "./artifacts"
+
+export async function submitExecution(input: {
+  directory: string
+  sessionID: string
+  summary: string
+  artifacts: string[]
+  unresolved: string[]
+}) {
+  const state = await readMagiState(input.directory)
+  if (!state.loopActive || !state.awaitingExecution || state.executionSessionID !== input.sessionID)
+    throw new Error("Only the currently approved OmO execution session can submit its result")
+  if (!input.summary.trim()) throw new Error("Submit an evidence-based summary")
+  const evidence = await collectArtifactEvidence(input.directory, input.artifacts)
+  if (evidence.some((item) => item.error))
+    throw new Error("Submitted artifacts must be readable files inside the project")
+  const saved = await mutateMagiState(input.directory, (current) =>
+    current.loopActive &&
+    current.runID === state.runID &&
+    current.executionSessionID === input.sessionID &&
+    current.awaitingExecution
+      ? {
+          ...current,
+          executionSubmission: {
+            sessionID: input.sessionID,
+            submittedAt: Date.now(),
+            summary: input.summary,
+            artifacts: input.artifacts,
+            unresolved: input.unresolved,
+          },
+        }
+      : current,
+  )
+  if (!saved.loopActive || saved.runID !== state.runID || saved.executionSubmission?.sessionID !== input.sessionID)
+    throw new Error("Execution changed or stopped before submission")
+  return "Result received for independent council review, not approved or marked complete. Collect any outstanding background results, then end this response. Magi will run verification and all three identities will review the evidence and vote. Do not start another improvement in this execution session."
+}
 
 // A fresh child retains OpenCode ancestry and the full OmO harness without
 // inheriting instructions meant only for the human-facing Magi conversation.
@@ -22,7 +59,7 @@ export async function dispatchExecution(input: {
   const sessionID = response.data.id
   await mutateMagiState(input.directory, (current) =>
     current.loopActive && current.runID === input.runID
-      ? { ...current, executionSessionID: sessionID, executionAfter: Date.now() }
+      ? { ...current, executionSessionID: sessionID, executionAfter: Date.now(), executionSubmission: undefined }
       : current,
   )
   const current = await readMagiState(input.directory)
