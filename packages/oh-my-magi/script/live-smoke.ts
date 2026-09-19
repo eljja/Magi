@@ -103,6 +103,13 @@ if (!Number.isSafeInteger(requestBudget) || requestBudget < 12 || !Number.isFini
 if (soak && minutes < 240) throw new Error("A soak test must observe at least four actual hours")
 const maximum = Math.min(requestBudget, Math.max(0, (before.free?.remaining ?? requestBudget) - 1))
 if (maximum < 12) throw new Error("Insufficient remaining free requests for a council integration run")
+const requestIntervalMs = Number(
+  process.env.MAGI_LIVE_REQUEST_INTERVAL_MS ??
+    (soak ? Math.max(6500, Math.ceil(((minutes + 5) * 60000) / maximum)) : 6500),
+)
+if (!Number.isFinite(requestIntervalMs) || requestIntervalMs < 6500)
+  throw new Error("Live-test request spacing must be at least 6500ms")
+await write("allowance.json", { maximum, requestIntervalMs, minutes, soak, quotaSnapshot: before.free })
 let nextRequest = 0
 let quotaBlocked = false
 const deniedModels = new Set<string>()
@@ -148,7 +155,7 @@ const gateway = Bun.serve({
       messages: body.messages.map(({ reasoning, reasoning_details, ...message }: Record<string, unknown>) => message),
     })
     const scheduled = Math.max(Date.now(), nextRequest)
-    nextRequest = scheduled + 6500
+    nextRequest = scheduled + requestIntervalMs
     await Bun.sleep(Math.max(0, scheduled - Date.now()))
     if (request.signal.aborted) return new Response("Cancelled", { status: 499 })
     // Forward the actual OpenCode request unchanged, except a zero-price provider guard.
@@ -345,7 +352,7 @@ await Bun.write(
 await Bun.write(
   path.join(project, ".magi", "config.jsonc"),
   JSON.stringify({
-    resilience: { maxRetries: 0, timeoutMs: 180000, stallTimeoutMs: 180000 },
+    resilience: { maxRetries: 0, timeoutMs: soak ? 300000 : 180000, stallTimeoutMs: soak ? 300000 : 180000 },
     verification: { commands: [{ name: "real behavior tests", command: [process.execPath, "test", "sum.test.ts"] }] },
   }),
 )
@@ -399,6 +406,7 @@ const server = Bun.spawn([binary, "serve", "--hostname", "127.0.0.1", "--port", 
   stdout: "pipe",
   stderr: "pipe",
 })
+await write("runtime.json", { pid: server.pid, port, project, model, starting: new Date().toISOString() })
 const stdout = new Response(server.stdout).text()
 const stderr = new Response(server.stderr).text()
 const request = async (url: string, body?: unknown, method = body === undefined ? "GET" : "POST") => {
