@@ -30,7 +30,7 @@ _Original Magi concept artwork: three minds deliberate, the workforce acts, and 
 
 ## Install
 
-**0.1.1 is prepared but awaiting npm publication.** The npm command below becomes available after release; use the source-build instructions below in the meantime. Published version 0.1.0 does not include these fixes.
+**0.1.1 is published on npm.** The registry's `latest` tag points to this release, and the downloaded package matches the verified release artifact. Update from 0.1.0 to receive these fixes.
 
 Run this in your operating-system terminal, then restart OpenCode:
 
@@ -117,13 +117,13 @@ Keep an OpenCode server running for unattended work. The saved goal recovers whe
 
 ## Compatibility and release status
 
-**0.1.1 update pending publication:** agent selection and ordinary goal entry start automatically; Git is optional and council members exchange arguments before final votes. The versioned command above requires the 0.1.1 release.
+**0.1.1 is available:** agent selection and ordinary goal entry start automatically; Git is optional and council members exchange arguments before final votes. Continuous mode carries progress into the next meeting without a completion vote; scheduled and significant-progress reports do not stop the loop.
 
-**Previously published:** [oh-my-magi 0.1.0](https://www.npmjs.com/package/oh-my-magi) is available on npm. Its registry artifact matches the reviewed release tarball. See the [publication record (Korean)](docs/RELEASE-AUDIT.md#publication-attempt).
+**Published:** [oh-my-magi 0.1.1](https://www.npmjs.com/package/oh-my-magi/v/0.1.1) is the npm `latest` release. Its downloaded artifact matches the reviewed release tarball. See the [publication record (Korean)](docs/RELEASE-AUDIT.md#publication-011).
 
 - **Compatibility:** minimum OpenCode `1.18.29`, current SDK/target `1.18.31`, official OmO npm stable `4.19.4`. CI checks the minimum and moving latest versions. See the [upgrade procedure](packages/oh-my-magi/README.md#updating-compatibility).
 - **Actual Windows integration (OpenCode 1.18.29 and 1.18.31):** global installation into a non-repository folder with Git absent from PATH, existing OmO migration/restart, selecting Magi and sending an ordinary goal, real `task → explore → read`, three consecutive cycles, conversational steering, stop/resume and reports passed with a deterministic local provider.
-- **Cross-platform CI:** all six minimum/latest OpenCode jobs on Linux, macOS and Windows, plus the core regression job, passed. [0.1.1 validation run](https://github.com/eljja/Magi/actions/runs/35415094451).
+- **Cross-platform CI:** all six minimum/latest OpenCode jobs on Linux, macOS and Windows, plus the core regression job, passed. [Published implementation validation run](https://github.com/eljja/Magi/actions/runs/35451257603).
 - **Package validation:** regression coverage includes partial-vote recovery, isolated execution, reviewer outages, control ownership and repeated-evidence stalls. See the [dated audit](docs/AUTONOMY-DESIGN.ko.md) for commands and scope.
 - **CLI, desktop and web:** share the server-side agents, tools and commands. The optional TUI panel is specific to the terminal; the file-based monitor works separately in a browser.
 - **Actual-provider testing:** `bun run smoke:live` uses a selected zero-price OpenRouter model, real OpenCode and official OmO in an isolated folder. It checks protected original behavior tests and preserves public evidence. See the [reproduction guide](docs/AUTONOMY-DESIGN.ko.md#검증과-재현).

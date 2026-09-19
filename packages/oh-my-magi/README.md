@@ -17,7 +17,7 @@ The default roadmap describes the user's continuing goal. Council-approved incre
 
 ## Installation
 
-**0.1.1 is not published to npm yet.** The public 0.1.0 does not include these fixes. Use the source build/local installation below until publication; the versioned npm command becomes available after that release.
+**0.1.1 is published on npm.** The `latest` tag points to this release, and the downloaded package matches the verified release artifact. Use the versioned command below to install or update from 0.1.0.
 
 Requires Bun 1.3.13+ and OpenCode 1.18.29+. The SDK and current compatibility target are 1.18.31. The package includes an exact dependency on `oh-my-opencode@4.19.4` (the official oh-my-openagent stable distribution). Register **only OMM**.
 
