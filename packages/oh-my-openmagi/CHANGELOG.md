@@ -6,6 +6,7 @@
 - Exercise a real Windows short-path alias and retain the rejection of verification commands outside the project.
 - Invoke native smoke scripts directly in the aggregate validator instead of adding an intermediate Bun script launcher.
 - Set explicit standard streams for Windows cleanup helpers and retain exit code, signal, elapsed time and cleanup stage when termination fails.
+- Replace WMI/CIM process enumeration with Windows Toolhelp snapshots. Check creation time and terminate through the same process handle; preserve parent ownership and private LSP pipe checks, and test unrelated-process survival and isolated environments.
 - Use the package's 30-second test timeout in CI and verify the exact public npm version, latest tag and downloaded archive after publishing.
 
 ## 0.2.0

@@ -2,6 +2,7 @@ import path from "node:path"
 import os from "node:os"
 import { readdir } from "node:fs/promises"
 import { spawnWithRetry } from "./process"
+import { windowsProcessApi } from "./windows-process"
 
 // OmO's detached LSP daemon can retain a crashed Windows host's socket handles.
 // Each supervised host gets a private namespace; never sweep the user's shared daemon.
@@ -30,10 +31,11 @@ export async function cleanupWindowsLsp(directory: string, env: NodeJS.ProcessEn
     const literal = (value: string) => "'" + value.replaceAll("'", "''") + "'"
     const script = `
 $ErrorActionPreference='Stop'
+${windowsProcessApi}
 $owner=Get-Content -LiteralPath ${literal(ownerFile)} -Raw | ConvertFrom-Json
 $pidText=(Get-Content -LiteralPath ${literal(path.join(folder, "daemon.pid"))} -Raw).Trim()
 if ($owner.pid -ne [int]$pidText -or $owner.pid -le 0 -or $owner.endpoint.kind -ne 'windows' -or $owner.endpoint.path -cne ('\\\\.\\pipe\\'+${literal(pipe)})) { throw 'LSP owner metadata does not match the private namespace' }
-$root=Get-CimInstance Win32_Process -Filter ('ProcessId = '+$owner.pid)
+$root=[MagiProcesses]::Inspect($owner.pid)
 if (!$root) { exit 0 }
 $start=[datetime]::Parse(${literal(new Date(started - 1000).toISOString())}).ToUniversalTime()
 $birth=$root.CreationDate.ToUniversalTime()
@@ -46,15 +48,17 @@ try {
   $serverPid=[uint32]0
   if (![OpenMagiPipeOwner]::GetNamedPipeServerProcessId($pipe.SafePipeHandle,[ref]$serverPid) -or $serverPid -ne $owner.pid) { throw 'Private LSP pipe does not belong to the recorded process' }
 } finally { $pipe.Dispose() }
-$tree=@(Get-CimInstance Win32_Process)
+$tree=@([MagiProcesses]::Snapshot())
 $targets=[Collections.Generic.List[object]]::new()
 $targets.Add($root)
 $ids=[Collections.Generic.HashSet[int]]::new()
 [void]$ids.Add([int]$root.ProcessId)
 do {
   $count=$ids.Count
-  foreach($item in $tree) {
-    if (!$ids.Contains([int]$item.ProcessId) -and $ids.Contains([int]$item.ParentProcessId) -and $item.CreationDate.ToUniversalTime() -ge $birth) {
+  foreach($candidate in $tree) {
+    if ($ids.Contains([int]$candidate.ProcessId) -or !$ids.Contains([int]$candidate.ParentProcessId)) { continue }
+    $item=[MagiProcesses]::Inspect($candidate.ProcessId)
+    if ($item -and $item.ParentProcessId -eq $candidate.ParentProcessId -and $item.CreationDate.ToUniversalTime() -ge $birth) {
       [void]$ids.Add([int]$item.ProcessId)
       $targets.Add($item)
     }
@@ -62,14 +66,7 @@ do {
 } while ($count -ne $ids.Count)
 $targets.Reverse()
 foreach($item in $targets) {
-  $current=Get-CimInstance Win32_Process -Filter ('ProcessId = '+$item.ProcessId)
-  if ($current -and $current.CreationDate -eq $item.CreationDate) {
-    $target=Get-Process -Id $item.ProcessId -ErrorAction SilentlyContinue
-    if ($target -and [Math]::Abs(($target.StartTime.ToUniversalTime()-$item.CreationDate.ToUniversalTime()).TotalSeconds) -lt 1) {
-      $target.Kill()
-      if (!$target.WaitForExit(5000)) { throw 'Private LSP process did not exit' }
-    }
-  }
+  [MagiProcesses]::Stop($item.ProcessId,$item.CreationDate)
 }
 `
     const child = await spawnWithRetry(() =>

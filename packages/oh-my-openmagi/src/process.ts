@@ -1,4 +1,5 @@
 import type { Subprocess } from "bun"
+import { windowsProcessApi } from "./windows-process"
 
 export async function spawnWithRetry<T extends Subprocess>(
   launch: () => T,
@@ -54,11 +55,12 @@ async function terminateTree(child: Subprocess) {
   const script = `
 $ErrorActionPreference='Stop'
 [Console]::Out.WriteLine('cleanup started')
-$tree=@(Get-CimInstance Win32_Process)
+${windowsProcessApi}
+$tree=@([MagiProcesses]::Snapshot())
 [Console]::Out.WriteLine('process snapshot collected')
 $start=[datetime]::Parse('${start}').ToUniversalTime()
 $end=[datetime]::Parse('${end}').ToUniversalTime()
-$root=$tree | Where-Object { $_.ProcessId -eq ${child.pid} }
+$root=[MagiProcesses]::Inspect(${child.pid})
 $targets=[System.Collections.Generic.List[object]]::new()
 $ids=[System.Collections.Generic.HashSet[int]]::new()
 [void]$ids.Add(${child.pid})
@@ -68,8 +70,10 @@ if ($root) {
 }
 do {
   $count=$ids.Count
-  foreach($item in $tree) {
-    if (!$ids.Contains([int]$item.ProcessId) -and $ids.Contains([int]$item.ParentProcessId) -and $item.CreationDate.ToUniversalTime() -ge $start -and ($item.ParentProcessId -ne ${child.pid} -or $item.CreationDate.ToUniversalTime() -le $end)) {
+  foreach($candidate in $tree) {
+    if ($ids.Contains([int]$candidate.ProcessId) -or !$ids.Contains([int]$candidate.ParentProcessId)) { continue }
+    $item=[MagiProcesses]::Inspect($candidate.ProcessId)
+    if ($item -and $item.ParentProcessId -eq $candidate.ParentProcessId -and $item.CreationDate.ToUniversalTime() -ge $start -and ($item.ParentProcessId -ne ${child.pid} -or $item.CreationDate.ToUniversalTime() -le $end)) {
       [void]$ids.Add([int]$item.ProcessId)
       $targets.Add($item)
     }
@@ -78,11 +82,7 @@ do {
 $targets.Reverse()
 [Console]::Out.WriteLine('owned targets: '+$targets.Count)
 foreach($item in $targets) {
-  $current=Get-CimInstance Win32_Process -Filter ('ProcessId = '+$item.ProcessId)
-  if($current -and $current.CreationDate -eq $item.CreationDate) {
-    $process=Get-Process -Id $item.ProcessId -ErrorAction SilentlyContinue
-    if($process) { $process.Kill(); if(!$process.WaitForExit(5000)) { throw 'Owned process did not exit' } }
-  }
+  [MagiProcesses]::Stop($item.ProcessId,$item.CreationDate)
 }
 `
   const kill = await spawnWithRetry(() =>

@@ -1,8 +1,10 @@
 import { test, expect } from "bun:test"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, mkdir, rm } from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
+import { pathToFileURL } from "node:url"
 import { owned, terminate, spawnWithRetry } from "../src/process"
+import { isolatedEnvironment } from "../script/native"
 
 test("transient launch denial retries before starting one real process", async () => {
   const calls = { count: 0, retries: 0, children: 0 }
@@ -94,14 +96,87 @@ test("termination cleans descendants after their launcher has already exited", a
       windowsHide: true,
     }),
   )
+  const peer = owned(
+    Bun.spawn([process.execPath, "-e", "setInterval(() => {}, 1000)"], {
+      stdout: "ignore",
+      stderr: "ignore",
+      detached: process.platform !== "win32",
+      windowsHide: true,
+    }),
+  )
   await (async () => {
     expect(await child.exited).toBe(42)
-    await terminate(child)
+    await Promise.all([terminate(child), terminate(child)])
     const stopped = await Bun.file(signal).text()
     await Bun.sleep(250)
     expect(await Bun.file(signal).text()).toBe(stopped)
+    expect(peer.exitCode).toBeNull()
   })().finally(async () => {
     await terminate(child)
+    await terminate(peer)
     await rm(root, { recursive: true, force: true })
   })
 }, 30000)
+
+test.skipIf(process.platform !== "win32")(
+  "Windows refuses a process whose creation time contradicts ownership",
+  async () => {
+    const started = Date.now()
+    const child = owned(
+      Bun.spawn([process.execPath, "-e", "setInterval(() => {}, 1000)"], {
+        stdout: "ignore",
+        stderr: "ignore",
+        windowsHide: true,
+      }),
+      started + 60000,
+    )
+    await (async () => {
+      await expect(terminate(child)).rejects.toThrow("PID was reused; refusing termination")
+      expect(child.exitCode).toBeNull()
+    })().finally(async () => {
+      owned(child, started)
+      await terminate(child)
+    })
+  },
+  30000,
+)
+
+test.skipIf(process.platform !== "win32")(
+  "Windows cleanup works in the native host's isolated environment",
+  async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "magi-cleanup-env-"))
+    await Promise.all(["home", "tmp"].map((name) => mkdir(path.join(root, name))))
+    const child = owned(
+      Bun.spawn(
+        [
+          process.execPath,
+          "-e",
+          `import {owned,terminate} from ${JSON.stringify(pathToFileURL(path.resolve(import.meta.dir, "../src/process.ts")).href)};
+const child=owned(Bun.spawn([process.execPath,'-e','process.exit(0)'],{stdout:'ignore',stderr:'ignore',windowsHide:true}));
+await child.exited; await terminate(child); console.log('isolated cleanup completed');`,
+        ],
+        {
+          cwd: root,
+          env: isolatedEnvironment(root),
+          stdin: "ignore",
+          stdout: "pipe",
+          stderr: "pipe",
+          windowsHide: true,
+        },
+      ),
+    )
+    await (async () => {
+      const result = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ])
+      expect(result[0], result[2]).toBe(0)
+      expect(result[1]).toContain("isolated cleanup completed")
+    })().finally(async () => {
+      await terminate(child)
+      await rm(root, { recursive: true, force: true })
+    })
+  },
+  30000,
+)
