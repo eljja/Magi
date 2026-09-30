@@ -53,7 +53,9 @@ async function terminateTree(child: Subprocess) {
   // a reused parent PID; each target is checked again immediately before termination.
   const script = `
 $ErrorActionPreference='Stop'
+[Console]::Out.WriteLine('cleanup started')
 $tree=@(Get-CimInstance Win32_Process)
+[Console]::Out.WriteLine('process snapshot collected')
 $start=[datetime]::Parse('${start}').ToUniversalTime()
 $end=[datetime]::Parse('${end}').ToUniversalTime()
 $root=$tree | Where-Object { $_.ProcessId -eq ${child.pid} }
@@ -74,6 +76,7 @@ do {
   }
 } while($count -ne $ids.Count)
 $targets.Reverse()
+[Console]::Out.WriteLine('owned targets: '+$targets.Count)
 foreach($item in $targets) {
   $current=Get-CimInstance Win32_Process -Filter ('ProcessId = '+$item.ProcessId)
   if($current -and $current.CreationDate -eq $item.CreationDate) {
@@ -93,12 +96,19 @@ foreach($item in $targets) {
         "-Command",
         script,
       ],
-      { stdout: "ignore", stderr: "pipe", windowsHide: true },
+      { stdin: "ignore", stdout: "pipe", stderr: "pipe", windowsHide: true },
     ),
   )
+  const started = Date.now()
   const timeout = setTimeout(() => kill.kill(), 20000)
-  const result = await Promise.all([kill.exited, new Response(kill.stderr).text()]).finally(() => clearTimeout(timeout))
-  if (result[0] !== 0) throw new Error("Could not terminate the owned process tree: " + result[1])
+  const result = await Promise.all([kill.exited, bounded(kill.stdout), bounded(kill.stderr)]).finally(() =>
+    clearTimeout(timeout),
+  )
+  if (result[0] !== 0)
+    throw new Error(
+      `Could not terminate the owned process tree (exit ${result[0]}, signal ${kill.signalCode}, ${Date.now() - started} ms): ` +
+        result.slice(1).join("\n"),
+    )
 }
 export async function bounded(stream: ReadableStream<Uint8Array>, limit = 32000) {
   const reader = stream.getReader()
