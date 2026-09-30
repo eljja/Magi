@@ -206,7 +206,7 @@ The real-provider harness records wall-clock progress, hourly reports, retries, 
 
 Keep `runtime-*` directories private: they contain temporary connection credentials and session data. Share only the redacted top-level JSON/JSONL/log evidence, never whole runtime directories or authentication files. Test fixtures prove specific behavior; they do not establish absence of defects.
 
-CI is configured for the minimum and pinned OpenCode versions on Windows, Linux and macOS; a local Windows run does not establish Linux/macOS results. The release workflow tests its packed artifact and uses npm trusted publishing when explicitly dispatched. A newly packed artifact needs its own qualification evidence. GUI viewer refresh and OS-service startup require deployment-specific checks.
+CI is configured for the minimum and current npm latest OpenCode versions on Windows, Linux and macOS; a local Windows run does not establish Linux/macOS results. The release workflow tests its packed artifact and uses npm trusted publishing when explicitly dispatched. After npm accepts the upload, `bun script/registry-check.ts` waits for the exact public version and latest tag, downloads the archive anonymously, and compares its integrity and SHA-256 with the qualified artifact. A pending registry response is not publication success. A newly packed artifact needs its own qualification evidence. GUI viewer refresh and OS-service startup require deployment-specific checks.
 
 The dependency audit allows only the documented upstream Low Babel advisory. That is an **unpatched exception**, not a fix or proof of runtime unreachability. The command fails on other registry-reported advisories; it cannot guarantee that unknown vulnerabilities are absent.
 
