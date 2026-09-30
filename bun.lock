@@ -379,7 +379,7 @@
     },
     "packages/oh-my-openmagi": {
       "name": "oh-my-magi",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "bin": {
         "oh-my-magi": "./dist/cli.js",
         "omm": "./dist/cli.js",

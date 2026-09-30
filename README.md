@@ -6,7 +6,7 @@
 
 **Give one goal to Magi. Three independent council members deliberate. The real OmO agents execute.**
 
-An OpenCode plugin built on the unmodified `oh-my-opencode@4.19.4` runtime. **oh-my-magi 0.2.0** integrates the latest continuous runtime from [packages/oh-my-openmagi](packages/oh-my-openmagi). The old implementation is retained as a private legacy workspace.
+An OpenCode plugin built on the unmodified `oh-my-opencode@4.19.4` runtime. **oh-my-magi 0.2.1** integrates the latest continuous runtime from [packages/oh-my-openmagi](packages/oh-my-openmagi). The old implementation is retained as a private legacy workspace.
 
 - One additional primary-agent choice: **Magi**. Melchior, Balthasar and Casper are real, hidden subagents.
 - Independent opening opinions followed by three final votes. Two approvals pass only after all three valid votes arrive; concrete security/data-loss objections require revision.
@@ -15,7 +15,7 @@ An OpenCode plugin built on the unmodified `oh-my-opencode@4.19.4` runtime. **oh
 - Current votes, cumulative history and reports in ordinary Markdown files, with no additional UI.
 - Reports every **one hour** by default, independently of ongoing work. Change the interval with commands or Korean conversation.
 
-[한국어](README.ko.md) · [Installation and configuration](packages/oh-my-openmagi/README.md) · [0.2.0 release evidence (Korean)](docs/OH-MY-MAGI-0.2.0.ko.md)
+[한국어](README.ko.md) · [Installation and configuration](packages/oh-my-openmagi/README.md) · [0.2.1 release evidence (Korean)](docs/OH-MY-MAGI-0.2.0.ko.md)
 
 <p align="center">
   <img src="assets/magi-council.svg" alt="MELCHIOR-1, BALTHASAR-2 and CASPER-3" width="760">
@@ -26,13 +26,13 @@ An OpenCode plugin built on the unmodified `oh-my-opencode@4.19.4` runtime. **oh
 For a new installation:
 
 ```sh
-opencode plugin oh-my-magi@0.2.0 --global
+opencode plugin oh-my-magi@0.2.1 --global
 ```
 
 For existing OmO/Magi registrations, stop the previous goal and host, then migrate:
 
 ```sh
-bun install --global oh-my-magi@0.2.0
+bun install --global oh-my-magi@0.2.1
 oh-my-magi install --global --project /absolute/project
 ```
 
@@ -53,7 +53,7 @@ bun dist/cli.js install --project /absolute/project --plugin /absolute/Magi/pack
 
 Restart OpenCode, select **Magi** and describe your goal. The installer backs up recognized older registrations and preserves model configuration. Add `--global` when migrating the global OpenCode configuration.
 
-The unified release is **oh-my-magi 0.2.0**. See the [release record](docs/OH-MY-MAGI-0.2.0.ko.md) for publication status and evidence for this exact version.
+The unified release is **oh-my-magi 0.2.1**. See the [release record](docs/OH-MY-MAGI-0.2.0.ko.md) for publication status and evidence for this exact version.
 
 Use `/magi stop`, `/magi resume`, `/magi status`, `/magi report interval 1h`, `/magi report now` and `/magi report status`. Read `.magi/VOTES-LATEST.md`, `.magi/VOTES.md`, `.magi/COUNCIL.md` and `.magi/LATEST-REPORT.md` in the existing file viewer.
 

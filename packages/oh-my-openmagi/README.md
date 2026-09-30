@@ -2,7 +2,7 @@
 
 One human conversation. Three independent council members. Continuous execution by the real OmO workforce.
 
-Version **0.2.0** unifies the latest OpenMagi implementation under the public **oh-my-magi** package name. Requires **Bun ≥1.3.13** and **OpenCode ≥1.18.29, <2**. The integration pins **oh-my-opencode 4.19.4**.
+Version **0.2.1** unifies the latest OpenMagi implementation under the public **oh-my-magi** package name. Requires **Bun ≥1.3.13** and **OpenCode ≥1.18.29, <2**. The integration pins **oh-my-opencode 4.19.4**.
 
 ## Upgrade from 0.1.x or the OpenMagi development name
 
@@ -30,11 +30,11 @@ In OmO 4.19.4, `.omo/omo.jsonc` keeps `agents` and `categories` at the root; Ope
 For an existing OmO/Magi installation, migrate with:
 
 ```sh
-bun install --global oh-my-magi@0.2.0
+bun install --global oh-my-magi@0.2.1
 oh-my-magi install --global --project /absolute/project
 ```
 
-For a new installation without old registrations, OpenCode's native `opencode plugin oh-my-magi@0.2.0 --global` also works.
+For a new installation without old registrations, OpenCode's native `opencode plugin oh-my-magi@0.2.1 --global` also works.
 
 ## How it runs
 
@@ -202,7 +202,7 @@ bun run release:check
 
 `--model` accepts a currently verified OpenRouter free tool model. The local gateway searches the live catalog for each permitted model, requires an exact ID match and current zero pricing, enforces zero provider price ceilings, disables routing fallbacks, rejects paid plugins/modalities and limits requests. A partial, missing or merely similar search result cannot authorize a call. The child receives only a temporary local gateway token. Quota failures wait; they never trigger a paid fallback or credit purchase. A duration/request boundary is an explicit test-induced stop, separate from Magi ending work by itself.
 
-The real-provider harness records wall-clock progress, hourly reports, retries, provider usage and supervisor recovery in a disposable parser project with an independent checker. It verifies the required OmO agents and free model overrides at startup, on native process changes and before final judgment. Missing agents or incorrect models fail the run. The optional endurance profile requires six real hours, at least five hourly reports, verified progress spanning three hours, native-host crash recovery and repair of an injected regression. `release:check` checks that separate endurance profile for an exact artifact. It was not run or passed for this 0.2.0 naming-integration release. Results from another project or an earlier artifact are not this version's validation evidence. The release uses its own type, regression, packed-install and native integration checks.
+The real-provider harness records wall-clock progress, hourly reports, retries, provider usage and supervisor recovery in a disposable parser project with an independent checker. It verifies the required OmO agents and free model overrides at startup, on native process changes and before final judgment. Missing agents or incorrect models fail the run. The optional endurance profile requires six real hours, at least five hourly reports, verified progress spanning three hours, native-host crash recovery and repair of an injected regression. `release:check` checks that separate endurance profile for an exact artifact. It was not run or passed for this 0.2.1 naming-integration release. Results from another project or an earlier artifact are not this version's validation evidence. The release uses its own type, regression, packed-install and native integration checks.
 
 Keep `runtime-*` directories private: they contain temporary connection credentials and session data. Share only the redacted top-level JSON/JSONL/log evidence, never whole runtime directories or authentication files. Test fixtures prove specific behavior; they do not establish absence of defects.
 

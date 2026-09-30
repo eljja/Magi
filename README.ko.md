@@ -6,7 +6,7 @@
 
 **Magi에게만 업무를 지시하고, 세 인격이 심의하며, 기존 OmO가 실제로 수행합니다.**
 
-`oh-my-opencode@4.19.4`를 그대로 사용하는 OpenCode 플러그인입니다. 최신 지속 운영 구현을 **oh-my-magi 0.2.0**으로 통합합니다. 소스는 [packages/oh-my-openmagi](packages/oh-my-openmagi)에 있으며, 이전 구현은 비공개 레거시 workspace로 보존합니다.
+`oh-my-opencode@4.19.4`를 그대로 사용하는 OpenCode 플러그인입니다. 최신 지속 운영 구현을 **oh-my-magi 0.2.1**으로 통합합니다. 소스는 [packages/oh-my-openmagi](packages/oh-my-openmagi)에 있으며, 이전 구현은 비공개 레거시 workspace로 보존합니다.
 
 - GUI/TUI 선택 목록에는 **Magi 한 개**를 추가합니다. Melchior·Balthasar·Casper는 숨겨진 실제 하위 에이전트입니다.
 - 세 인격의 초기 의견과 최종 표를 각각 받고, 세 유효 표가 모인 뒤 2표 이상 찬성이면 실행합니다. 구체적인 보안·데이터 손실 위험은 보완 후 재심의합니다.
@@ -15,7 +15,7 @@
 - 투표·누적 이력·상세 의견은 기존 문서창에서 보는 Markdown으로 제공합니다. 추가 UI를 설치하지 않습니다.
 - 기본 **1시간마다** 작업 중에도 현재 상황을 보고합니다. 명령이나 한국어 대화로 간격을 바꿀 수 있습니다.
 
-[English](README.md) · [설치·전체 설정](packages/oh-my-openmagi/README.md) · [0.2.0 통합 배포 기록](docs/OH-MY-MAGI-0.2.0.ko.md) · [확정한 설계](docs/OH-MY-OPENMAGI.ko.md)
+[English](README.md) · [설치·전체 설정](packages/oh-my-openmagi/README.md) · [0.2.1 통합 배포 기록](docs/OH-MY-MAGI-0.2.0.ko.md) · [확정한 설계](docs/OH-MY-OPENMAGI.ko.md)
 
 <p align="center">
   <img src="assets/magi-council.svg" alt="MELCHIOR-1, BALTHASAR-2, CASPER-3로 구성된 Magi 삼원 의회 컨셉" width="760">
@@ -26,13 +26,13 @@
 처음 설치하는 환경에서는 다음 명령을 사용합니다.
 
 ```sh
-opencode plugin oh-my-magi@0.2.0 --global
+opencode plugin oh-my-magi@0.2.1 --global
 ```
 
 이미 OmO나 구버전 Magi가 등록되어 있다면 이전 목표와 호스트를 중지한 후 설치 도구로 전환합니다.
 
 ```sh
-bun install --global oh-my-magi@0.2.0
+bun install --global oh-my-magi@0.2.1
 oh-my-magi install --global --project /대상/프로젝트
 ```
 
@@ -53,7 +53,7 @@ bun dist/cli.js install --project /대상/프로젝트 --plugin /Magi/packages/o
 
 OpenCode를 재시작하고 **Magi**를 선택해 목표를 입력합니다. 예전 OmO/Magi 등록은 설치 도구가 백업하고 정리하며, 모델 설정은 보존합니다. 전역 설치를 전환할 때는 `--global`을 추가합니다.
 
-현재 공개 배포 대상은 **oh-my-magi 0.2.0**입니다. 정확한 게시·검증 상태는 [통합 배포 기록](docs/OH-MY-MAGI-0.2.0.ko.md)을 확인하세요.
+현재 공개 배포 대상은 **oh-my-magi 0.2.1**입니다. 정확한 게시·검증 상태는 [통합 배포 기록](docs/OH-MY-MAGI-0.2.0.ko.md)을 확인하세요.
 
 ## 자주 쓰는 명령
 

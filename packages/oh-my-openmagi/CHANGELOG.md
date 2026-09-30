@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Resolve the project root and verification working directory using the same filesystem API. Windows 8.3 aliases (such as RUNNER~1) no longer cause an in-project command to be rejected as outside the project.
+- Exercise a real Windows short-path alias and retain the rejection of verification commands outside the project.
+- Invoke native smoke scripts directly in the aggregate validator instead of adding an intermediate Bun script launcher.
+
 ## 0.2.0
 
 - Publish the latest durable council/OmO implementation as **oh-my-magi**, continuing the existing npm package.

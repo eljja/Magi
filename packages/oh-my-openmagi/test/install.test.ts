@@ -23,7 +23,7 @@ test("migration preserves comments, models and unrelated plugins, backs up origi
     const content = await Bun.file(path.join(root, "opencode.jsonc")).text()
     expect(content).toContain("// keep this comment")
     expect(parse(content).model).toBe("custom/model")
-    expect(parse(content).plugin).toEqual([["another-plugin", { keep: true }], "oh-my-magi@0.2.0"])
+    expect(parse(content).plugin).toEqual([["another-plugin", { keep: true }], "oh-my-magi@0.2.1"])
     expect(await Bun.file(path.join(result.backup, "opencode.jsonc")).text()).toBe(original)
     expect(parse(await Bun.file(path.join(root, ".opencode", "opencode.json")).text()).plugin).toEqual([])
     expect((await install(root)).files).toEqual([])
@@ -60,7 +60,7 @@ test("local file registrations are migrated and array roots are rejected before 
     expect(parse(await Bun.file(path.join(root, "opencode.json")).text()).plugin).toEqual([
       "oh-my-magi-not-related",
       ["unrelated", { keep: true }],
-      "oh-my-magi@0.2.0",
+      "oh-my-magi@0.2.1",
     ])
   })().finally(() => rm(root, { recursive: true, force: true }))
 })

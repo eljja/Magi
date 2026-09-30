@@ -82,9 +82,9 @@ class Transport implements Host {
     this.reports.push(report)
   }
 }
-async function fixture() {
+async function fixture(alias?: (directory: string) => Promise<string>) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "openmagi-unit-"))
-  const store = new Store(directory, path.join(directory, "data"))
+  const store = new Store(alias ? await alias(directory) : directory, path.join(directory, "data"))
   const host = new Transport()
   const settings = configSchema.parse({ resilience: { retryBaseMs: 10, retryMaxMs: 100, requestTimeoutMs: 100000 } })
   const engine = new Engine(store, host, async () => settings)
@@ -140,6 +140,48 @@ describe("human controls", () => {
   })
 })
 describe("council and execution", () => {
+  test.skipIf(process.platform !== "win32")(
+    "verification accepts the actual Windows short-name project alias",
+    async () => {
+      const { engine, store, settings } = await fixture(async (directory) => {
+        const result = Bun.spawnSync(
+          [
+            "powershell.exe",
+            "-NoProfile",
+            "-Command",
+            "Add-Type -TypeDefinition 'using System.Text; using System.Runtime.InteropServices; public static class MagiShortPath { [DllImport(\"kernel32.dll\", CharSet=CharSet.Unicode)] public static extern uint GetShortPathName(string path, StringBuilder output, uint size); }'; $outputPath=[Text.StringBuilder]::new(4096); if ([MagiShortPath]::GetShortPathName($env:MAGI_TEST_DIRECTORY,$outputPath,4096) -eq 0) { exit 1 }; $outputPath.ToString()",
+          ],
+          { env: { ...process.env, MAGI_TEST_DIRECTORY: directory }, windowsHide: true },
+        )
+        expect(result.exitCode).toBe(0)
+        const short = result.stdout.toString().trim()
+        expect(short).toContain("~")
+        return short
+      })
+      settings.verification = [
+        { name: "short-path check", command: [process.execPath, "-e", "console.log('verified')"], timeoutMs: 5000 },
+      ]
+      store.update((state) => ({ ...state, phase: "verifying" }))
+      await engine.tick()
+      expect(store.read().progress[0]?.checks[0]?.passed).toBe(true)
+      expect(store.read().cycle).toBe(2)
+    },
+  )
+  test("verification still rejects a working directory outside the project", async () => {
+    const { engine, store, settings } = await fixture()
+    settings.verification = [
+      {
+        name: "outside",
+        cwd: "..",
+        command: [process.execPath, "-e", "throw new Error('must not run')"],
+        timeoutMs: 5000,
+      },
+    ]
+    store.update((state) => ({ ...state, phase: "verifying" }))
+    await engine.tick()
+    expect(store.read().error).toContain("Verification cwd must be inside the project")
+    expect(store.read().progress).toHaveLength(0)
+  })
   test("unavailable verification executable waits and resumes checks without agent replay", async () => {
     const { engine, store, host, settings, directory } = await fixture()
     settings.verification = [

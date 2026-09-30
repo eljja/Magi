@@ -1,4 +1,5 @@
 import { evidence, run, releaseIdentity } from "./evidence"
+import compatibility from "../compatibility.json"
 
 const log = await evidence("qualification")
 await (async () => {
@@ -10,8 +11,8 @@ await (async () => {
   await run(log, "pack", [process.execPath, "run", "pack:check"])
   await run(log, "audit", [process.execPath, "script/audit.ts"])
   const release = await releaseIdentity()
-  for (const version of ["1.18.29", "1.18.31"]) {
-    await run(log, "native-" + version, [process.execPath, "run", "smoke"], {
+  for (const version of [compatibility.opencodeMinimum, compatibility.opencodeTested]) {
+    await run(log, "native-" + version, [process.execPath, "script/smoke.ts"], {
       env: {
         ...process.env,
         OPENMAGI_OPENCODE_VERSION: version,

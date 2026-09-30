@@ -461,8 +461,10 @@ export class Engine {
     const results: Check[] = []
     for (const check of settings.verification) {
       if (!this.alive(generation)) break
-      const cwd = await realpath(path.resolve(this.store.directory, check.cwd || "."))
-      const relative = path.relative(this.store.directory, cwd)
+      // Bun on Windows can preserve 8.3 aliases in realpathSync; resolve both sides identically.
+      const root = await realpath(this.store.directory)
+      const cwd = await realpath(path.resolve(root, check.cwd || "."))
+      const relative = path.relative(root, cwd)
       if (relative.startsWith("..") || path.isAbsolute(relative))
         throw new Error("Verification cwd must be inside the project")
       const child = await spawnWithRetry(
