@@ -7,6 +7,24 @@ export function isolatedEnvironment(root: string): NodeJS.ProcessEnv {
     PATH: process.env.PATH || "",
     SystemRoot: process.env.SystemRoot || "",
     COMSPEC: process.env.COMSPEC || "",
+    // Keep Windows runtime/module discovery while isolating user state and credentials.
+    ...(process.platform === "win32"
+      ? Object.fromEntries(
+          [
+            "SystemDrive",
+            "windir",
+            "ProgramFiles",
+            "ProgramFiles(x86)",
+            "CommonProgramFiles",
+            "CommonProgramFiles(x86)",
+            "PSModulePath",
+            "PROCESSOR_ARCHITECTURE",
+            "OS",
+          ]
+            .filter((name) => process.env[name] !== undefined)
+            .map((name) => [name, process.env[name]]),
+        )
+      : {}),
     TEMP: path.join(root, "tmp"),
     TMP: path.join(root, "tmp"),
     TMPDIR: path.join(root, "tmp"),

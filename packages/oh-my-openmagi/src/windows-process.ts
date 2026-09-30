@@ -1,6 +1,10 @@
 // Toolhelp and process handles avoid a dependency on the WMI/CIM service.
 // Termination checks creation time and uses that same handle, preventing PID reuse races.
 export const windowsProcessApi = `
+Import-Module -Name ($PSHOME+'/Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1') -ErrorAction Stop
+[Console]::Out.WriteLine('system utility module loaded')
+Import-Module -Name ($PSHOME+'/Modules/Microsoft.PowerShell.Management/Microsoft.PowerShell.Management.psd1') -ErrorAction Stop
+[Console]::Out.WriteLine('system management module loaded')
 Add-Type -TypeDefinition @'
 using System;
 using System.Collections.Generic;
@@ -80,4 +84,5 @@ public static class MagiProcesses {
   }
 }
 '@
+[Console]::Out.WriteLine('native process API loaded')
 `
