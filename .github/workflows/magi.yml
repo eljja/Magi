@@ -18,50 +18,7 @@ permissions:
 
 jobs:
   plugin:
-    name: oh-my-magi (${{ matrix.os }}, ${{ matrix.opencode }})
-    timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        opencode: ["1.18.29", "latest"]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.13
-      - run: bun install --frozen-lockfile --ignore-scripts
-      - name: Plugin behavioral tests
-        run: bun test
-        working-directory: packages/oh-my-magi
-      - name: Current SDK typecheck
-        run: bun typecheck
-        working-directory: packages/oh-my-magi
-      - name: Build publishable plugin
-        run: bun run build
-        working-directory: packages/oh-my-magi
-      - name: Pack public artifact
-        run: bun pm pack
-        working-directory: packages/oh-my-magi
-      - name: Current OpenCode server smoke
-        run: bun run smoke
-        working-directory: packages/oh-my-magi
-        env:
-          MAGI_OPENCODE_VERSION: ${{ matrix.opencode }}
-          MAGI_SMOKE_EXISTING_OMO: "true"
-          MAGI_SMOKE_NO_GIT: "true"
-          MAGI_SMOKE_ROOT: ${{ runner.temp }}
-      - name: Preserve smoke diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: smoke-${{ matrix.os }}-${{ matrix.opencode }}
-          path: |
-            ${{ runner.temp }}/magi-smoke-*/stdout.log
-            ${{ runner.temp }}/magi-smoke-*/stderr.log
-            ${{ runner.temp }}/magi-smoke-*/execution-evidence.json
-          if-no-files-found: ignore
+    uses: ./.github/workflows/openmagi.yml
 
   core:
     name: core checks

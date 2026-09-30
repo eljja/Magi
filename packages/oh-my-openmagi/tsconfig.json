@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["bun"],
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true
+  },
+  "include": ["src/**/*.ts", "bin/**/*.ts", "test/**/*.ts", "script/**/*.ts"]
+}

@@ -12,12 +12,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validation:
+    uses: ./.github/workflows/openmagi.yml
   publish:
+    needs: validation
     if: github.repository == 'eljja/Magi'
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: packages/oh-my-magi
+        working-directory: packages/oh-my-openmagi
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -29,11 +32,15 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm install --global npm@11
       - run: bun install --frozen-lockfile --ignore-scripts
+        working-directory: .
       - run: bun typecheck
       - run: bun test
-      - run: bun run build
+      - run: bun run pack:check
+      - run: bun script/audit.ts
       - run: bun run smoke
       - name: Publish reviewed package using npm trusted publishing
-        run: npm publish --access public --provenance
+        run: |
+          ARCHIVE=$(bun -e 'console.log((await Bun.file("artifacts/release.json").json()).archive)')
+          npm publish "$ARCHIVE" --ignore-scripts --access public --provenance
       - name: Verify public registry visibility
         run: npm view oh-my-magi version --registry=https://registry.npmjs.org

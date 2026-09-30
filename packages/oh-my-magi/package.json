@@ -1,5 +1,6 @@
 {
-  "name": "oh-my-magi",
+  "name": "oh-my-magi-legacy",
+  "private": true,
   "version": "0.1.1",
   "description": "Autonomous multi-agent council plugin for OpenCode, featuring Melchior, Balthasar, and Casper.",
   "type": "module",
@@ -18,10 +19,6 @@
     "type": "git",
     "url": "https://github.com/eljja/Magi.git",
     "directory": "packages/oh-my-magi"
-  },
-  "bin": {
-    "oh-my-magi": "./bin/cli.ts",
-    "omm": "./bin/cli.ts"
   },
   "scripts": {
     "build": "bun script/build.ts",
